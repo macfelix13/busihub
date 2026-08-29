@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  database:
+    name: Database migrations & security tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: busihub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGPASSWORD: postgres
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: busihub_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply auth/role stub (approximates Supabase on plain Postgres)
+        run: psql -v ON_ERROR_STOP=1 -f tests/db-harness/00_stub_supabase.sql
+
+      - name: Apply migrations in order
+        run: |
+          for f in supabase/migrations/*.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Load dev seed data (fixture for the tests below)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/seed.sql
+
+      - name: Run tenant isolation & RBAC security tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/tenant_isolation_and_rbac.sql
+
+  app:
+    name: Typecheck, lint, build
+    runs-on: ubuntu-latest
+    env:
+      # Build-time placeholders only — no real secret is needed to
+      # typecheck/lint/build; a real project is required at deploy time
+      # (see docs/DEPLOYMENT.md) via Vercel's environment variables.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+      PIN_SESSION_SECRET: placeholder-secret-placeholder-secret-placeholder
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit & integration tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

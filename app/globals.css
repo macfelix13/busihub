@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+}
+
+.dark {
+  --background: 222 47% 8%;
+  --foreground: 210 20% 96%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Touch targets: nothing interactive on the POS should be smaller than this. */
+:root {
+  --min-touch-target: 44px;
+}

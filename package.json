@@ -1,0 +1,52 @@
+{
+  "name": "busihub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Busihub — multi-tenant Point-of-Sale & business management SaaS",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed": "node scripts/db-seed.mjs"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@supabase/supabase-js": "2.45.4",
+    "@supabase/ssr": "0.5.1",
+    "zod": "3.23.8",
+    "clsx": "2.1.1",
+    "tailwind-merge": "2.5.2",
+    "date-fns": "3.6.0",
+    "bcryptjs": "2.4.3",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "pg": "8.12.0",
+    "@types/pg": "8.11.6",
+    "typescript": "5.5.4",
+    "@types/node": "20.14.15",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@types/bcryptjs": "2.4.6",
+    "tailwindcss": "3.4.10",
+    "postcss": "8.4.41",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.15",
+    "vitest": "2.0.5",
+    "@vitejs/plugin-react": "4.3.1",
+    "@playwright/test": "1.46.1",
+    "dotenv": "16.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

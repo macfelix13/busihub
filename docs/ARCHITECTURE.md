@@ -466,6 +466,24 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-08-30 — Migration 0019 fixes a bug 0018 shipped to production: both
+  PIN functions pinned `set search_path = public, pg_temp` (the correct
+  habit for SECURITY DEFINER) but Supabase installs pgcrypto into an
+  `extensions` schema, so `gen_salt`/`crypt` were not on the path and
+  setting a PIN failed with "function gen_salt(unknown, integer) does not
+  exist". Caught in the browser within seconds of the feature being tried;
+  invisible to typecheck, lint, unit tests, the build, and all five
+  database suites.
+  The root cause was the harness, not the migration: it did a plain
+  `create extension pgcrypto`, which lands in `public`, so every local
+  test ran against a database more forgiving than the real one.
+  tests/db-harness/00_stub_supabase.sql now installs extensions into an
+  `extensions` schema and sets the database search_path to match Supabase,
+  which reproduces the production failure locally — confirmed by watching
+  the old function fail there before 0019 made it pass. Any future
+  search_path mistake of this shape now fails in CI instead of in
+  production.
+
 - 2026-08-30 — Migration 0018: two real PIN vulnerabilities closed, found
   while building the till login Phase 2 deferred here — both by querying a
   live database as a Cashier, not by reading the schema.

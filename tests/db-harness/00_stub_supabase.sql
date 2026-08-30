@@ -1,4 +1,4 @@
--- NOT part of the real schema. Local-only stub that approximates just
+﻿-- NOT part of the real schema. Local-only stub that approximates just
 -- enough of Supabase's auth schema/roles to let us apply the real
 -- migrations against a plain local Postgres and exercise RLS, since this
 -- sandbox has no network access to a real Supabase project.
@@ -15,6 +15,29 @@ begin
     create role service_role nologin bypassrls;
   end if;
 end $$;
+
+-- Supabase installs extensions into a dedicated `extensions` schema, not
+-- into `public`, and sets the database search_path to include it. A plain
+-- `create extension pgcrypto` here would land in public instead, which is
+-- NOT what production looks like — and that difference hides a whole class
+-- of bug: a SECURITY DEFINER function pinning `set search_path = public`
+-- finds crypt()/gen_salt() locally and fails in production with
+-- "function gen_salt(unknown, integer) does not exist". That exact bug
+-- shipped once (fixed in 0019) precisely because this harness was more
+-- forgiving than the real thing. Mirroring the layout here means it
+-- cannot happen again unnoticed.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+create extension if not exists citext with schema extensions;
+
+do $$
+begin
+  -- Database-level, so it applies to the separate psql connection each
+  -- migration file runs in. Matches Supabase's own default.
+  execute format('alter database %I set search_path = public, extensions', current_database());
+end $$;
+
+grant usage on schema extensions to anon, authenticated, service_role;
 
 create schema auth;
 

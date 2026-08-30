@@ -1,0 +1,130 @@
+﻿import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasPermission } from "@/lib/rbac/guard";
+import { PERMISSIONS } from "@/lib/rbac/permissions";
+import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Button } from "@/components/ui/button";
+
+export const metadata = { title: "Suppliers" };
+
+export default async function SuppliersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q, status } = await searchParams;
+  const activeStatus = status === "archived" ? "archived" : "active";
+
+  const supabase = await createServerSupabaseClient();
+  const businessId = await getCurrentBusinessId(supabase);
+  const [canView, canManage] = await Promise.all([
+    hasPermission(supabase, businessId, PERMISSIONS.SUPPLIERS_VIEW),
+    hasPermission(supabase, businessId, PERMISSIONS.SUPPLIERS_MANAGE),
+  ]);
+
+  // Cosmetic — RLS returns nothing anyway, but an empty table reads as
+  // "you have no suppliers", which is a different and misleading message.
+  if (!canView) {
+    redirect("/dashboard");
+  }
+
+  let query = supabase
+    .from("suppliers")
+    .select("id, name, contact_name, phone, email, payment_terms, status")
+    .eq("status", activeStatus)
+    .order("name", { ascending: true });
+
+  if (q && q.trim().length > 0) {
+    query = query.ilike("name", `%${q.trim()}%`);
+  }
+
+  const { data: suppliers, error } = await query;
+
+  if (error) {
+    console.error("SuppliersPage: query failed", error);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Suppliers</h1>
+          <p className="text-neutral-500">Businesses you buy stock from.</p>
+        </div>
+        {canManage ? (
+          <Link href="/suppliers/new">
+            <Button>Add supplier</Button>
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+          <Link
+            href={{ pathname: "/suppliers", query: { ...(q ? { q } : {}) } }}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+            }`}
+          >
+            Active
+          </Link>
+          <Link
+            href={{ pathname: "/suppliers", query: { status: "archived", ...(q ? { q } : {}) } }}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+            }`}
+          >
+            Archived
+          </Link>
+        </div>
+        <form className="flex flex-wrap gap-2" action="/suppliers">
+          {activeStatus === "archived" ? <input type="hidden" name="status" value="archived" /> : null}
+          <input
+            type="search"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Search by name…"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-56"
+          />
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
+      </div>
+
+      {error ? (
+        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          Couldn&apos;t load suppliers. Please refresh the page.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            {suppliers && suppliers.length > 0 ? (
+              suppliers.map((supplier) => (
+                <li key={supplier.id}>
+                  <Link
+                    href={`/suppliers/${supplier.id}`}
+                    className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                  >
+                    <div>
+                      <span className="font-medium">{supplier.name}</span>
+                      <p className="mt-0.5 text-sm text-neutral-500">
+                        {[supplier.contact_name, supplier.phone].filter(Boolean).join(" · ") || "No contact details"}
+                      </p>
+                    </div>
+                    <p className="text-sm text-neutral-500">{supplier.payment_terms || ""}</p>
+                  </Link>
+                </li>
+              ))
+            ) : (
+              <li className="px-5 py-8 text-center text-sm text-neutral-500">
+                {activeStatus === "archived" ? "No archived suppliers." : "No suppliers yet."}
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

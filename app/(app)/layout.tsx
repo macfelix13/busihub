@@ -58,12 +58,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
-  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory] = await Promise.all([
-    hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
-    hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
-    hasPermission(supabase, profile.business_id!, PERMISSIONS.PRODUCTS_VIEW),
-    hasPermission(supabase, profile.business_id!, PERMISSIONS.INVENTORY_VIEW),
-  ]);
+  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers] =
+    await Promise.all([
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.PRODUCTS_VIEW),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.INVENTORY_VIEW),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.SUPPLIERS_VIEW),
+    ]);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
@@ -85,6 +87,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/inventory" className="hover:text-neutral-900 dark:hover:text-white">
               Inventory
             </Link>
+          ) : null}
+          {canViewSuppliers ? (
+            <>
+              <Link href="/purchase-orders" className="hover:text-neutral-900 dark:hover:text-white">
+                Orders
+              </Link>
+              <Link href="/suppliers" className="hover:text-neutral-900 dark:hover:text-white">
+                Suppliers
+              </Link>
+            </>
           ) : null}
           {canManageBranches ? (
             <Link href="/branches" className="hover:text-neutral-900 dark:hover:text-white">

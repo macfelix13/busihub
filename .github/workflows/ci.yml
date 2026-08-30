@@ -49,6 +49,9 @@ jobs:
       - name: Run inventory ledger & permission tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/inventory.sql
 
+      - name: Run purchasing (supplier/PO) tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/purchasing.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

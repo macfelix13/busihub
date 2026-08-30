@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–6 complete (see the roadmap below).** This document is
+Status: **Phases 0–7 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -437,7 +437,7 @@ one section of this document expected to change often.
 | 4 | Business & branch management UI/API | **done — verified end-to-end on a real machine + CI** |
 | 5 | Products (incl. variants, barcodes) | **done — verified, see tests/security/ + live browser testing** |
 | 6 | Inventory (stock levels, movements ledger, receive/adjust/count) | **done — verified, see tests/security/inventory.sql** (transfers & low-stock alerts deferred) |
-| 7 | Suppliers & purchasing | pending |
+| 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
 | 8 | Customers | pending |
 | 9 | POS core (online, cash) | pending |
 | 10 | Payments incl. Paystack | pending |
@@ -465,6 +465,35 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 7 (suppliers & purchasing) complete. Migration 0016
+  adds `suppliers`, `purchase_orders` and `purchase_order_items`, and
+  closes the loop with Phase 6: receiving against an approved order writes
+  the `inventory_movements` rows itself, tagged with
+  `reference_type='purchase_order'`, so stock that arrived this way is
+  traceable to a supplier, a price and an authorisation. Agreed scope:
+  approval required before receiving, partial deliveries allowed.
+  Enforcement is in the database — `enforce_purchase_order_rules()`
+  validates the status machine (rejecting e.g. draft→received or reviving
+  a cancelled order), requires `purchase_orders.approve` to approve or
+  cancel and `inventory.receive` to move into a received state, and
+  freezes an order's terms and lines once it leaves draft; a
+  `quantity_received <= quantity_ordered` constraint refuses
+  over-receipts; `receive_purchase_order()` does the whole delivery in one
+  transaction. Verified against Postgres — `tests/security/purchasing.sql`
+  (24 assertions incl. approval bypass via raw UPDATE, over-receipt
+  rollback, frozen approved orders, cancellation being terminal,
+  per-business PO numbering, and cross-tenant isolation). Wired into CI.
+- 2026-08-30 — Hardened both new security suites after finding they could
+  report a false PASS: `raise exception 'TEST FAILED'` defaults to
+  SQLSTATE P0001, which several blocks also catch as the *expected*
+  rejection — so an operation that wrongly succeeded would have had its
+  own failure message swallowed and printed as a pass. All such raises now
+  carry a SQLSTATE no handler catches. Confirmed by deliberately breaking
+  three guarantees (the approval permission check, the over-receipt
+  constraint, and the negative-stock guard) and checking each suite fails
+  with a non-zero exit — it does; before the fix, the first would have
+  passed.
 
 - 2026-08-30 — Phase 6 (inventory, core stock tracking) complete. Migration
   0015 adds an append-only `inventory_movements` ledger plus a

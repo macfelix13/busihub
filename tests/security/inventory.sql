@@ -66,7 +66,7 @@ begin
   select * into r from t_ids;
   if r.biz_a is null or r.biz_b is null or r.branch_a is null or r.branch_b is null or r.variant_a is null then
     raise exception 'TEST FIXTURE BROKEN: t_ids has a null (biz_a=%, biz_b=%, branch_a=%, branch_b=%, variant_a=%)',
-      r.biz_a, r.biz_b, r.branch_a, r.branch_b, r.variant_a;
+      r.biz_a, r.biz_b, r.branch_a, r.branch_b, r.variant_a using errcode = 'ZZ999';
   end if;
 end $$;
 
@@ -107,7 +107,7 @@ begin
     join permissions p on p.id = rp.permission_id
     where rp.role_id = v_cashier_role_id and p.key = 'inventory.view'
   ) then
-    raise exception 'TEST FIXTURE BROKEN: seeded Cashier role does not hold inventory.view';
+    raise exception 'TEST FIXTURE BROKEN: seeded Cashier role does not hold inventory.view' using errcode = 'ZZ999';
   end if;
 end $$;
 
@@ -126,7 +126,7 @@ begin
 
   select quantity into v_qty from stock_levels where branch_id = v_branch and variant_id = v_variant;
   if v_qty is distinct from 10 then
-    raise exception 'TEST FAILED: expected 10 on hand after receiving 10, got %', v_qty;
+    raise exception 'TEST FAILED: expected 10 on hand after receiving 10, got %', v_qty using errcode = 'ZZ999';
   end if;
 
   insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
@@ -134,7 +134,7 @@ begin
 
   select quantity into v_qty from stock_levels where branch_id = v_branch and variant_id = v_variant;
   if v_qty is distinct from 15 then
-    raise exception 'TEST FAILED: expected 15 after a second receipt of 5, got %', v_qty;
+    raise exception 'TEST FAILED: expected 15 after a second receipt of 5, got %', v_qty using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: receipts accumulate into stock_levels (10 then 15)';
@@ -155,10 +155,10 @@ begin
   from inventory_movements order by created_at desc, id desc limit 1;
 
   if v_biz <> v_biz_a then
-    raise exception 'TEST FAILED: spoofed business_id survived (got %, expected %)', v_biz, v_biz_a;
+    raise exception 'TEST FAILED: spoofed business_id survived (got %, expected %)', v_biz, v_biz_a using errcode = 'ZZ999';
   end if;
   if v_by <> '00000000-0000-0000-0000-000000000001' then
-    raise exception 'TEST FAILED: spoofed created_by survived (got %)', v_by;
+    raise exception 'TEST FAILED: spoofed created_by survived (got %)', v_by using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: business_id and created_by are overwritten from branch/session';
@@ -175,7 +175,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason, note)
     values ('00000000-0000-0000-0000-000000000000', v_branch, v_variant, -1000, 'adjustment', 'oops');
-    raise exception 'TEST FAILED: an adjustment drove stock negative without being rejected';
+    raise exception 'TEST FAILED: an adjustment drove stock negative without being rejected' using errcode = 'ZZ999';
   exception
     when sqlstate 'P0001' then
       raise notice 'PASS: negative-stock adjustment rejected (%)', sqlerrm;
@@ -183,7 +183,7 @@ begin
 
   select quantity into v_qty_after from stock_levels where branch_id = v_branch and variant_id = v_variant;
   if v_qty_after is distinct from v_qty_before then
-    raise exception 'TEST FAILED: rejected adjustment still changed stock (% -> %)', v_qty_before, v_qty_after;
+    raise exception 'TEST FAILED: rejected adjustment still changed stock (% -> %)', v_qty_before, v_qty_after using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: rejected adjustment left stock unchanged at %', v_qty_after;
@@ -196,7 +196,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, 0, 'adjustment' from t_ids;
-    raise exception 'TEST FAILED: a zero-quantity movement was accepted';
+    raise exception 'TEST FAILED: a zero-quantity movement was accepted' using errcode = 'ZZ999';
   exception
     when check_violation then
       raise notice 'PASS: zero-quantity movement rejected by check constraint';
@@ -213,23 +213,23 @@ begin
 
   select record_stock_count(v_branch, v_variant, 20, 'monthly count') into v_movement;
   if v_movement is null then
-    raise exception 'TEST FAILED: counting 20 against 16 should have recorded a movement';
+    raise exception 'TEST FAILED: counting 20 against 16 should have recorded a movement' using errcode = 'ZZ999';
   end if;
 
   select quantity_delta into v_delta from inventory_movements where id = v_movement;
   if v_delta is distinct from 4 then
-    raise exception 'TEST FAILED: expected a +4 delta counting 20 against 16, got %', v_delta;
+    raise exception 'TEST FAILED: expected a +4 delta counting 20 against 16, got %', v_delta using errcode = 'ZZ999';
   end if;
 
   select quantity into v_qty from stock_levels where branch_id = v_branch and variant_id = v_variant;
   if v_qty is distinct from 20 then
-    raise exception 'TEST FAILED: stock should be 20 after the count, got %', v_qty;
+    raise exception 'TEST FAILED: stock should be 20 after the count, got %', v_qty using errcode = 'ZZ999';
   end if;
 
   -- Counting the same number again is a no-op, not an error and not a row.
   select record_stock_count(v_branch, v_variant, 20, 'again') into v_movement;
   if v_movement is not null then
-    raise exception 'TEST FAILED: a count matching current stock recorded a movement';
+    raise exception 'TEST FAILED: a count matching current stock recorded a movement' using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: record_stock_count computes the delta (+4 -> 20) and no-ops when it matches';
@@ -241,7 +241,7 @@ do $$
 begin
   begin
     perform record_stock_count((select branch_a from t_ids), (select variant_a from t_ids), -5, null);
-    raise exception 'TEST FAILED: a negative counted quantity was accepted';
+    raise exception 'TEST FAILED: a negative counted quantity was accepted' using errcode = 'ZZ999';
   exception
     when sqlstate '22023' then
       raise notice 'PASS: negative counted quantity rejected';
@@ -255,7 +255,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, -1, 'sale' from t_ids;
-    raise exception 'TEST FAILED: a "sale" movement was insertable before the sales phase exists';
+    raise exception 'TEST FAILED: a "sale" movement was insertable before the sales phase exists' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: reserved reason "sale" rejected by RLS';
@@ -264,7 +264,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, -1, 'transfer_out' from t_ids;
-    raise exception 'TEST FAILED: a "transfer_out" movement was insertable before the transfers phase exists';
+    raise exception 'TEST FAILED: a "transfer_out" movement was insertable before the transfers phase exists' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: reserved reason "transfer_out" rejected by RLS';
@@ -278,7 +278,7 @@ begin
   begin
     update stock_levels set quantity = 9999
     where branch_id = (select branch_a from t_ids);
-    raise exception 'TEST FAILED: stock_levels was directly UPDATEable';
+    raise exception 'TEST FAILED: stock_levels was directly UPDATEable' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: direct UPDATE on stock_levels refused (no grant)';
@@ -287,7 +287,7 @@ begin
   begin
     insert into stock_levels (business_id, branch_id, variant_id, quantity)
     select biz_a, branch_a, variant_a, 9999 from t_ids;
-    raise exception 'TEST FAILED: stock_levels was directly INSERTable';
+    raise exception 'TEST FAILED: stock_levels was directly INSERTable' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: direct INSERT on stock_levels refused (no grant)';
@@ -295,7 +295,7 @@ begin
 
   begin
     delete from stock_levels where branch_id = (select branch_a from t_ids);
-    raise exception 'TEST FAILED: stock_levels rows were directly DELETEable';
+    raise exception 'TEST FAILED: stock_levels rows were directly DELETEable' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: direct DELETE on stock_levels refused (no grant)';
@@ -308,7 +308,7 @@ do $$
 begin
   begin
     update inventory_movements set quantity_delta = 1;
-    raise exception 'TEST FAILED: an inventory_movements row was UPDATEable';
+    raise exception 'TEST FAILED: an inventory_movements row was UPDATEable' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: UPDATE on inventory_movements refused (grant revoked)';
@@ -316,7 +316,7 @@ begin
 
   begin
     delete from inventory_movements;
-    raise exception 'TEST FAILED: an inventory_movements row was DELETEable';
+    raise exception 'TEST FAILED: an inventory_movements row was DELETEable' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: DELETE on inventory_movements refused (grant revoked)';
@@ -337,13 +337,13 @@ declare v_visible int;
 begin
   select count(*) into v_visible from stock_levels;
   if v_visible < 1 then
-    raise exception 'TEST FAILED: cashier holds inventory.view but saw no stock levels';
+    raise exception 'TEST FAILED: cashier holds inventory.view but saw no stock levels' using errcode = 'ZZ999';
   end if;
 
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, 5, 'receive' from t_ids;
-    raise exception 'TEST FAILED: cashier received stock without inventory.receive';
+    raise exception 'TEST FAILED: cashier received stock without inventory.receive' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: cashier blocked from receiving stock';
@@ -352,7 +352,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, -5, 'adjustment' from t_ids;
-    raise exception 'TEST FAILED: cashier adjusted stock without inventory.adjust';
+    raise exception 'TEST FAILED: cashier adjusted stock without inventory.adjust' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: cashier blocked from adjusting stock';
@@ -360,7 +360,7 @@ begin
 
   begin
     perform record_stock_count((select branch_a from t_ids), (select variant_a from t_ids), 3, null);
-    raise exception 'TEST FAILED: cashier recorded a stock count without inventory.adjust';
+    raise exception 'TEST FAILED: cashier recorded a stock count without inventory.adjust' using errcode = 'ZZ999';
   exception
     when insufficient_privilege then
       raise notice 'PASS: cashier blocked from recording a stock count';
@@ -380,12 +380,12 @@ declare v_seen int;
 begin
   select count(*) into v_seen from stock_levels;
   if v_seen <> 0 then
-    raise exception 'TEST FAILED: business B owner saw % of business A''s stock rows', v_seen;
+    raise exception 'TEST FAILED: business B owner saw % of business A''s stock rows', v_seen using errcode = 'ZZ999';
   end if;
 
   select count(*) into v_seen from inventory_movements;
   if v_seen <> 0 then
-    raise exception 'TEST FAILED: business B owner saw % of business A''s movements', v_seen;
+    raise exception 'TEST FAILED: business B owner saw % of business A''s movements', v_seen using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: business B owner sees none of business A''s inventory';
@@ -396,7 +396,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select biz_b, branch_a, variant_a, 100, 'receive' from t_ids;
-    raise exception 'TEST FAILED: business B owner wrote a movement against business A stock';
+    raise exception 'TEST FAILED: business B owner wrote a movement against business A stock' using errcode = 'ZZ999';
   exception
     when sqlstate 'P0002' then
       raise notice 'PASS: cross-tenant movement rejected (branch/variant not visible)';
@@ -408,7 +408,7 @@ begin
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
     select biz_b, branch_b, variant_a, 100, 'receive' from t_ids;
-    raise exception 'TEST FAILED: business B owner stocked business A''s product into their own branch';
+    raise exception 'TEST FAILED: business B owner stocked business A''s product into their own branch' using errcode = 'ZZ999';
   exception
     when sqlstate 'P0002' then
       raise notice 'PASS: foreign variant rejected (not visible to this tenant)';
@@ -436,7 +436,7 @@ begin
   );
 
   if v_mismatches <> 0 then
-    raise exception 'TEST FAILED: % stock_levels row(s) disagree with their movement history', v_mismatches;
+    raise exception 'TEST FAILED: % stock_levels row(s) disagree with their movement history', v_mismatches using errcode = 'ZZ999';
   end if;
 
   raise notice 'PASS: every stock level reconciles exactly to its movement ledger';

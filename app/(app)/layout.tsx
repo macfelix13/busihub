@@ -114,6 +114,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Settings
             </Link>
           ) : null}
+          {/* Personal, not permissioned — anyone who works a till needs one. */}
+          <Link href="/settings/pin" className="hover:text-neutral-900 dark:hover:text-white">
+            My PIN
+          </Link>
         </nav>
         <div className="flex items-center gap-4">
           <span className="hidden text-sm text-neutral-500 sm:inline">

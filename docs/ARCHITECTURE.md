@@ -466,6 +466,28 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-08-30 — Migration 0018: two real PIN vulnerabilities closed, found
+  while building the till login Phase 2 deferred here — both by querying a
+  live database as a Cashier, not by reading the schema.
+  (1) Any colleague could SELECT another profile's `pin_hash`. RLS scopes
+  profiles by business, but column privileges are a separate mechanism and
+  0009 granted table-level SELECT, so the hash was fetchable from
+  PostgREST in the browser; bcrypt at cost 10 does not protect a 4–6 digit
+  keyspace offline, making this a direct route to whoever authorises
+  discounts, voids and refunds. Note that a bare `revoke select (pin_hash)`
+  silently does nothing while a table-level grant exists — the fix is
+  revoke-then-grant-per-column.
+  (2) A user could reset their own `pin_failed_attempts`/`pin_locked_until`,
+  so the lockout was bypassable by exactly the person it exists to stop
+  (confirmed: the UPDATE reported success and set attempts to 99). 0009's
+  escalation guard now covers the PIN columns too.
+  Consequence: the hash never leaves the database — `set_profile_pin()`
+  and `verify_profile_pin()` hash and compare with pgcrypto inside
+  SECURITY DEFINER functions, which also lets a failed attempt increment
+  the counter atomically with the check rather than in a round trip a
+  caller could skip. 13 assertions in tests/security/pin.sql, demonstrated
+  failing against the pre-0018 schema. Wired into CI.
+
 - 2026-08-30 — Phase 8 (customers & credit accounts) complete. Migration
   0017 adds `customers`, an append-only `customer_account_entries` ledger
   and a trigger-maintained `customer_balances`, applying the same

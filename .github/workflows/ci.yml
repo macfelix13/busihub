@@ -55,6 +55,9 @@ jobs:
       - name: Run customer account/credit tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/customers.sql
 
+      - name: Run cashier PIN security tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/pin.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

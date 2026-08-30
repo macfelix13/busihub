@@ -23,8 +23,11 @@ export async function requestPasswordReset(
   // Always return the same "submitted" response whether or not the email
   // exists — this endpoint must not be usable to enumerate accounts
   // (Section 6, Section 29).
+  // Routed through /auth/confirm to exchange the PKCE `code` this link
+  // carries for a session server-side before landing on /update-password —
+  // see app/auth/confirm/route.ts for why that step can't be skipped.
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${supabaseAppUrl()}/update-password`,
+    redirectTo: `${supabaseAppUrl()}/auth/confirm?next=/update-password`,
   });
 
   return { submitted: true };

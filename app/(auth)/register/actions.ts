@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { supabaseAppUrl } from "@/lib/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { registerSchema } from "@/lib/validation/auth";
 
@@ -56,22 +57,36 @@ export async function registerBusiness(
     password,
     options: {
       // Carried on auth.users.raw_user_meta_data so that login/actions.ts
-      // can finish register_business() on first sign-in if email
-      // confirmation is required and there was no session here to call
-      // it with (see the comment below).
+      // and app/auth/confirm/route.ts can finish register_business() the
+      // first time a session exists, if email confirmation is required
+      // and there was no session here to call it with (see the comment
+      // below).
       data: {
         first_name: ownerFirstName,
         last_name: ownerLastName,
         pending_business_name: businessName,
         pending_business_phone: phone || null,
       },
+      // Without this, Supabase falls back to the dashboard's bare Site
+      // URL, which has no route to exchange the PKCE `code` it's given —
+      // the confirmation link would confirm the address but never
+      // actually sign the user in (confirmed by hitting exactly this in
+      // real testing). app/auth/confirm/route.ts does that exchange and
+      // finishes registration before landing on /dashboard.
+      emailRedirectTo: `${supabaseAppUrl()}/auth/confirm?next=/dashboard`,
     },
   });
 
   if (signUpError) {
-    // Supabase's own message is safe to show for the common cases
-    // (e.g. "User already registered") but never forward raw internal
-    // errors to the client (Section 38).
+    // Log the real error server-side (never forward raw internal errors to
+    // the client — Section 38 — but swallowing it silently with no log at
+    // all made this undiagnosable when it happened during real testing).
+    console.error("registerBusiness: supabase.auth.signUp failed", {
+      status: signUpError.status,
+      name: signUpError.name,
+      message: signUpError.message,
+      cause: signUpError.cause,
+    });
     const message = signUpError.status === 400 || signUpError.status === 422
       ? signUpError.message
       : "We couldn't create your account right now. Please try again.";
@@ -79,15 +94,18 @@ export async function registerBusiness(
   }
 
   if (!signUpData.user) {
+    console.error("registerBusiness: signUp returned no error but no user", signUpData);
     return { error: "We couldn't create your account right now. Please try again." };
   }
 
   // If email confirmation is required, there is no session yet and
   // register_business() (which reads auth.uid() from the session) can't
-  // run until the user confirms and signs in. In that case, defer
-  // business creation to first login — see app/(auth)/login/actions.ts,
-  // which calls register_business() itself if the signed-in user has no
-  // profile yet, carrying the pending business name via user metadata.
+  // run until the user confirms. In that case, defer business creation:
+  // the normal path is app/auth/confirm/route.ts, reached via the
+  // confirmation email link (emailRedirectTo above), which exchanges the
+  // PKCE code for a session and finishes registration there. Logging in
+  // manually instead (app/(auth)/login/actions.ts) is a fallback that
+  // finishes the same way, for a user who doesn't use the email link.
   if (!signUpData.session) {
     redirect("/verify-email");
   }

@@ -1,22 +1,17 @@
-// Flat config (ESLint 9+), required by eslint-config-next 16.x — replaces
-// the legacy .eslintrc.json this project started with. FlatCompat bridges
-// eslint-config-next's shareable configs ("next/core-web-vitals") into the
-// flat format; this is the standard pattern Next.js itself generates.
-import { FlatCompat } from "@eslint/eslintrc";
-import js from "@eslint/js";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-});
+// Flat config (ESLint 9+). eslint-config-next 16 ships native flat-config
+// exports (see its package.json "exports" map: ./core-web-vitals,
+// ./typescript) — importing those directly, instead of going through the
+// legacy FlatCompat bridge, is what actually fixes the "Converting
+// circular structure to JSON" crash: that error came from FlatCompat's
+// JSON-schema validation step, which chokes on eslint-plugin-react's
+// newer self-referencing flat config objects. Importing the pre-built
+// arrays directly never touches that validator.
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals"),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
   {
     rules: {
       "@typescript-eslint/no-unused-vars": "warn",

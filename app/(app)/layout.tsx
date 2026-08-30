@@ -21,11 +21,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, business_id, businesses (name)")
+    // businesses has two FKs to/from profiles (profiles.business_id ->
+    // businesses.id, and businesses.created_by -> profiles.id), so the
+    // embed must be disambiguated with the FK constraint name — a bare
+    // `businesses (name)` is rejected by PostgREST with PGRST201
+    // ("more than one relationship was found"). Confirmed against the
+    // real schema; profiles_business_id_fkey is the one we want here.
+    .select("id, first_name, last_name, business_id, businesses!profiles_business_id_fkey (name)")
     .eq("id", user.id)
     .maybeSingle();
+
+  if (profileError) {
+    // A genuine query failure (RLS denial, PostgREST embed error, etc.)
+    // looks identical to "no profile yet" if we only check `!profile` —
+    // that swallowed real errors during testing and made this
+    // undiagnosable. Log it distinctly so the two cases don't get
+    // confused again.
+    console.error("(app) layout: profiles query failed", profileError);
+    redirect("/login");
+  }
 
   if (!profile) {
     // Authenticated but no business/profile link yet (e.g. email

@@ -7,10 +7,13 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
 /**
- * Reached via the link in the password-reset email
- * (redirectTo set in app/(auth)/reset-password/actions.ts). @supabase/ssr's
- * browser client picks up the recovery session from the URL automatically;
- * this page just needs to call updateUser() once that session exists.
+ * Reached via app/auth/confirm/route.ts, which exchanges the PKCE `code`
+ * from the password-reset email link for a session server-side (cookies
+ * are already set by the time this page renders — @supabase/ssr's PKCE
+ * flow does NOT auto-detect a session from the URL the way the older
+ * implicit flow's #access_token fragment did). This page just needs to
+ * call updateUser() using the browser client, which reads that same
+ * cookie-based session.
  */
 export default function UpdatePasswordPage() {
   const router = useRouter();

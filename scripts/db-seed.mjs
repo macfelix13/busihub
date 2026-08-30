@@ -11,9 +11,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import readline from "node:readline/promises";
 import pg from "pg";
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Bare `dotenv/config` only loads `.env`. Next.js auto-loads `.env.local`
+// for the app itself, but this is a plain Node script, so we replicate
+// that convention explicitly: prefer `.env.local`, fall back to `.env`.
+loadEnv({ path: path.join(__dirname, "..", ".env.local") });
+loadEnv({ path: path.join(__dirname, "..", ".env") });
 
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {

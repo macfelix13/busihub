@@ -1,11 +1,15 @@
-#!/usr/bin/env node
 /**
  * Applies every file in supabase/migrations/, in filename order, that
  * hasn't been applied yet. Tracks applied migrations in a
  * `schema_migrations` table so this is safe to re-run.
  *
  * Requires SUPABASE_DB_URL (Project Settings → Database → Connection
- * string, "Direct connection" — not the pooled one, since this runs DDL).
+ * string). "Direct connection" works if your network has IPv6 reachability
+ * (Supabase's direct-connection hostname is IPv6-only unless the project
+ * has the paid IPv4 add-on); otherwise use the "Session pooler" string
+ * (port 5432, username postgres.<project-ref>) — session-mode pooling is a
+ * full persistent connection and supports DDL/transactions/extensions
+ * fine. Avoid the "Transaction pooler" (port 6543) for this script.
  *
  * Usage: npm run db:migrate
  */
@@ -13,10 +17,18 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const migrationsDir = path.join(__dirname, "..", "supabase", "migrations");
+const repoRoot = path.join(__dirname, "..");
+
+// Bare `dotenv/config` only loads `.env`. Next.js auto-loads `.env.local`
+// for the app itself, but these are plain Node scripts, so we replicate
+// that convention explicitly: prefer `.env.local`, fall back to `.env`.
+loadEnv({ path: path.join(repoRoot, ".env.local") });
+loadEnv({ path: path.join(repoRoot, ".env") });
+
+const migrationsDir = path.join(repoRoot, "supabase", "migrations");
 
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {

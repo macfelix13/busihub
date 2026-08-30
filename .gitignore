@@ -36,3 +36,8 @@ next-env.d.ts
 # supabase local
 supabase/.branches
 supabase/.temp
+
+# local Claude Code / Cowork tooling config — not part of the app
+.github/agents/
+.github/hooks/
+.github/skills/

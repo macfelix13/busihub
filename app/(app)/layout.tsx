@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
-  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers, canViewCustomers] =
+  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers, canViewCustomers, canSell] =
     await Promise.all([
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
@@ -66,6 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, profile.business_id!, PERMISSIONS.INVENTORY_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.SUPPLIERS_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.CUSTOMERS_VIEW),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.SALES_PROCESS),
     ]);
 
   return (
@@ -76,6 +77,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="font-semibold">{businessName ?? "Busihub"}</span>
         </div>
         <nav className="flex items-center gap-4 text-sm font-medium text-neutral-600 dark:text-neutral-300">
+          {/* The till comes first: it is what a cashier opens all day. */}
+          {canSell ? (
+            <Link href="/till" className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
+              Till
+            </Link>
+          ) : null}
           <Link href="/dashboard" className="hover:text-neutral-900 dark:hover:text-white">
             Dashboard
           </Link>

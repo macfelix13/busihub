@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–8 complete (see the roadmap below).** This document is
+Status: **Phases 0–9 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -439,7 +439,7 @@ one section of this document expected to change often.
 | 6 | Inventory (stock levels, movements ledger, receive/adjust/count) | **done — verified, see tests/security/inventory.sql** (transfers & low-stock alerts deferred) |
 | 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
 | 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
-| 9 | POS core (cash + credit, PIN till login) | **schema done & verified (tests/security/sales.sql); till UI in progress** |
+| 9 | POS core (cash + credit, PIN till login) | **done — schema verified (tests/security/sales.sql); till UI needs browser verification** |
 | 10 | Payments incl. Paystack | pending |
 | 11 | Receipts / printing | pending |
 | 12 | Refunds & voids | pending |
@@ -465,6 +465,18 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 9 complete: the till. `/till` is a cart with barcode
+  or name search (a scanner is a keyboard, so Enter on an exact
+  barcode/SKU adds the item — that is the whole of scanner support),
+  cash or on-account checkout, and a completed-sale view at `/sales/[id]`.
+  Who is serving comes from a PIN, held in an HMAC-signed httpOnly cookie
+  (lib/auth/till-session.ts) rather than a plain one: the Supabase session
+  still authorises everything, but an unsigned cookie would let a cashier
+  attribute a sale to a colleague. Nothing about money crosses the wire —
+  the checkout schema carries only variant ids and quantities, so there is
+  nothing for a caller to forge; the cart's total is a preview and the
+  receipt is what create_sale() computed.
 
 - 2026-08-30 — Migration 0020: sales. One sale writes the sale record, the
   stock ledger and (on account) the customer ledger in one transaction.

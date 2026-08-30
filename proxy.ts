@@ -1,7 +1,14 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
+/**
+ * Next.js 16 renamed the middleware.ts file convention to proxy.ts (the
+ * underlying request-interception mechanism is unchanged — see
+ * https://nextjs.org/docs/messages/middleware-to-proxy). This file was
+ * middleware.ts through Phase 0-3 development; renamed here once a real
+ * `next build` surfaced the deprecation warning.
+ */
+export async function proxy(request: NextRequest) {
   return updateSession(request);
 }
 

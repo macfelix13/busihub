@@ -23,9 +23,10 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  eslint: {
-    dirs: ["app", "components", "lib"],
-  },
+  // Next.js 16 removed the `next lint` command (and this `eslint` config
+  // block along with it) — see package.json's "lint" script, which now
+  // runs `eslint .` directly; scope/ignores are handled in
+  // eslint.config.mjs instead of here.
   async headers() {
     return [
       {

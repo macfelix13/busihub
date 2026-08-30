@@ -9,7 +9,7 @@
 | Logout | `lib/auth/sign-out.ts` |
 | Password reset request | `app/(auth)/reset-password/actions.ts` |
 | Password update (from reset email link) | `app/(auth)/update-password/page.tsx` |
-| Session refresh on every request | `middleware.ts` → `lib/supabase/middleware.ts` |
+| Session refresh on every request | `proxy.ts` → `lib/supabase/middleware.ts` |
 | Cashier PIN hashing/verification (library, not yet wired to a POS UI) | `lib/auth/pin.ts` |
 | Cashier PIN storage (server-side, permission-checked) | `set_cashier_pin()`, `supabase/migrations/0011_business_registration.sql` |
 
@@ -37,4 +37,4 @@ Supabase Auth applies its own baseline rate limits to `signInWithPassword`/`sign
 
 ## Session handling
 
-`@supabase/ssr` cookie-based sessions only — never `localStorage`. `middleware.ts` refreshes the session on every request (`lib/supabase/middleware.ts`); `lib/supabase/server.ts` provides the RLS-scoped server client used by Server Components/Actions, and a separate `createServiceRoleClient()` for the small set of operations that must bypass RLS (documented inline in that file — restricted to webhooks and Super Admin reads, none of which exist yet in this phase).
+`@supabase/ssr` cookie-based sessions only — never `localStorage`. `proxy.ts` refreshes the session on every request (`lib/supabase/middleware.ts`); `lib/supabase/server.ts` provides the RLS-scoped server client used by Server Components/Actions, and a separate `createServiceRoleClient()` for the small set of operations that must bypass RLS (documented inline in that file — restricted to webhooks and Super Admin reads, none of which exist yet in this phase).

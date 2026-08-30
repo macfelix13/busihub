@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 import { supabaseAnonKey, supabaseServiceRoleKey, supabaseUrl } from "./env";
+import type { CookieToSet } from "./cookie-types";
 
 /**
  * RLS-scoped server client bound to the current request's session cookie.
@@ -17,7 +18,7 @@ export async function createServerSupabaseClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options)
@@ -25,7 +26,7 @@ export async function createServerSupabaseClient() {
         } catch {
           // Called from a Server Component that can't set cookies (e.g. a
           // route rendered statically). Session refresh is still handled
-          // by middleware.ts on every request, so this is safe to ignore.
+          // by proxy.ts on every request, so this is safe to ignore.
         }
       },
     },

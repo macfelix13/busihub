@@ -7,10 +7,11 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
-import { paymentMethodLabel } from "@/lib/validation/sales";
+import { paymentMethodLabel, momoNetworkLabel } from "@/lib/validation/sales";
 import { refundMethodLabel } from "@/lib/validation/refunds";
 import { StatusToggleButton } from "../../products/status-toggle-button";
 import { voidSale } from "../actions";
+import { AwaitingPayment } from "../awaiting-payment";
 
 export const metadata = { title: "Sale" };
 
@@ -88,6 +89,16 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     console.error("SaleDetailPage: items query failed", itemsError);
   }
 
+  const { data: paymentRows, error: paymentsError } = await supabase
+    .from("sale_payments")
+    .select("id, method, amount, status, momo_number, momo_network, failure_reason")
+    .eq("sale_id", id)
+    .order("created_at");
+
+  if (paymentsError) {
+    console.error("SaleDetailPage: payments query failed", paymentsError);
+  }
+
   const { data: refunds, error: refundsError } = await supabase
     .from("refunds")
     .select("id, refund_number, method, reason, total, created_at")
@@ -107,8 +118,20 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     total: number | string;
     created_at: string;
   }[];
+  const payments = (paymentRows ?? []) as unknown as {
+    id: string;
+    method: string;
+    amount: number | string;
+    status: string;
+    momo_number: string | null;
+    momo_network: string | null;
+    failure_reason: string | null;
+  }[];
   const refundedTotal = refundRows.reduce((sum, r) => sum + Number(r.total), 0);
   const isVoided = sale.status === "voided";
+  const isAwaiting = sale.status === "awaiting_payment";
+  const isCancelled = sale.status === "cancelled";
+  const pendingMomo = payments.find((p) => p.method === "momo" && p.status === "pending");
   const cashierName = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
 
   return (
@@ -125,6 +148,16 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 Voided
               </span>
             ) : null}
+            {isAwaiting ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                Waiting for payment
+              </span>
+            ) : null}
+            {isCancelled ? (
+              <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                Cancelled
+              </span>
+            ) : null}
           </div>
           <p className="text-neutral-500">
             {new Date(sale.created_at).toLocaleString("en-GB", {
@@ -139,7 +172,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canRefund && !isVoided ? (
+          {canRefund && sale.status === "completed" ? (
             <Link href={`/sales/${sale.id}/refund`}>
               <Button variant="secondary">Return items</Button>
             </Link>
@@ -148,7 +181,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               anything has been returned against it — so it disappears the
               moment a refund exists, rather than offering a button that
               can only fail. */}
-          {canVoid && !isVoided && refundRows.length === 0 ? (
+          {canVoid && sale.status === "completed" && refundRows.length === 0 ? (
             <StatusToggleButton
               action={voidSale.bind(null, sale.id)}
               label="Void sale"
@@ -161,6 +194,16 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           </Link>
         </div>
       </div>
+
+      {isAwaiting && pendingMomo ? (
+        <AwaitingPayment
+          saleId={sale.id}
+          momoNumber={pendingMomo.momo_number}
+          networkLabel={momoNetworkLabel(pendingMomo.momo_network ?? "")}
+          amount={formatMoney(toMinorUnits(pendingMomo.amount), currencyCode)}
+          canCancel={canSell}
+        />
+      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="overflow-x-auto">
@@ -259,6 +302,43 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           This sale was voided. The stock went back and any charge to the customer was reversed. The record above is
           kept exactly as it was rung up.
+        </p>
+      ) : null}
+
+      {payments.length > 0 ? (
+        <div>
+          <h2 className="font-semibold">How it was paid</h2>
+          <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {payments.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
+                  <span>
+                    <span className="font-medium">{paymentMethodLabel(p.method)}</span>
+                    {p.momo_number ? (
+                      <span className="ml-2 text-neutral-500">
+                        {p.momo_number} · {momoNetworkLabel(p.momo_network ?? "")}
+                      </span>
+                    ) : null}
+                    {p.failure_reason ? (
+                      <span className="ml-2 text-red-600 dark:text-red-400">{p.failure_reason}</span>
+                    ) : null}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-xs uppercase text-neutral-500">{p.status}</span>
+                    <span className="font-medium tabular-nums">
+                      {formatMoney(toMinorUnits(p.amount), currencyCode)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {isCancelled ? (
+        <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+          This sale was cancelled before it was paid for. The items went back on the shelf and nothing was charged.
         </p>
       ) : null}
 

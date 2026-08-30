@@ -760,6 +760,88 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
+-- ── 21b. The till never names the amount to charge ──────────────────────
+--
+-- A momo tender with no amount means "whatever the cash did not cover".
+-- This is how the till actually rings up mobile money: it does not know
+-- the authoritative total, so if it had to state the figure it could be
+-- wrong — or be made to prompt a customer's phone for an amount of its
+-- own choosing. (Migration 0024.)
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_sale uuid; v_s record; v_momo record; v_cash record; v_count int;
+begin
+  -- 5 x 40 = 200, with 60 in cash. The momo half must come out at 140
+  -- without anyone saying so.
+  select create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+    jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 5)),
+    jsonb_build_array(
+      jsonb_build_object('method', 'cash', 'amount', 60),
+      jsonb_build_object('method', 'momo', 'momo_number', '0244123456', 'momo_network', 'mtn'))
+  ) into v_sale;
+
+  select * into v_s from sales where id = v_sale;
+  select * into v_momo from sale_payments where sale_id = v_sale and method = 'momo';
+  select * into v_cash from sale_payments where sale_id = v_sale and method = 'cash';
+
+  if v_momo.amount <> 140.00 then
+    raise exception 'TEST FAILED: the momo half should be 140.00, got %', v_momo.amount using errcode = 'ZZ999';
+  end if;
+  if v_cash.amount <> 60.00 then
+    raise exception 'TEST FAILED: the cash half should be 60.00, got %', v_cash.amount using errcode = 'ZZ999';
+  end if;
+  if v_s.change_given <> 0 then
+    raise exception 'TEST FAILED: a split that adds up exactly gives no change, got %', v_s.change_given
+      using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: an unpriced momo tender is charged exactly what the cash left over';
+
+  -- Mobile money alone, no cash: the whole total.
+  select create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+    jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 2)),
+    jsonb_build_array(jsonb_build_object('method', 'momo', 'momo_number', '0244123456', 'momo_network', 'mtn'))
+  ) into v_sale;
+
+  if (select amount from sale_payments where sale_id = v_sale) <> 80.00 then
+    raise exception 'TEST FAILED: a momo-only sale should charge the whole 80.00' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a mobile money sale with no cash charges the whole total';
+
+  -- And cash that already covers the sale leaves nothing to charge, which
+  -- is a mistake at the counter rather than a zero-value prompt.
+  select count(*) into v_count from sales;
+  begin
+    perform create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+      jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 1)),
+      jsonb_build_array(
+        jsonb_build_object('method', 'cash', 'amount', 100),
+        jsonb_build_object('method', 'momo', 'momo_number', '0244123456', 'momo_network', 'mtn')));
+    raise exception 'TEST FAILED: a momo prompt was raised for nothing' using errcode = 'ZZ999';
+  exception when sqlstate 'P0001' then
+    raise notice 'PASS: cash covering the whole sale leaves no momo charge to make (%)', sqlerrm;
+  end;
+  if (select count(*) from sales) <> v_count then
+    raise exception 'TEST FAILED: the refused split left a sale behind' using errcode = 'ZZ999';
+  end if;
+
+  -- An unpriced momo tender still needs a phone to prompt.
+  begin
+    perform create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+      jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 1)),
+      jsonb_build_array(jsonb_build_object('method', 'momo', 'momo_network', 'mtn')));
+    raise exception 'TEST FAILED: an unpriced momo tender skipped the phone number check' using errcode = 'ZZ999';
+  exception when sqlstate 'P0001' then
+    raise notice 'PASS: an unpriced momo tender still needs a number and a network (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
 -- ── 22. One shop's webhook cannot settle another shop's payment ─────────
 --
 -- The webhook endpoint is per business and its signature is checked with

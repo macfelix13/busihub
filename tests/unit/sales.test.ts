@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { checkoutSchema, paymentMethodLabel } from "@/lib/validation/sales";
+import { checkoutSchema, paymentMethodLabel, normaliseMomoNumber } from "@/lib/validation/sales";
 
 const BRANCH = "11111111-1111-1111-1111-111111111111";
 const CUSTOMER = "22222222-2222-2222-2222-222222222222";
@@ -95,5 +95,79 @@ describe("paymentMethodLabel", () => {
     expect(paymentMethodLabel("cash")).toBe("Cash");
     expect(paymentMethodLabel("credit")).toBe("On account");
     expect(paymentMethodLabel("something")).toBe("something");
+  });
+});
+
+describe("checkoutSchema — mobile money (Phase 10)", () => {
+  const momo = {
+    branchId: BRANCH,
+    customerId: "",
+    paymentMethod: "momo",
+    amountTendered: "0",
+    cashAmount: "0",
+    momoNumber: "0244123456",
+    momoNetwork: "mtn",
+    items: [line],
+  };
+
+  it("accepts a mobile money sale", () => {
+    expect(checkoutSchema.safeParse(momo).success).toBe(true);
+  });
+
+  it("carries no amount for the charge — the database works that out", () => {
+    const result = checkoutSchema.safeParse(momo);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // The only money figure the till may send is the cash in the drawer.
+      expect(Object.keys(result.data)).not.toContain("momoAmount");
+      expect(result.data.cashAmount).toBe(0);
+    }
+  });
+
+  it("needs a number to prompt", () => {
+    expect(checkoutSchema.safeParse({ ...momo, momoNumber: "" }).success).toBe(false);
+    expect(checkoutSchema.safeParse({ ...momo, momoNumber: "12345" }).success).toBe(false);
+  });
+
+  it("needs a network we can actually reach", () => {
+    expect(checkoutSchema.safeParse({ ...momo, momoNetwork: "" }).success).toBe(false);
+    expect(checkoutSchema.safeParse({ ...momo, momoNetwork: "glo" }).success).toBe(false);
+  });
+
+  it("accepts a split with cash in it", () => {
+    expect(checkoutSchema.safeParse({ ...momo, paymentMethod: "split", cashAmount: "50" }).success).toBe(true);
+  });
+
+  it("refuses a split with no cash — that is just a mobile money sale", () => {
+    const result = checkoutSchema.safeParse({ ...momo, paymentMethod: "split", cashAmount: "0" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === "cashAmount")).toBe(true);
+    }
+  });
+
+  it("still refuses an empty cart, whatever the payment method", () => {
+    expect(checkoutSchema.safeParse({ ...momo, items: [] }).success).toBe(false);
+  });
+});
+
+describe("normaliseMomoNumber", () => {
+  it("accepts the ways a cashier actually types a Ghanaian number", () => {
+    expect(normaliseMomoNumber("0244123456")).toBe("0244123456");
+    expect(normaliseMomoNumber("024 412 3456")).toBe("0244123456");
+    expect(normaliseMomoNumber("024-412-3456")).toBe("0244123456");
+    expect(normaliseMomoNumber("+233 24 412 3456")).toBe("0244123456");
+    expect(normaliseMomoNumber("233244123456")).toBe("0244123456");
+    // Said out loud, with the leading zero dropped.
+    expect(normaliseMomoNumber("244123456")).toBe("0244123456");
+  });
+
+  it("refuses anything it cannot be sure of, rather than prompting a stranger", () => {
+    expect(normaliseMomoNumber("")).toBe(null);
+    expect(normaliseMomoNumber("12345")).toBe(null);
+    expect(normaliseMomoNumber("02441234567")).toBe(null);
+    expect(normaliseMomoNumber("024412345")).toBe(null);
+    expect(normaliseMomoNumber("+44 7700 900123")).toBe(null);
+    expect(normaliseMomoNumber("not a number")).toBe(null);
   });
 });

@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
+import { PAYMENT_METHODS, MOMO_NETWORKS } from "@/lib/validation/sales";
 import { completeSale, signOutCashier, type FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -33,6 +34,8 @@ interface CartLine {
   quantity: number;
 }
 
+type PaymentMethod = "cash" | "credit" | "momo" | "split";
+
 interface TillProps {
   branchId: string;
   branchName: string;
@@ -42,6 +45,8 @@ interface TillProps {
   currencyCode: string;
   /** From pos_settings — decides whether the till warns or refuses when stock runs out. */
   allowNegativeStock: boolean;
+  /** Switched on AND a Paystack account connected. Both, or the option would only fail. */
+  momoEnabled: boolean;
 }
 
 export function Till({
@@ -52,13 +57,17 @@ export function Till({
   customers,
   currencyCode,
   allowNegativeStock,
+  momoEnabled,
 }: TillProps) {
   const [state, formAction] = useFormState(completeSale, initialState);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [customerId, setCustomerId] = useState("");
   const [tendered, setTendered] = useState("");
+  const [cashPart, setCashPart] = useState("");
+  const [momoNumber, setMomoNumber] = useState("");
+  const [momoNetwork, setMomoNetwork] = useState<string>(MOMO_NETWORKS[0].value);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.variantId, p])), [products]);
@@ -134,6 +143,13 @@ export function Till({
 
   const tenderedNumber = Number(tendered);
   const change = paymentMethod === "cash" && Number.isFinite(tenderedNumber) ? tenderedNumber - total : 0;
+
+  // The split preview. The database works out the real figure — the till
+  // sends the cash and nothing else — so this is what to tell the
+  // customer, not what determines the charge.
+  const cashPartNumber = Number(cashPart);
+  const momoPart =
+    paymentMethod === "split" && Number.isFinite(cashPartNumber) ? total - cashPartNumber : total;
 
   const shortLines = cart.filter((line) => {
     const p = byId.get(line.variantId);
@@ -271,12 +287,13 @@ export function Till({
             label="Payment"
             name="paymentMethod"
             value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as "cash" | "credit")}
+            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
             error={state.fieldErrors?.paymentMethod}
-            options={[
-              { value: "cash", label: "Cash" },
-              { value: "credit", label: "On account" },
-            ]}
+            options={PAYMENT_METHODS.filter(
+              // Offering mobile money without a connected Paystack account
+              // would be a button that can only fail at the counter.
+              (m) => momoEnabled || (m.value !== "momo" && m.value !== "split")
+            ).map((m) => ({ value: m.value, label: m.label }))}
           />
 
           <Select
@@ -320,6 +337,57 @@ export function Till({
             <input type="hidden" name="amountTendered" value="0" />
           )}
 
+          {paymentMethod === "split" ? (
+            <Field
+              label={`Cash part (${currencyCode})`}
+              name="cashAmount"
+              type="number"
+              step="0.01"
+              min={0}
+              value={cashPart}
+              onChange={(e) => setCashPart(e.target.value)}
+              error={state.fieldErrors?.cashAmount}
+            />
+          ) : (
+            <input type="hidden" name="cashAmount" value="0" />
+          )}
+
+          {paymentMethod === "momo" || paymentMethod === "split" ? (
+            <>
+              <Field
+                label="Customer's mobile money number"
+                name="momoNumber"
+                type="tel"
+                inputMode="tel"
+                placeholder="024 412 3456"
+                value={momoNumber}
+                onChange={(e) => setMomoNumber(e.target.value)}
+                error={state.fieldErrors?.momoNumber}
+              />
+              <Select
+                label="Network"
+                name="momoNetwork"
+                value={momoNetwork}
+                onChange={(e) => setMomoNetwork(e.target.value)}
+                error={state.fieldErrors?.momoNetwork}
+                options={MOMO_NETWORKS.map((n) => ({ value: n.value, label: n.label }))}
+              />
+              <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-neutral-800">
+                <span className="text-sm text-neutral-600 dark:text-neutral-300">To charge their phone</span>
+                <span
+                  className={`text-lg font-semibold tabular-nums ${
+                    momoPart <= 0 ? "text-red-600 dark:text-red-400" : ""
+                  }`}
+                >
+                  {formatMoney(toMinorUnits(Math.max(momoPart, 0)), currencyCode)}
+                </span>
+              </div>
+              <p className="text-sm text-neutral-500">
+                They approve it on their own phone and have about three minutes. The sale stays open until they do.
+              </p>
+            </>
+          ) : null}
+
           {paymentMethod === "credit" && selectedCustomer ? (
             <p className="text-sm text-neutral-500">
               This will be added to {selectedCustomer.name}&apos;s account. It is refused if it takes them over their
@@ -342,7 +410,13 @@ export function Till({
           ) : null}
 
           <SubmitButton pendingText="Taking payment…" className="min-h-[52px] text-base" disabled={cart.length === 0}>
-            {paymentMethod === "cash" ? "Take cash" : "Put on account"}
+            {paymentMethod === "cash"
+              ? "Take cash"
+              : paymentMethod === "credit"
+                ? "Put on account"
+                : paymentMethod === "momo"
+                  ? "Prompt their phone"
+                  : "Take cash and prompt"}
           </SubmitButton>
 
           {cart.length > 0 ? (

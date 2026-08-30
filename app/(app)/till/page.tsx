@@ -75,6 +75,7 @@ export default async function TillPage({
     { data: variants, error: variantsError },
     { data: customers, error: customersError },
     { data: settings },
+    { data: momoEnabled },
   ] = await Promise.all([
     supabase
       .from("branches")
@@ -89,6 +90,9 @@ export default async function TillPage({
       .eq("products.status", "active"),
     supabase.from("customers").select("id, name, phone").eq("status", "active").order("name"),
     supabase.from("business_settings").select("pos_settings").eq("business_id", businessId).maybeSingle(),
+    // One bit, not the payment settings row: a cashier cannot read that
+    // table at all, and does not need to (migration 0024).
+    supabase.rpc("business_momo_enabled", { p_business_id: businessId }),
   ]);
 
   if (branchesError) console.error("TillPage: branches query failed", branchesError);
@@ -156,6 +160,7 @@ export default async function TillPage({
       customers={tillCustomers}
       currencyCode={currencyCode}
       allowNegativeStock={allowNegativeStock}
+      momoEnabled={Boolean(momoEnabled)}
     />
   );
 }

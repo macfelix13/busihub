@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { requirePermission, AuthorizationError } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { readTillSession } from "@/lib/auth/till-session";
 import { refundSchema } from "@/lib/validation/refunds";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
+import { loadPaystackCredentials, verifyTransaction } from "@/lib/paystack/client";
 
 export interface FormState {
   error?: string;
@@ -103,4 +104,113 @@ export async function refundSale(saleId: string, _prevState: FormState, formData
   revalidatePath(`/sales/${saleId}`);
   revalidatePath("/inventory");
   redirect(`/sales/${saleId}`);
+}
+
+/**
+ * Asks Paystack directly whether a pending charge has landed.
+ *
+ * The webhook is the primary path and usually wins. This is the fallback
+ * for when it is slow or lost — Paystack's own advice is to verify if
+ * nothing has arrived within 180 seconds — and it settles through exactly
+ * the same function the webhook uses, so there is one place where a sale
+ * becomes paid, not two.
+ */
+export async function checkSalePayment(saleId: string): Promise<{ status: string; error?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+    await requirePermission(supabase, businessId, PERMISSIONS.SALES_PROCESS);
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { status: "unknown", error: err.message };
+    console.error("checkSalePayment: permission lookup failed", err);
+    return { status: "unknown", error: "Something went wrong." };
+  }
+
+  // Read through the caller's own client, so RLS decides whether this
+  // sale is theirs to look at. Everything after this point uses the
+  // service role, and would not.
+  const { data: saleRow, error: saleError } = await supabase
+    .from("sales")
+    .select("id, status")
+    .eq("id", saleId)
+    .maybeSingle();
+
+  const sale = saleRow as { id: string; status: string } | null;
+
+  if (saleError || !sale) {
+    return { status: "unknown", error: "That sale could not be found." };
+  }
+
+  if (sale.status !== "awaiting_payment") {
+    return { status: sale.status };
+  }
+
+  const { data: paymentRow } = await supabase
+    .from("sale_payments")
+    .select("id, status")
+    .eq("sale_id", saleId)
+    .eq("method", "momo")
+    .maybeSingle();
+
+  const payment = paymentRow as { id: string; status: string } | null;
+  if (!payment || payment.status !== "pending") {
+    return { status: sale.status };
+  }
+
+  const credentials = await loadPaystackCredentials(businessId);
+  if (!credentials) {
+    return { status: sale.status, error: "This shop's Paystack account is no longer connected." };
+  }
+
+  const verified = await verifyTransaction(credentials, payment.id);
+  if (!verified || verified.status === "pending") {
+    // Still waiting, or Paystack did not answer. Either way nothing has
+    // changed, and reporting "failed" here would throw away a payment the
+    // customer may be about to approve.
+    return { status: sale.status };
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: settled, error: settleError } = await admin.rpc("settle_sale_payment", {
+    p_business_id: businessId,
+    p_payment_id: payment.id,
+    p_status: verified.status,
+    p_provider_charge_id: verified.chargeId,
+    p_failure_reason: verified.status === "failed" ? (verified.message ?? "Payment failed") : null,
+  });
+
+  if (settleError) {
+    console.error("checkSalePayment: settlement failed", settleError);
+    return { status: sale.status, error: "Couldn't confirm that payment. Please try again." };
+  }
+
+  revalidatePath(`/sales/${saleId}`);
+  revalidatePath("/inventory");
+
+  return { status: settled === "completed" ? "completed" : sale.status };
+}
+
+/**
+ * Gives up on a sale whose payment never arrived. Not a void — nothing
+ * was ever paid — so the goods simply go back on the shelf.
+ */
+export async function cancelSale(saleId: string): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  const businessId = await getCurrentBusinessId(supabase);
+  await requirePermission(supabase, businessId, PERMISSIONS.SALES_PROCESS);
+
+  const { error } = await supabase.rpc("cancel_unpaid_sale", {
+    p_sale_id: saleId,
+    p_reason: "Cancelled at the till",
+  });
+
+  if (error) {
+    console.error("cancelSale: rpc failed", error);
+    throw new Error(correctionErrorMessage(error) ?? "Couldn't cancel this sale. Please try again.");
+  }
+
+  revalidatePath(`/sales/${saleId}`);
+  revalidatePath("/inventory");
 }

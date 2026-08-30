@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–9 and 12 complete (see the roadmap below).** This document is
+Status: **Phases 0–10 and 12 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -440,7 +440,7 @@ one section of this document expected to change often.
 | 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
 | 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
 | 9 | POS core (cash + credit, PIN till login) | **done — schema verified (tests/security/sales.sql); till UI needs browser verification** |
-| 10 | Payments incl. Paystack | **in progress** — payments ledger, sale lifecycle and mobile money settlement done and verified (tests/security/payments.sql); Paystack client, webhook route and till UI still to come |
+| 10 | Payments incl. Paystack | **done — verified, see tests/security/payments.sql** (mobile money via each shop's own Paystack account; card & bank transfer deferred) |
 | 11 | Receipts / printing | pending |
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
 | 13 | Expenses | pending |
@@ -465,6 +465,37 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 10, part 3: mobile money at the till. The payment
+  selector now offers Cash, Mobile money, Cash + mobile money, or On
+  account — and hides the momo options entirely unless the shop has both
+  switched it on and connected an account, because a button that can only
+  fail is worse than no button.
+
+  The till still names exactly one money figure: the cash in the drawer.
+  Migration 0024 lets a momo tender arrive with no amount, meaning
+  "whatever the cash did not cover", worked out by create_sale from prices
+  it read itself. Without that the till would have to state the charge
+  from its own preview — which it cannot know is right, and which would
+  let a tampered client prompt a customer's phone for a figure of its own
+  choosing.
+
+  Order matters in completeSale: the sale is created FIRST, which commits
+  the stock and produces the reference Paystack quotes back, and only then
+  is the phone prompted. Charging first would mean holding a successful
+  payment with nothing to attach it to. If the charge cannot be started,
+  the sale is cancelled so it is not left holding stock, and the error is
+  returned rather than redirected — which also leaves the cart on screen
+  so the cashier can fix the number and try again.
+
+  The receipt then shows a live waiting panel: the webhook normally
+  settles within a second or two, but it can be slow or misconfigured and
+  a cashier cannot stand there wondering, so the page also asks Paystack
+  directly every four seconds. Both routes settle through the same
+  database function, so whichever arrives first wins. `business_momo_enabled()`
+  exposes one bit to the till rather than widening the settings policy —
+  a cashier answering "can we take momo?" should not be handed the keys to
+  read it. 179 database assertions across eight suites; 152 unit tests.
 
 - 2026-08-30 — Phase 10, part 2: connecting Paystack. Each shop pastes its
   own keys at `/settings/payments`; the secret is encrypted with

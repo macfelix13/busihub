@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Applies every file in supabase/migrations/, in filename order, that
  * hasn't been applied yet. Tracks applied migrations in a
@@ -30,6 +31,18 @@ loadEnv({ path: path.join(repoRoot, ".env") });
 
 const migrationsDir = path.join(repoRoot, "supabase", "migrations");
 
+// A leading UTF-8 BOM (U+FEFF) is invisible in most editors/terminals but
+// is NOT whitespace to Postgres's parser — pg sends the file's raw text
+// as the query, so a BOM-prefixed file fails with a confusing "syntax
+// error at or near """ (the blank quotes ARE the BOM). Windows
+// PowerShell's `-Encoding UTF8` always adds one (confirmed the exact
+// failure this way against a real migration file), and other Windows
+// editors can too — stripped defensively so this can't recur regardless
+// of what tool wrote the file.
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {
   console.error(
@@ -61,7 +74,7 @@ async function main() {
   for (const file of files) {
     if (applied.has(file)) continue;
 
-    const sql = await readFile(path.join(migrationsDir, file), "utf8");
+    const sql = stripBom(await readFile(path.join(migrationsDir, file), "utf8"));
     console.log(`Applying ${file}...`);
 
     try {

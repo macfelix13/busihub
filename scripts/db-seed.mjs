@@ -21,6 +21,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env.local") });
 loadEnv({ path: path.join(__dirname, "..", ".env") });
 
+// See scripts/db-migrate.mjs's stripBom() for why this is needed — a
+// leading UTF-8 BOM fails as a confusing "syntax error at or near """
+// against Postgres, since pg sends the file's raw text as the query.
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {
   console.error("Missing SUPABASE_DB_URL. See .env.example.");
@@ -51,7 +58,7 @@ const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: fals
 
 async function main() {
   await client.connect();
-  const sql = await readFile(path.join(__dirname, "..", "supabase", "seed.sql"), "utf8");
+  const sql = stripBom(await readFile(path.join(__dirname, "..", "supabase", "seed.sql"), "utf8"));
   await client.query(sql);
   console.log("Seed complete.");
   await client.end();

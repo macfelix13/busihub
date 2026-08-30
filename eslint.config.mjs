@@ -18,12 +18,13 @@ const eslintConfig = [
     },
   },
   {
-    ignores: [
+        ignores: [
       "node_modules/**",
       ".next/**",
       "coverage/**",
       "playwright-report/**",
       "test-results/**",
+      ".github/**",
     ],
   },
 ];

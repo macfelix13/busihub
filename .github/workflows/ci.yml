@@ -61,6 +61,12 @@ jobs:
       - name: Run sales (till) tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/sales.sql
 
+      - name: Run refund & void tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/refunds.sql
+
+      - name: Run payment (mobile money / split tender) tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/payments.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

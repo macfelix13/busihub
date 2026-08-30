@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { paymentMethodLabel } from "@/lib/validation/sales";
+import { refundMethodLabel } from "@/lib/validation/refunds";
+import { StatusToggleButton } from "../../products/status-toggle-button";
+import { voidSale } from "../actions";
 
 export const metadata = { title: "Sale" };
 
@@ -41,9 +44,11 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
 
-  const [canSell, canReport, { data: business }] = await Promise.all([
+  const [canSell, canReport, canVoid, canRefund, { data: business }] = await Promise.all([
     hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
     hasPermission(supabase, businessId, PERMISSIONS.REPORTS_VIEW),
+    hasPermission(supabase, businessId, PERMISSIONS.SALES_VOID),
+    hasPermission(supabase, businessId, PERMISSIONS.SALES_REFUND),
     supabase.from("businesses").select("name, currency_code").eq("id", businessId).maybeSingle(),
   ]);
 
@@ -83,7 +88,27 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     console.error("SaleDetailPage: items query failed", itemsError);
   }
 
+  const { data: refunds, error: refundsError } = await supabase
+    .from("refunds")
+    .select("id, refund_number, method, reason, total, created_at")
+    .eq("sale_id", id)
+    .order("created_at", { ascending: false });
+
+  if (refundsError) {
+    console.error("SaleDetailPage: refunds query failed", refundsError);
+  }
+
   const rows = (items ?? []) as unknown as ItemRow[];
+  const refundRows = (refunds ?? []) as unknown as {
+    id: string;
+    refund_number: string;
+    method: string;
+    reason: string | null;
+    total: number | string;
+    created_at: string;
+  }[];
+  const refundedTotal = refundRows.reduce((sum, r) => sum + Number(r.total), 0);
+  const isVoided = sale.status === "voided";
   const cashierName = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
 
   return (
@@ -95,6 +120,11 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
               {paymentMethodLabel(sale.payment_method)}
             </span>
+            {isVoided ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                Voided
+              </span>
+            ) : null}
           </div>
           <p className="text-neutral-500">
             {new Date(sale.created_at).toLocaleString("en-GB", {
@@ -108,9 +138,28 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             {cashierName ? ` · ${cashierName}` : ""}
           </p>
         </div>
-        <Link href="/till">
-          <Button>Next sale</Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {canRefund && !isVoided ? (
+            <Link href={`/sales/${sale.id}/refund`}>
+              <Button variant="secondary">Return items</Button>
+            </Link>
+          ) : null}
+          {/* Voiding is for a sale rung up in error, and is refused once
+              anything has been returned against it — so it disappears the
+              moment a refund exists, rather than offering a button that
+              can only fail. */}
+          {canVoid && !isVoided && refundRows.length === 0 ? (
+            <StatusToggleButton
+              action={voidSale.bind(null, sale.id)}
+              label="Void sale"
+              pendingLabel="Voiding…"
+              variant="danger"
+            />
+          ) : null}
+          <Link href="/till">
+            <Button>Next sale</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -206,9 +255,44 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
+      {isVoided ? (
+        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          This sale was voided. The stock went back and any charge to the customer was reversed. The record above is
+          kept exactly as it was rung up.
+        </p>
+      ) : null}
+
+      {refundRows.length > 0 ? (
+        <div>
+          <h2 className="font-semibold">Returns against this sale</h2>
+          <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {refundRows.map((r) => (
+                <li key={r.id} className="flex items-center justify-between px-5 py-3 text-sm">
+                  <span>
+                    <span className="font-medium">{r.refund_number}</span>
+                    <span className="ml-2 text-neutral-500">{refundMethodLabel(r.method)}</span>
+                    {r.reason ? <span className="ml-2 text-neutral-500">· {r.reason}</span> : null}
+                  </span>
+                  <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
+                    −{formatMoney(toMinorUnits(r.total), currencyCode)}
+                  </span>
+                </li>
+              ))}
+              <li className="flex items-center justify-between bg-neutral-50 px-5 py-3 text-sm font-medium dark:bg-neutral-800/50">
+                <span>Net after returns</span>
+                <span className="tabular-nums">
+                  {formatMoney(toMinorUnits(Number(sale.total) - refundedTotal), currencyCode)}
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
       <p className="text-sm text-neutral-500">
         Every figure here was calculated by the server from the catalog price and your tax settings at the moment of
-        sale. This record cannot be edited — a correction is a refund or a void.
+        sale. This record cannot be edited — a correction is a return or a void, each of which gets its own row.
       </p>
     </div>
   );

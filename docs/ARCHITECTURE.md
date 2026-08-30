@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–9 complete (see the roadmap below).** This document is
+Status: **Phases 0–9 and 12 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -440,9 +440,9 @@ one section of this document expected to change often.
 | 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
 | 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
 | 9 | POS core (cash + credit, PIN till login) | **done — schema verified (tests/security/sales.sql); till UI needs browser verification** |
-| 10 | Payments incl. Paystack | pending |
+| 10 | Payments incl. Paystack | **in progress** — payments ledger, sale lifecycle and mobile money settlement done and verified (tests/security/payments.sql); Paystack client, webhook route and till UI still to come |
 | 11 | Receipts / printing | pending |
-| 12 | Refunds & voids | pending |
+| 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
 | 13 | Expenses | pending |
 | 14 | Reports | pending |
 | 15 | Notifications | pending |
@@ -465,6 +465,62 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 10, part 1: the payments ledger and the sale
+  lifecycle. Mobile money is not paid instantly — the customer approves a
+  prompt on their own phone and the answer arrives on a webhook seconds
+  later, or never — so a sale now has a lifetime: `awaiting_payment` →
+  `completed` → `voided`, or `awaiting_payment` → `cancelled`. Tenders
+  became their own append-only rows (`sale_payments`), which is what makes
+  "GHS 50 cash and the rest on momo" expressible at all; `payment_method`
+  on the sale is now a summary of them.
+
+  The load-bearing decision is that **stock leaves the shelf when the cart
+  is rung up, not when the money lands**. The alternative loses: two tills
+  could both promise the last bag of rice, and the second customer would
+  have paid before anyone discovered it was gone. Committing the goods up
+  front means a payment that succeeds can always be honoured, and the only
+  case left to handle is the easy one — `cancel_unpaid_sale()` puts them
+  straight back, recorded as `sale_cancelled` so reports can tell it from
+  a customer return.
+
+  Each shop connects its **own** Paystack account, so Busihub never holds
+  anyone's money. That shop's secret key is stored only as ciphertext
+  encrypted in the application, under a key that lives in the server's
+  environment and never in the database, and the ciphertext column is not
+  selectable by `authenticated` at all — the revoke-then-grant-per-column
+  pattern from 0018, applied to the one value in this schema that can move
+  real money.
+
+  `settle_sale_payment()` is granted to `service_role` alone: settling is
+  something our server does on a verified webhook, never something a
+  browser asks for. It is idempotent because Paystack retries a webhook
+  for 72 hours until it gets a 200, so the same event arriving twice is
+  the normal case, not the edge. `tests/security/payments.sql` covers 32
+  assertions — **172 across eight suites** — and three of its guarantees
+  were deliberately sabotaged to confirm it fails when they break.
+
+- 2026-08-30 — Phase 12 complete (brought forward ahead of payments):
+  refunds and voids. A sale is never edited — a correction is its own
+  row. `void_sale()` cancels a whole sale rung up in error, putting the
+  stock back and reversing an on-account charge; `create_refund()` takes
+  specific lines back, cumulatively capped at what was sold and never
+  exceeding it across repeated returns. Money is apportioned from the
+  original sale line, not recomputed from today's prices, so a customer
+  is refunded what they actually paid even if the shelf price has since
+  changed — and, as at the till, no amount crosses the wire for a caller
+  to forge. Damaged goods refund without returning to the shelf
+  (`restocked = false`). Voiding disappears from the UI once anything has
+  been returned, because the database refuses it. Both functions take an
+  advisory lock rather than `SELECT ... FOR UPDATE`: locking a `sales`
+  row runs it through that table's UPDATE policy, which would have
+  demanded `sales.void` of a refund. `tests/security/refunds.sql` covers
+  23 assertions, including the permission split between `sales.void`,
+  `sales.refund` and `sales.process` on the inventory ledger, and the
+  case that separates "nothing was selected" from "the thing being
+  returned was free" — a promotional line refunds no money but still has
+  to come back onto the shelf, so the empty-return guard counts lines
+  rather than testing the total.
 
 - 2026-08-30 — Phase 9 complete: the till. `/till` is a cart with barcode
   or name search (a scanner is a keyboard, so Enter on an exact

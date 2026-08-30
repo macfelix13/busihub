@@ -66,3 +66,20 @@ $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant select on auth.users to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
+
+-- Supabase's own bootstrap gives service_role blanket table access — it is
+-- the key that bypasses RLS, and it is expected to reach everything — and
+-- sets default privileges so tables created by later migrations are
+-- covered too. Our migrations only ever grant to `authenticated` and
+-- `anon`, because on a real project service_role is already handled.
+--
+-- Without this the harness diverges from production in the one direction
+-- that hides bugs rather than causing them: server-side code would fail
+-- here and work there, or (worse) a test would "prove" service_role is
+-- locked out of something it can in fact read. This is the same class of
+-- gap as the pgcrypto/extensions schema above, which shipped a broken
+-- PIN function past five green suites.
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;

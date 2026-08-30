@@ -285,13 +285,13 @@ begin
   -- sales.process + customers.view; that rule is covered in
   -- tests/security/sales.sql. 'refund' below is still genuinely reserved.
 
-  begin
-    insert into customer_account_entries (business_id, customer_id, amount, entry_type)
-    values ('00000000-0000-0000-0000-000000000000', v_c, -10, 'refund');
-    raise exception 'TEST FAILED: a "refund" entry was insertable before the refunds phase' using errcode = 'ZZ999';
-  exception when insufficient_privilege then
-    raise notice 'PASS: reserved entry type "refund" rejected by RLS';
-  end;
+  -- NOTE: 'refund' used to be asserted here as universally rejected. Since
+  -- 0021 the refunds phase exists and it is admitted for a caller holding
+  -- sales.refund + customers.view; the successor rule (allowed with the
+  -- permissions, refused without) is covered in tests/security/refunds.sql.
+  -- Both reserved types this file once guarded have now been claimed by
+  -- the phases that generate them, which is the intended lifecycle.
+  null;
 end $$;
 
 -- ── 8. The balance is not directly writable, and the ledger is final ─────

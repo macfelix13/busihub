@@ -52,7 +52,16 @@ const COPY = {
 
 export function StockForm({ mode, action, branchId, branchName, variants, quantities, defaultVariantId }: StockFormProps) {
   const [state, formAction] = useFormState(action, initialState);
-  const [variantId, setVariantId] = useState(defaultVariantId ?? variants[0]?.id ?? "");
+  // Only honour ?variant= if it is actually one of the options. A stale or
+  // foreign id (an archived variant, a hand-edited URL) would otherwise sit
+  // in state while the <select> — having no matching <option> — displays
+  // something else entirely, so the user would submit an item they can't
+  // see selected.
+  const [variantId, setVariantId] = useState(
+    defaultVariantId && variants.some((v) => v.id === defaultVariantId)
+      ? defaultVariantId
+      : (variants[0]?.id ?? "")
+  );
   const [direction, setDirection] = useState<"decrease" | "increase">("decrease");
 
   const copy = COPY[mode];

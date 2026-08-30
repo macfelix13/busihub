@@ -45,6 +45,12 @@ export function PurchaseOrderForm({
   const [state, formAction] = useFormState(createPurchaseOrder, initialState);
   const [lines, setLines] = useState<LineRow[]>([emptyLine()]);
 
+  // An unrecognized ?supplier= would leave the <select> falling back to
+  // whichever supplier happens to be first alphabetically — and the order
+  // would be raised against them, silently. Only prefill a real one.
+  const initialSupplierId =
+    defaultSupplierId && suppliers.some((s) => s.id === defaultSupplierId) ? defaultSupplierId : undefined;
+
   function patchLine(index: number, patch: Partial<LineRow>) {
     setLines((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
@@ -91,7 +97,7 @@ export function PurchaseOrderForm({
         <Select
           label="Supplier"
           name="supplierId"
-          defaultValue={defaultSupplierId}
+          defaultValue={initialSupplierId}
           error={state.fieldErrors?.supplierId}
           options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
         />

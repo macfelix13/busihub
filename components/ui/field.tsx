@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useId } from "react";
 import { cn } from "@/lib/utils";
@@ -16,9 +16,14 @@ export function Field({ label, error, className, id, ...props }: FieldProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-        {label}
-      </label>
+      {/* A caller that labels the field some other way (an aria-label on a
+          dense table row, say) passes "" — render no label element at all
+          rather than an empty one that still takes up its gap. */}
+      {label ? (
+        <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+          {label}
+        </label>
+      ) : null}
       <input
         id={inputId}
         aria-invalid={Boolean(error)}

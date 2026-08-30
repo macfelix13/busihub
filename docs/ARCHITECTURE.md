@@ -1,6 +1,6 @@
-# Busihub — Architecture
+﻿# Busihub — Architecture
 
-Status: **Foundation phase (Phase 0–2 of the roadmap below).** This document is
+Status: **Phases 0–6 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -65,7 +65,6 @@ re-validated server-side; the client's numbers are treated as a UI hint,
 never as truth (Section 49 of the brief).
 
 **Two authorization layers, deliberately redundant:**
-
 1. **Application layer** (Next.js server): route/action-level permission
    checks, business rule enforcement (discount caps, approval workflows),
    request shaping.
@@ -154,7 +153,6 @@ files themselves (source of truth). Summary of the model:
 off `business_id` (always) and `branch_id` (where the concept is
 branch-scoped: inventory, sales, POS terminals, expenses). Every tenant
 table gets:
-
 - `business_id uuid not null references businesses(id)`
 - an index on `business_id` (and `(business_id, branch_id)` where relevant)
 - an RLS policy scoping to the caller's business/branch
@@ -217,7 +215,7 @@ processed, so a duplicate delivery is a no-op (Section 17, Section 37).
   an orphaned business or ownerless account if one fails.
 - **Email verification / password reset**: Supabase Auth's built-in flows,
   with our own branded email templates.
-- **Cashier PIN workflow** (Section 6): this is a _second, lightweight_
+- **Cashier PIN workflow** (Section 6): this is a *second, lightweight*
   authentication layer on top of an already-authenticated device session,
   not a replacement for it.
   1. A manager/owner signs in normally (full Supabase Auth session) on a
@@ -430,33 +428,33 @@ Matches the lifecycle in Section 2 of the brief, ordered so each phase only
 depends on ones before it. Status is updated as work lands — this is the
 one section of this document expected to change often.
 
-| Phase | Scope                                                                                          | Status                                                                                            |
-| ----- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 0     | Architecture, folder structure, tooling scaffold                                               | **done**                                                                                          |
-| 1     | Core database schema + RLS foundation (business, branch, profiles, RBAC, subscriptions, audit) | **done — verified, see tests/security/**                                                          |
-| 2     | Authentication (registration, login, sessions, PIN storage)                                    | **done** (PIN entry UI/route deferred to POS phase; MFA/phone/Google deferred — see docs/AUTH.md) |
-| 3     | Authorization/RBAC enforcement layer                                                           | **done — verified, see tests/security/**                                                          |
-| 4     | Business & branch management UI/API                                                            | pending                                                                                           |
-| 5     | Products (incl. variants, barcodes)                                                            | pending                                                                                           |
-| 6     | Inventory                                                                                      | pending                                                                                           |
-| 7     | Suppliers & purchasing                                                                         | pending                                                                                           |
-| 8     | Customers                                                                                      | pending                                                                                           |
-| 9     | POS core (online, cash)                                                                        | pending                                                                                           |
-| 10    | Payments incl. Paystack                                                                        | pending                                                                                           |
-| 11    | Receipts / printing                                                                            | pending                                                                                           |
-| 12    | Refunds & voids                                                                                | pending                                                                                           |
-| 13    | Expenses                                                                                       | pending                                                                                           |
-| 14    | Reports                                                                                        | pending                                                                                           |
-| 15    | Notifications                                                                                  | pending                                                                                           |
-| 16    | Offline/PWA                                                                                    | pending                                                                                           |
-| 17    | Synchronization                                                                                | pending                                                                                           |
-| 18    | Subscriptions & entitlements enforcement                                                       | pending                                                                                           |
-| 19    | Super Admin                                                                                    | pending                                                                                           |
-| 20    | Audit/security monitoring surfaces                                                             | pending                                                                                           |
-| 21    | Automated test suite hardening                                                                 | pending                                                                                           |
-| 22    | Security review pass                                                                           | pending                                                                                           |
-| 23    | Performance review pass                                                                        | pending                                                                                           |
-| 24    | Deployment prep & documentation                                                                | pending                                                                                           |
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Architecture, folder structure, tooling scaffold | **done** |
+| 1 | Core database schema + RLS foundation (business, branch, profiles, RBAC, subscriptions, audit) | **done — verified, see tests/security/** |
+| 2 | Authentication (registration, login, sessions, PIN storage) | **done** (PIN entry UI/route deferred to POS phase; MFA/phone/Google deferred — see docs/AUTH.md) |
+| 3 | Authorization/RBAC enforcement layer | **done — verified, see tests/security/** |
+| 4 | Business & branch management UI/API | **done — verified end-to-end on a real machine + CI** |
+| 5 | Products (incl. variants, barcodes) | **done — verified, see tests/security/ + live browser testing** |
+| 6 | Inventory (stock levels, movements ledger, receive/adjust/count) | **done — verified, see tests/security/inventory.sql** (transfers & low-stock alerts deferred) |
+| 7 | Suppliers & purchasing | pending |
+| 8 | Customers | pending |
+| 9 | POS core (online, cash) | pending |
+| 10 | Payments incl. Paystack | pending |
+| 11 | Receipts / printing | pending |
+| 12 | Refunds & voids | pending |
+| 13 | Expenses | pending |
+| 14 | Reports | pending |
+| 15 | Notifications | pending |
+| 16 | Offline/PWA | pending |
+| 17 | Synchronization | pending |
+| 18 | Subscriptions & entitlements enforcement | pending |
+| 19 | Super Admin | pending |
+| 20 | Audit/security monitoring surfaces | pending |
+| 21 | Automated test suite hardening | pending |
+| 22 | Security review pass | pending |
+| 23 | Performance review pass | pending |
+| 24 | Deployment prep & documentation | pending |
 
 **This session's committed scope**: Phases 0–3 (architecture, schema, RLS,
 auth, RBAC enforcement) to genuine production quality, forming the
@@ -467,6 +465,37 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 6 (inventory, core stock tracking) complete. Migration
+  0015 adds an append-only `inventory_movements` ledger plus a
+  trigger-maintained `stock_levels` aggregate, implementing the "stock is
+  never edited directly" rule from §Inventory integrity above. Enforcement
+  is at the database, not the app: `stock_levels` has its insert/update/
+  delete grants revoked entirely (its only writer is the SECURITY DEFINER
+  `apply_inventory_movement()` trigger), `inventory_movements` has its
+  update/delete grants revoked so the ledger is genuinely append-only, and
+  the RLS insert policy is per-`reason` so `inventory.receive` and
+  `inventory.adjust` stay separately enforced while the reasons reserved
+  for later phases (`sale`, `transfer_*`) are rejected outright.
+  `record_stock_count()` converts an absolute physical count into a
+  relative movement under an advisory lock, because computing that delta
+  in application code is a read-then-write race. Verified directly against
+  Postgres — `tests/security/inventory.sql` (21 assertions: accumulation,
+  business_id/created_by spoofing, negative-stock rejection, reserved
+  reasons, direct-write refusal on both tables, cashier permission split,
+  cross-tenant isolation, and ledger↔level reconciliation), plus a real
+  concurrency run (8 parallel workers, 243 mixed count/receive movements)
+  confirming zero lost updates and exact reconciliation. Wired into CI.
+- 2026-08-30 — Fixed a validation bug reachable since Phase 5: numeric form
+  fields used `z.coerce.number()`, which is `Number(input)` underneath, and
+  `Number("")`/`Number(null)` are a finite `0`. A blank selling price
+  therefore parsed as a deliberate zero and created a free product, and the
+  same shape would have let a blank stock count silently zero an item's
+  stock. Replaced with `lib/validation/numeric.ts`'s `decimalField()`,
+  which rejects blank/non-numeric input and refuses more precision than the
+  destination column stores (so Postgres never silently rounds a figure the
+  user typed). Cost price keeps blank-means-zero, but deliberately and in
+  one place. Locked in by tests/unit/products-validation.test.ts.
 
 - 2026-08-29 — Initial architecture document, Phase 0.
 - 2026-08-29 — Phases 0–3 complete: project scaffold, full tenancy/identity/RBAC/subscriptions/audit schema with RLS (migrations 0001–0011), authentication flows (register/login/logout/reset), RBAC enforcement layer (`lib/rbac`). Tenant isolation and RBAC enforcement verified directly against Postgres — see `tests/security/tenant_isolation_and_rbac.sql`. `npm install`/`build`/`lint`/`typecheck` not run locally (sandbox network restriction — see `docs/DEPLOYMENT.md`); wired into CI to run on every push instead.

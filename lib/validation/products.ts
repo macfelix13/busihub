@@ -1,4 +1,5 @@
 ﻿import { z } from "zod";
+import { decimalField } from "./numeric";
 
 /**
  * Shared client+server validation for product/variant create+edit forms
@@ -51,7 +52,25 @@ const barcodeSchema = optionalTrimmed(64);
 // major-unit decimal a numeric(14,2) column stores; conversion to integer
 // minor units happens only where arithmetic is done, e.g. the POS/sales
 // phase, not here).
-const priceSchema = z.coerce.number({ invalid_type_error: "Enter a number" }).finite().min(0, "Must be zero or more");
+//
+// decimalField() rather than z.coerce.number(): the latter is
+// Number(input) underneath, and Number("") is 0, so a selling price the
+// user left blank parsed as a deliberate zero and created a product that
+// was free. See lib/validation/numeric.ts.
+const moneyAmount = (requiredMessage: string) =>
+  decimalField({ decimals: 2, requiredMessage, invalidMessage: "Enter a number" }).refine((n) => n >= 0, {
+    message: "Must be zero or more",
+  });
+
+const sellingPriceSchema = moneyAmount("Enter a selling price");
+
+// Cost price genuinely is optional — plenty of small shops don't track
+// it — so blank means zero here, deliberately and in one visible place,
+// rather than by accident everywhere.
+const costPriceSchema = z.preprocess(
+  (v) => (v === null || v === undefined || (typeof v === "string" && v.trim().length === 0) ? "0" : v),
+  moneyAmount("Enter a cost price")
+);
 
 /**
  * One row of the variant-rows editor. variantOptions keys must exactly
@@ -71,8 +90,8 @@ export const variantRowSchema = z.object({
   sku: skuSchema,
   barcode: barcodeSchema,
   variantOptions: z.record(z.string(), z.string().trim()).default({}),
-  costPrice: priceSchema.default(0),
-  sellingPrice: priceSchema,
+  costPrice: costPriceSchema,
+  sellingPrice: sellingPriceSchema,
 });
 
 export type VariantRowInput = z.infer<typeof variantRowSchema>;

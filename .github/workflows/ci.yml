@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -45,6 +45,9 @@ jobs:
 
       - name: Run tenant isolation & RBAC security tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/tenant_isolation_and_rbac.sql
+
+      - name: Run inventory ledger & permission tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/inventory.sql
 
   app:
     name: Typecheck, lint, build

@@ -52,6 +52,9 @@ jobs:
       - name: Run purchasing (supplier/PO) tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/purchasing.sql
 
+      - name: Run customer account/credit tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/customers.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

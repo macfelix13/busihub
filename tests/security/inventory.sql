@@ -420,6 +420,36 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
+-- ── 11b. The path the application actually takes ─────────────────────────
+-- The tests above pass a placeholder business_id because the column is
+-- NOT NULL; the Server Actions omit it and rely on
+-- set_inventory_movement_context() to fill it in (NOT NULL is checked
+-- after BEFORE triggers). Worth proving rather than assuming.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_id uuid; v_biz uuid; v_biz_a uuid;
+begin
+  select biz_a into v_biz_a from t_ids;
+
+  insert into inventory_movements (branch_id, variant_id, quantity_delta, reason, note)
+  select branch_a, variant_a, 1, 'receive', 'omitted business_id' from t_ids
+  returning id into v_id;
+
+  select business_id into v_biz from inventory_movements where id = v_id;
+  if v_biz is distinct from v_biz_a then
+    raise exception 'TEST FAILED: omitted business_id resolved to % (expected %)', v_biz, v_biz_a
+      using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: a movement inserted without business_id (as the app does) is filled in correctly';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
 -- ── 12. The ledger still reconciles to the derived level ─────────────────
 -- The real invariant behind this whole design: stock_levels must always
 -- equal the sum of the movements that produced it.

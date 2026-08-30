@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–7 complete (see the roadmap below).** This document is
+Status: **Phases 0–8 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -438,7 +438,7 @@ one section of this document expected to change often.
 | 5 | Products (incl. variants, barcodes) | **done — verified, see tests/security/ + live browser testing** |
 | 6 | Inventory (stock levels, movements ledger, receive/adjust/count) | **done — verified, see tests/security/inventory.sql** (transfers & low-stock alerts deferred) |
 | 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
-| 8 | Customers | pending |
+| 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
 | 9 | POS core (online, cash) | pending |
 | 10 | Payments incl. Paystack | pending |
 | 11 | Receipts / printing | pending |
@@ -465,6 +465,28 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 8 (customers & credit accounts) complete. Migration
+  0017 adds `customers`, an append-only `customer_account_entries` ledger
+  and a trigger-maintained `customer_balances`, applying the same
+  never-edit-the-number rule as stock. Buying on credit and settling later
+  is ordinary in this market, so a contact list without balances would
+  have been half a feature. Sign convention fixed once in the schema:
+  positive = owes more. `credit_limit` is enforced by the balance trigger
+  rather than merely displayed (0, the default, means cash only), and
+  `normalize_phone()` folds the ways one Ghanaian mobile number is written
+  onto a single key so "one record per phone" actually holds — 024 412
+  3456, 0244123456 and +233244123456 all collide. Verified against
+  Postgres: `tests/security/customers.sql`, 29 assertions. Wired into CI.
+- 2026-08-30 — Corrected a wrong assumption in the test suites: an
+  RLS-denied UPDATE does not raise, it matches zero rows silently (only a
+  failing WITH CHECK on an INSERT raises 42501). A test asserting "an
+  exception was thrown" therefore failed against correct code — and, worse,
+  the inverse assertion would have proven nothing. Those checks now assert
+  that the data did not move. Separately, both ledger suites gained a test
+  for the insert path the Server Actions actually use: they omit
+  `business_id` entirely and rely on the BEFORE trigger, where every
+  existing test had passed a placeholder.
 
 - 2026-08-30 — Phase 7 (suppliers & purchasing) complete. Migration 0016
   adds `suppliers`, `purchase_orders` and `purchase_order_items`, and

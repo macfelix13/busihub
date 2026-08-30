@@ -58,13 +58,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
-  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers] =
+  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers, canViewCustomers] =
     await Promise.all([
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.PRODUCTS_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.INVENTORY_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.SUPPLIERS_VIEW),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.CUSTOMERS_VIEW),
     ]);
 
   return (
@@ -97,6 +98,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Suppliers
               </Link>
             </>
+          ) : null}
+          {canViewCustomers ? (
+            <Link href="/customers" className="hover:text-neutral-900 dark:hover:text-white">
+              Customers
+            </Link>
           ) : null}
           {canManageBranches ? (
             <Link href="/branches" className="hover:text-neutral-900 dark:hover:text-white">

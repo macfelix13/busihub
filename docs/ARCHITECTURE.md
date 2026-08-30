@@ -466,6 +466,23 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-08-30 — Fix (0025): every mobile money sale was refused in the
+  browser with "Every payment needs an amount greater than zero", while
+  all 179 database assertions stayed green.
+
+  `jsonb -> 'key'` returns SQL NULL only when the key is **absent**. A key
+  present holding a JSON null returns the jsonb value `null`, which is not
+  SQL NULL — so `(v_pay -> 'amount') is null` was false for the
+  `{"amount": null}` that `JSON.stringify` actually sends, execution fell
+  through to the branch that reads the amount, and the sale was refused.
+
+  The tests missed it because they build payloads with
+  `jsonb_build_object` and simply omit the key: they were testing a shape
+  the application never sends. Both spellings are now accepted
+  (`jsonb_typeof`), the till omits the key rather than nulling it, and
+  three assertions send exactly what the browser sends. Reverting the fix
+  reproduces the browser error, which is how the assertions were checked.
+
 - 2026-08-30 — Phase 10, part 3: mobile money at the till. The payment
   selector now offers Cash, Mobile money, Cash + mobile money, or On
   account — and hides the momo options entirely unless the shop has both

@@ -180,11 +180,18 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
       payments.push({ method: "cash", amount: cashAmount });
     }
     payments.push({
+      // No `amount` key AT ALL, deliberately: create_sale works out what
+      // is left to charge after the cash, so the till cannot ask for a
+      // different figure than the sale is worth.
+      //
+      // Note it is omitted rather than set to null. `JSON.stringify`
+      // writes an explicit `"amount": null`, and in PostgreSQL
+      // `jsonb -> 'amount'` is SQL NULL only for an ABSENT key — an
+      // explicit null is the jsonb value `null`, which is not SQL NULL.
+      // Sending null therefore missed the branch entirely and every
+      // mobile money sale was refused. 0025 now accepts both spellings;
+      // this sends the unambiguous one.
       method: "momo",
-      // Deliberately null: the database works out what is left to charge
-      // after the cash, so the till cannot ask for a different amount than
-      // the sale is worth. Filled in below once the total is known.
-      amount: null,
       momo_number: normaliseMomoNumber(momoNumber ?? ""),
       momo_network: momoNetwork,
     });

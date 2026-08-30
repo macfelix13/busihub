@@ -842,6 +842,81 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
+-- ── 21c. An explicit JSON null means the same as leaving it out ─────────
+--
+-- This is the assertion that would have caught the bug 0025 fixes, and
+-- did not exist because every test above builds its payload with
+-- jsonb_build_object and simply omits the key. The application does not:
+-- JSON.stringify writes `"amount": null`, and in PostgreSQL that is NOT
+-- SQL NULL. Every mobile money sale was refused in the browser while the
+-- whole suite stayed green.
+--
+-- So these cases send exactly what the till sends.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_sale uuid; v_momo record; v_cash record; v_customer uuid;
+begin
+  -- 3 x 40 = 120, with 20 in cash, and the momo amount sent as an
+  -- explicit null exactly as JSON.stringify writes it.
+  select create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+    jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 3)),
+    jsonb_build_array(
+      jsonb_build_object('method', 'cash', 'amount', 20),
+      jsonb_build_object('method', 'momo', 'amount', null,
+                         'momo_number', '0244123456', 'momo_network', 'mtn'))
+  ) into v_sale;
+
+  select * into v_momo from sale_payments where sale_id = v_sale and method = 'momo';
+  select * into v_cash from sale_payments where sale_id = v_sale and method = 'cash';
+
+  if v_momo.amount <> 100.00 then
+    raise exception 'TEST FAILED: an explicit null amount gave %, expected 100.00', v_momo.amount
+      using errcode = 'ZZ999';
+  end if;
+  if v_cash.amount <> 20.00 then
+    raise exception 'TEST FAILED: the cash half is %, expected 20.00', v_cash.amount using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: a momo tender with an explicit JSON null amount is charged the remainder';
+
+  -- And the same for an account sale, which has the identical branch.
+  insert into customers (business_id, name, phone, credit_limit)
+  select biz_a, 'Json Null Customer', '0277000222', 5000 from pay_ids
+  returning id into v_customer;
+
+  select create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), v_customer, null, null,
+    jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 2)),
+    jsonb_build_array(jsonb_build_object('method', 'credit', 'amount', null))
+  ) into v_sale;
+
+  if (select amount from sale_payments where sale_id = v_sale) <> 80.00 then
+    raise exception 'TEST FAILED: an explicit null on an account sale gave %',
+      (select amount from sale_payments where sale_id = v_sale) using errcode = 'ZZ999';
+  end if;
+  if (select status from sales where id = v_sale) <> 'completed' then
+    raise exception 'TEST FAILED: the account sale did not complete' using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: a credit tender with an explicit JSON null amount is the whole total';
+
+  -- A stated zero is still a mistake, not "work it out for me".
+  begin
+    perform create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+      jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 1)),
+      jsonb_build_array(jsonb_build_object('method', 'momo', 'amount', 0,
+                                           'momo_number', '0244123456', 'momo_network', 'mtn')));
+    raise exception 'TEST FAILED: a stated zero was treated as "work it out"' using errcode = 'ZZ999';
+  exception when sqlstate 'P0001' then
+    raise notice 'PASS: an amount of zero is still refused (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
 -- ── 22. One shop's webhook cannot settle another shop's payment ─────────
 --
 -- The webhook endpoint is per business and its signature is checked with

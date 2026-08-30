@@ -65,6 +65,7 @@ re-validated server-side; the client's numbers are treated as a UI hint,
 never as truth (Section 49 of the brief).
 
 **Two authorization layers, deliberately redundant:**
+
 1. **Application layer** (Next.js server): route/action-level permission
    checks, business rule enforcement (discount caps, approval workflows),
    request shaping.
@@ -153,6 +154,7 @@ files themselves (source of truth). Summary of the model:
 off `business_id` (always) and `branch_id` (where the concept is
 branch-scoped: inventory, sales, POS terminals, expenses). Every tenant
 table gets:
+
 - `business_id uuid not null references businesses(id)`
 - an index on `business_id` (and `(business_id, branch_id)` where relevant)
 - an RLS policy scoping to the caller's business/branch
@@ -215,7 +217,7 @@ processed, so a duplicate delivery is a no-op (Section 17, Section 37).
   an orphaned business or ownerless account if one fails.
 - **Email verification / password reset**: Supabase Auth's built-in flows,
   with our own branded email templates.
-- **Cashier PIN workflow** (Section 6): this is a *second, lightweight*
+- **Cashier PIN workflow** (Section 6): this is a _second, lightweight_
   authentication layer on top of an already-authenticated device session,
   not a replacement for it.
   1. A manager/owner signs in normally (full Supabase Auth session) on a
@@ -428,33 +430,33 @@ Matches the lifecycle in Section 2 of the brief, ordered so each phase only
 depends on ones before it. Status is updated as work lands — this is the
 one section of this document expected to change often.
 
-| Phase | Scope | Status |
-|---|---|---|
-| 0 | Architecture, folder structure, tooling scaffold | **done** |
-| 1 | Core database schema + RLS foundation (business, branch, profiles, RBAC, subscriptions, audit) | **done — verified, see tests/security/** |
-| 2 | Authentication (registration, login, sessions, PIN storage) | **done** (PIN entry UI/route deferred to POS phase; MFA/phone/Google deferred — see docs/AUTH.md) |
-| 3 | Authorization/RBAC enforcement layer | **done — verified, see tests/security/** |
-| 4 | Business & branch management UI/API | pending |
-| 5 | Products (incl. variants, barcodes) | pending |
-| 6 | Inventory | pending |
-| 7 | Suppliers & purchasing | pending |
-| 8 | Customers | pending |
-| 9 | POS core (online, cash) | pending |
-| 10 | Payments incl. Paystack | pending |
-| 11 | Receipts / printing | pending |
-| 12 | Refunds & voids | pending |
-| 13 | Expenses | pending |
-| 14 | Reports | pending |
-| 15 | Notifications | pending |
-| 16 | Offline/PWA | pending |
-| 17 | Synchronization | pending |
-| 18 | Subscriptions & entitlements enforcement | pending |
-| 19 | Super Admin | pending |
-| 20 | Audit/security monitoring surfaces | pending |
-| 21 | Automated test suite hardening | pending |
-| 22 | Security review pass | pending |
-| 23 | Performance review pass | pending |
-| 24 | Deployment prep & documentation | pending |
+| Phase | Scope                                                                                          | Status                                                                                            |
+| ----- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 0     | Architecture, folder structure, tooling scaffold                                               | **done**                                                                                          |
+| 1     | Core database schema + RLS foundation (business, branch, profiles, RBAC, subscriptions, audit) | **done — verified, see tests/security/**                                                          |
+| 2     | Authentication (registration, login, sessions, PIN storage)                                    | **done** (PIN entry UI/route deferred to POS phase; MFA/phone/Google deferred — see docs/AUTH.md) |
+| 3     | Authorization/RBAC enforcement layer                                                           | **done — verified, see tests/security/**                                                          |
+| 4     | Business & branch management UI/API                                                            | pending                                                                                           |
+| 5     | Products (incl. variants, barcodes)                                                            | pending                                                                                           |
+| 6     | Inventory                                                                                      | pending                                                                                           |
+| 7     | Suppliers & purchasing                                                                         | pending                                                                                           |
+| 8     | Customers                                                                                      | pending                                                                                           |
+| 9     | POS core (online, cash)                                                                        | pending                                                                                           |
+| 10    | Payments incl. Paystack                                                                        | pending                                                                                           |
+| 11    | Receipts / printing                                                                            | pending                                                                                           |
+| 12    | Refunds & voids                                                                                | pending                                                                                           |
+| 13    | Expenses                                                                                       | pending                                                                                           |
+| 14    | Reports                                                                                        | pending                                                                                           |
+| 15    | Notifications                                                                                  | pending                                                                                           |
+| 16    | Offline/PWA                                                                                    | pending                                                                                           |
+| 17    | Synchronization                                                                                | pending                                                                                           |
+| 18    | Subscriptions & entitlements enforcement                                                       | pending                                                                                           |
+| 19    | Super Admin                                                                                    | pending                                                                                           |
+| 20    | Audit/security monitoring surfaces                                                             | pending                                                                                           |
+| 21    | Automated test suite hardening                                                                 | pending                                                                                           |
+| 22    | Security review pass                                                                           | pending                                                                                           |
+| 23    | Performance review pass                                                                        | pending                                                                                           |
+| 24    | Deployment prep & documentation                                                                | pending                                                                                           |
 
 **This session's committed scope**: Phases 0–3 (architecture, schema, RLS,
 auth, RBAC enforcement) to genuine production quality, forming the
@@ -468,3 +470,4 @@ before being called done, per Section 2's completion definition.
 
 - 2026-08-29 — Initial architecture document, Phase 0.
 - 2026-08-29 — Phases 0–3 complete: project scaffold, full tenancy/identity/RBAC/subscriptions/audit schema with RLS (migrations 0001–0011), authentication flows (register/login/logout/reset), RBAC enforcement layer (`lib/rbac`). Tenant isolation and RBAC enforcement verified directly against Postgres — see `tests/security/tenant_isolation_and_rbac.sql`. `npm install`/`build`/`lint`/`typecheck` not run locally (sandbox network restriction — see `docs/DEPLOYMENT.md`); wired into CI to run on every push instead.
+- 2026-08-30 — Phases 0–3 verified end-to-end against a real environment, closing out every item that the previous entry had to leave as "not run locally": `npm install`/`typecheck`/`lint`/`test` (20/20 unit tests)/`build` all run and passed on a real Windows machine, after fixing a Next.js 14→16 + ESLint 9 upgrade forced by `npm audit` (flat-config migration, `middleware.ts`→`proxy.ts` rename, removed `next lint`, `@types/node` peer bump). All 11 migrations applied to the real Supabase project via `npm run db:migrate` (session pooler — the direct-connection host is IPv6-only and doesn't resolve on all networks). Full registration flow proven live: `/register` → confirmation email → `app/auth/confirm/route.ts` (the PKCE code-exchange callback, previously missing entirely — the email link would confirm the address but never sign the user in) → `register_business()` → an RLS-scoped `/dashboard` render, fixing an ambiguous `profiles`→`businesses` PostgREST embed (`PGRST201`, two FKs between the same tables) along the way. Repository pushed to GitHub for the first time (`macfelix13/busihub`); all three CI jobs (`database`, `app`, `deploy-migrations`) passing on GitHub's runners. `react`/`react-dom` confirmed consistent at `18.3.1` throughout the dependency tree (`npm ls`) — no React 19 mismatch. Foundation phase (0–3) is now genuinely done per Section 2's completion definition: implemented, tested, and verified — not merely written.

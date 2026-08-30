@@ -121,6 +121,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Settings
             </Link>
           ) : null}
+          {canManageBusiness ? (
+            <Link href="/settings/payments" className="hover:text-neutral-900 dark:hover:text-white">
+              Payments
+            </Link>
+          ) : null}
           {/* Personal, not permissioned — anyone who works a till needs one. */}
           <Link href="/settings/pin" className="hover:text-neutral-900 dark:hover:text-white">
             My PIN

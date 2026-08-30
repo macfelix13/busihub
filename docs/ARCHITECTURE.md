@@ -466,6 +466,35 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-08-30 — Phase 10, part 2: connecting Paystack. Each shop pastes its
+  own keys at `/settings/payments`; the secret is encrypted with
+  AES-256-GCM before it reaches the database under a key held only in the
+  server's environment, and the ciphertext column is unreadable by any
+  ordinary user (see docs/SECURITY.md). Live vs test is read off the key
+  prefix rather than asked for, so a shop cannot believe it is taking real
+  money when it is not.
+
+  The webhook lives at `/api/webhooks/paystack/[businessId]` — per
+  business, because with per-shop keys there is no single secret to verify
+  against. Three things it is careful about, each of which was a bug in
+  the first draft: the signature is computed over the **raw** body (re-
+  serialising parsed JSON changes the bytes and breaks honest requests); a
+  transient settlement failure **withdraws** the replay-guard row, because
+  recording the event first and returning 200 on every retry would have
+  lost the settlement permanently; and a reference that is not one of our
+  UUIDs is acknowledged rather than settled, because a shop's own Paystack
+  account also sends us events for payments Busihub never created.
+
+  Migration 0023 closes a cross-tenant hole in 0022 found while wiring
+  this up: `settle_sale_payment()` took a payment id and nothing else, so
+  a shop could sign a valid `charge.success` for a reference belonging to
+  someone else's sale. It now takes the business id the signature proved
+  and refuses anything outside it. The same migration backfills a tender
+  row for every sale that predates the ledger, so "how was this paid for?"
+  covers all of history rather than starting today. 175 assertions across
+  eight database suites, plus 20 new unit tests for the encryption and the
+  signature check.
+
 - 2026-08-30 — Phase 10, part 1: the payments ledger and the sale
   lifecycle. Mobile money is not paid instantly — the customer approves a
   prompt on their own phone and the answer arrives on a webhook seconds

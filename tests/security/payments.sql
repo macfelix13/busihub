@@ -262,7 +262,7 @@ declare v_pay uuid;
 begin
   select id into v_pay from sale_payments where status = 'pending' order by created_at desc limit 1;
   begin
-    perform settle_sale_payment(v_pay, 'success', 'chg_x', null);
+    perform settle_sale_payment((select biz_a from pay_ids), v_pay, 'success', 'chg_x', null);
     raise exception 'TEST FAILED: an ordinary user settled a payment' using errcode = 'ZZ999';
   exception when insufficient_privilege then
     raise notice 'PASS: settle_sale_payment is refused to an ordinary user';
@@ -285,7 +285,7 @@ begin
   select id, sale_id into v_pay, v_sale from sale_payments
   where status = 'pending' order by created_at desc limit 1;
 
-  select settle_sale_payment(v_pay, 'success', 'chg_test_1', null) into v_result;
+  select settle_sale_payment((select biz_a from pay_ids), v_pay, 'success', 'chg_test_1', null) into v_result;
   if v_result <> 'completed' then
     raise exception 'TEST FAILED: settling the only tender returned %', v_result using errcode = 'ZZ999';
   end if;
@@ -317,7 +317,7 @@ begin
 
   select count(*) into v_entries_before from customer_account_entries;
 
-  select settle_sale_payment(v_pay, 'success', 'chg_test_1', null) into v_result;
+  select settle_sale_payment((select biz_a from pay_ids), v_pay, 'success', 'chg_test_1', null) into v_result;
   if v_result <> 'success' then
     raise exception 'TEST FAILED: a repeat settlement returned %, expected the settled status', v_result
       using errcode = 'ZZ999';
@@ -364,7 +364,7 @@ begin
   v_sale := current_setting('busihub.test_failed_sale')::uuid;
   select * into v_pay from sale_payments where sale_id = v_sale;
 
-  select settle_sale_payment(v_pay.id, 'failed', null, 'Insufficient funds') into v_result;
+  select settle_sale_payment((select biz_a from pay_ids), v_pay.id, 'failed', null, 'Insufficient funds') into v_result;
   if v_result <> 'failed' then
     raise exception 'TEST FAILED: a failed charge returned %', v_result using errcode = 'ZZ999';
   end if;
@@ -453,7 +453,7 @@ begin
   v_sale := current_setting('busihub.test_failed_sale')::uuid;
   select id into v_pay from sale_payments where sale_id = v_sale;
 
-  select settle_sale_payment(v_pay, 'success', 'chg_late', null) into v_result;
+  select settle_sale_payment((select biz_a from pay_ids), v_pay, 'success', 'chg_late', null) into v_result;
 
   select status into v_status from sales where id = v_sale;
   if v_status <> 'cancelled' then
@@ -529,7 +529,7 @@ begin
   v_sale := current_setting('busihub.test_split_sale')::uuid;
   select id into v_pay from sale_payments where sale_id = v_sale and method = 'momo';
 
-  select settle_sale_payment(v_pay, 'success', 'chg_split', null) into v_result;
+  select settle_sale_payment((select biz_a from pay_ids), v_pay, 'success', 'chg_split', null) into v_result;
   if v_result <> 'completed' then
     raise exception 'TEST FAILED: the split sale returned % on settlement', v_result using errcode = 'ZZ999';
   end if;
@@ -760,7 +760,91 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
--- ── 22. Everything reconciles ───────────────────────────────────────────
+-- ── 22. One shop's webhook cannot settle another shop's payment ─────────
+--
+-- The webhook endpoint is per business and its signature is checked with
+-- that shop's own Paystack secret. A shop therefore CAN produce a validly
+-- signed charge.success for any reference it likes — including a
+-- reference belonging to someone else's sale. Proving you are business A
+-- says nothing about a payment owned by business B, and this is where
+-- that gap is closed. (Migration 0023; 0022 checked only the payment id.)
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_sale uuid;
+begin
+  select create_sale((select branch_a from pay_ids), (select owner_a from pay_ids), null, null, null,
+    jsonb_build_array(jsonb_build_object('variant_id', (select sugar from pay_ids), 'quantity', 1)),
+    jsonb_build_array(jsonb_build_object(
+      'method', 'momo', 'amount', 40, 'momo_number', '0244999888', 'momo_network', 'mtn'))
+  ) into v_sale;
+  perform set_config('busihub.test_victim_sale', v_sale::text, false);
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+set role service_role;
+
+do $$
+declare v_sale uuid; v_pay uuid; v_other uuid; v_status text;
+begin
+  v_sale := current_setting('busihub.test_victim_sale')::uuid;
+  select id into v_pay from sale_payments where sale_id = v_sale;
+
+  select id into v_other from businesses where id <> (select biz_a from pay_ids) limit 1;
+  if v_other is null then
+    raise exception 'TEST FIXTURE BROKEN: the seed has only one business' using errcode = 'ZZ999';
+  end if;
+
+  begin
+    perform settle_sale_payment(v_other, v_pay, 'success', 'chg_attacker', null);
+    raise exception 'TEST FAILED: another business settled this payment' using errcode = 'ZZ999';
+  exception when insufficient_privilege then
+    raise notice 'PASS: a signed webhook from another business cannot settle this payment';
+  end;
+
+  -- And a null business id is not a wildcard.
+  begin
+    perform settle_sale_payment(null, v_pay, 'success', 'chg_null', null);
+    raise exception 'TEST FAILED: a null business id settled a payment' using errcode = 'ZZ999';
+  exception when insufficient_privilege then
+    raise notice 'PASS: a missing business id is refused rather than treated as any business';
+  end;
+
+  select status into v_status from sale_payments where id = v_pay;
+  if v_status <> 'pending' then
+    raise exception 'TEST FAILED: the payment is now %', v_status using errcode = 'ZZ999';
+  end if;
+  if (select status from sales where id = v_sale) <> 'awaiting_payment' then
+    raise exception 'TEST FAILED: the victim sale moved' using errcode = 'ZZ999';
+  end if;
+end $$;
+
+reset role;
+
+-- ── 23. History has tenders too ─────────────────────────────────────────
+--
+-- Every sale in the seed predates the ledger. 0023 backfills them, and
+-- the reconciliation below would not hold without it.
+
+do $$
+declare v_missing int;
+begin
+  select count(*) into v_missing
+  from sales s
+  where s.status in ('completed', 'voided')
+    and s.total > 0
+    and not exists (select 1 from sale_payments p where p.sale_id = s.id);
+
+  if v_missing > 0 then
+    raise exception 'TEST FAILED: % settled sale(s) have no tender at all', v_missing using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: every completed or voided sale has at least one tender, history included';
+end $$;
+
+-- ── 24. Everything reconciles ───────────────────────────────────────────
 
 do $$
 declare v_stock int; v_bal int; v_unpaid int; v_orphan int;

@@ -1,4 +1,4 @@
-# Busihub — Security
+﻿# Busihub — Security
 
 ## Verified, not assumed
 
@@ -19,12 +19,39 @@ runs again on every push via CI.
 
 ## Secrets
 
-`SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY`, and `PIN_SESSION_SECRET`
-are server-only environment variables — grep the codebase for
-`NEXT_PUBLIC_` if you need to confirm what's actually shipped to the
-browser; nothing else is. `.env.example` documents every variable with a
-placeholder; no real value has ever been committed (`.gitignore` excludes
-`.env*` except `.env.example`).
+`SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_KEY_ENCRYPTION_KEY`, and
+`PIN_SESSION_SECRET` are server-only environment variables — grep the
+codebase for `NEXT_PUBLIC_` if you need to confirm what's actually shipped
+to the browser; nothing else is. `.env.example` documents every variable
+with a placeholder; no real value has ever been committed (`.gitignore`
+excludes `.env*` except `.env.example`).
+
+There is deliberately **no** platform Paystack key. Each business connects
+its own Paystack account (Settings → Payments), so payments settle to that
+shop and Busihub never holds anyone's money. That makes each shop's
+Paystack *secret key* the most dangerous value this system stores — it can
+move real money out of a real account — and it is handled accordingly:
+
+- Encrypted with AES-256-GCM in the application (`lib/crypto/secret-box.ts`)
+  before it reaches the database, under `PAYSTACK_KEY_ENCRYPTION_KEY`,
+  which is never written to the database. A dump of
+  `business_payment_settings` alone decrypts to nothing.
+- GCM rather than CBC, so a tampered ciphertext fails to decrypt instead
+  of quietly producing different plaintext.
+- The ciphertext column is not selectable by `authenticated` at all
+  (migration 0022, revoke-table-then-grant-per-column — the same pattern
+  that closed the `pin_hash` leak in 0018). Only the server, using the
+  service-role client, ever reads it. The owner sees the last four
+  characters, enough to recognise which key is installed.
+- Rotating `PAYSTACK_KEY_ENCRYPTION_KEY` makes every stored secret
+  undecryptable by design; each shop must paste its key in again.
+
+Webhooks are verified as HMAC-SHA512 over the **raw** request body under
+the shop's own secret key, with a timing-safe comparison. The endpoint is
+per business (`/api/webhooks/paystack/[businessId]`) because there is no
+single key to verify against — and because a verified signature proves
+only *which business* is calling, the business id is passed down to
+`settle_sale_payment()`, which refuses a payment belonging to anyone else.
 
 ## Known gaps (foundation phase) — tracked, not hidden
 

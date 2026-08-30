@@ -252,14 +252,12 @@ end $$;
 
 do $$
 begin
-  begin
-    insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)
-    select '00000000-0000-0000-0000-000000000000', branch_a, variant_a, -1, 'sale' from t_ids;
-    raise exception 'TEST FAILED: a "sale" movement was insertable before the sales phase exists' using errcode = 'ZZ999';
-  exception
-    when insufficient_privilege then
-      raise notice 'PASS: reserved reason "sale" rejected by RLS';
-  end;
+  -- NOTE: 'sale' used to be asserted here as universally rejected. Since
+  -- 0020 that is no longer the correct behaviour — the sales phase exists,
+  -- and 'sale' is admitted for a caller holding sales.process. The rule
+  -- that replaced it (allowed with the permission, refused without) is
+  -- covered in tests/security/sales.sql. 'transfer_out' below is still
+  -- genuinely reserved, because the transfers phase does not exist yet.
 
   begin
     insert into inventory_movements (business_id, branch_id, variant_id, quantity_delta, reason)

@@ -439,7 +439,7 @@ one section of this document expected to change often.
 | 6 | Inventory (stock levels, movements ledger, receive/adjust/count) | **done — verified, see tests/security/inventory.sql** (transfers & low-stock alerts deferred) |
 | 7 | Suppliers & purchasing (POs, approval, partial receipts) | **done — verified, see tests/security/purchasing.sql** (supplier price lists deferred) |
 | 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
-| 9 | POS core (online, cash) | pending |
+| 9 | POS core (cash + credit, PIN till login) | **schema done & verified (tests/security/sales.sql); till UI in progress** |
 | 10 | Payments incl. Paystack | pending |
 | 11 | Receipts / printing | pending |
 | 12 | Refunds & voids | pending |
@@ -465,6 +465,33 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Migration 0020: sales. One sale writes the sale record, the
+  stock ledger and (on account) the customer ledger in one transaction.
+  Two properties the file exists to guarantee: money is computed in the
+  database from catalog prices and the business's own tax rates —
+  create_sale() takes only variant ids and quantities, so a caller cannot
+  post its own totals — and stock leaves through inventory_movements
+  rather than by touching stock_levels, so the level always reconciles to
+  its history. Ghana tax follows the levies-then-VAT order, and for
+  tax-inclusive pricing (the default) the components are extracted from
+  the shelf price with the tax taken as (gross − subtotal), so the parts
+  always sum to the marked price with no stray pesewa. Overselling now
+  reads business_settings.pos_settings.allow_negative_stock instead of
+  being hardcoded — still blocked by default, but the Settings toggle that
+  already existed is no longer a lie; both branches are tested.
+  25 assertions in tests/security/sales.sql, 118 across six suites.
+  Notable: create_sale originally inserted the sale then UPDATEd it with
+  the totals, which the tests caught immediately — `sales` grants no
+  UPDATE to anyone, deliberately, and the function runs as the caller so
+  RLS applies. Restructured to compute everything first and insert the row
+  once, already correct and immutable from birth.
+- 2026-08-30 — inventory.sql and customers.sql each dropped an assertion
+  that 'sale' movements/entries were rejected "before the sales phase
+  exists". They were correct for phases 6–8 and became obsolete when 0020
+  arrived; both failed loudly rather than silently, which is what a
+  reserved-value test should do. The replacement rule (admitted with
+  sales.process, refused without) is asserted in sales.sql.
 
 - 2026-08-30 — Migration 0019 fixes a bug 0018 shipped to production: both
   PIN functions pinned `set search_path = public, pg_temp` (the correct

@@ -280,13 +280,10 @@ declare v_c uuid;
 begin
   select id into v_c from customers where name = 'Ama Owusu';
 
-  begin
-    insert into customer_account_entries (business_id, customer_id, amount, entry_type)
-    values ('00000000-0000-0000-0000-000000000000', v_c, 10, 'sale');
-    raise exception 'TEST FAILED: a "sale" entry was insertable before the sales phase' using errcode = 'ZZ999';
-  exception when insufficient_privilege then
-    raise notice 'PASS: reserved entry type "sale" rejected by RLS';
-  end;
+  -- NOTE: 'sale' used to be asserted here as universally rejected. Since
+  -- 0020 the sales phase exists and 'sale' is admitted for a caller with
+  -- sales.process + customers.view; that rule is covered in
+  -- tests/security/sales.sql. 'refund' below is still genuinely reserved.
 
   begin
     insert into customer_account_entries (business_id, customer_id, amount, entry_type)

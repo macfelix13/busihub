@@ -41,3 +41,7 @@ supabase/.temp
 .github/agents/
 .github/hooks/
 .github/skills/
+# one-off delivery scripts used to apply Claude-generated changes locally -
+# not application code, shouldn't accumulate in history
+apply-phase*.ps1
+fix-*.ps1

@@ -33,7 +33,7 @@ export const branchSchema = z.object({
 
 export type BranchInput = z.infer<typeof branchSchema>;
 
-/** IANA timezones actually relevant to a Ghana-first POS â€” kept short and curated rather than the full ~400-entry IANA list, which would be a poor <select> experience for this audience. Extend as the business expands beyond Ghana. */
+/** IANA timezones actually relevant to a Ghana-first POS — kept short and curated rather than the full ~400-entry IANA list, which would be a poor <select> experience for this audience. Extend as the business expands beyond Ghana. */
 export const SUPPORTED_TIMEZONES = [
   "Africa/Accra",
   "Africa/Lagos",
@@ -43,3 +43,4 @@ export const SUPPORTED_TIMEZONES = [
   "Europe/London",
   "UTC",
 ] as const;
+

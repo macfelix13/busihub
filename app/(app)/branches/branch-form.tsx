@@ -17,7 +17,7 @@ interface BranchFormProps {
 
 const initialState: BranchFormState = {};
 
-/** Shared by app/(app)/branches/new and .../[id]/edit â€” same fields, different bound action. */
+/** Shared by app/(app)/branches/new and .../[id]/edit — same fields, different bound action. */
 export function BranchForm({ action, defaultValues, submitLabel, pendingLabel, showStatus }: BranchFormProps) {
   const [state, formAction] = useFormState(action, initialState);
 
@@ -75,3 +75,4 @@ export function BranchForm({ action, defaultValues, submitLabel, pendingLabel, s
     </form>
   );
 }
+

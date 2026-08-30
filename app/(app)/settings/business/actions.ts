@@ -152,3 +152,4 @@ export async function updateBusinessSettings(
   revalidatePath("/settings/business");
   return { success: true };
 }
+

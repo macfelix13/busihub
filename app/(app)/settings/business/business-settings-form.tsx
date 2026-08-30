@@ -80,7 +80,7 @@ export function BusinessSettingsForm({ defaultValues }: { defaultValues: Busines
       <Section title="Point of sale">
         <Checkbox
           label="Allow sales when stock is negative"
-          description="Off is safer for most shops â€” it stops a sale once stock hits zero."
+          description="Off is safer for most shops — it stops a sale once stock hits zero."
           name="posAllowNegativeStock"
           defaultChecked={defaultValues.posAllowNegativeStock}
         />
@@ -142,9 +142,10 @@ export function BusinessSettingsForm({ defaultValues }: { defaultValues: Busines
         />
       </Section>
 
-      <SubmitButton pendingText="Savingâ€¦" className="mt-2 self-start px-6">
+      <SubmitButton pendingText="Saving…" className="mt-2 self-start px-6">
         Save settings
       </SubmitButton>
     </form>
   );
 }
+

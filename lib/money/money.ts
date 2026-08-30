@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Decimal-safe money helpers (Section 22: never use floating point for
  * anything that touches a price, total, or balance).
  *
@@ -13,14 +13,30 @@
  * `float`/`double precision`.
  */
 
-/** Convert a decimal amount (e.g. from a form input) to integer minor units. */
-export function toMinorUnits(amount: number): number {
-  if (!Number.isFinite(amount)) {
-    throw new Error(`toMinorUnits: amount must be finite, got ${amount}`);
+/**
+ * PostgREST (what supabase-js talks to) serializes Postgres `numeric`
+ * columns as JSON strings, not numbers — deliberately, to avoid silent
+ * float precision loss over the wire — while `int`/`real`/`double
+ * precision` columns come back as actual JSON numbers. Every
+ * numeric(14,2) money column in this schema (product prices, subscription
+ * plan prices, …) therefore needs this before arithmetic/formatting;
+ * skipping it fails oddly, since `Number.isFinite("12.50")` is false
+ * (strict, non-coercing) even though the value is perfectly usable.
+ */
+export function toNumber(value: number | string): number {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(n)) {
+    throw new Error(`toNumber: value must be finite, got ${value}`);
   }
+  return n;
+}
+
+/** Convert a decimal amount (e.g. from a form input, or a numeric(14,2) column read via supabase-js — see toNumber()) to integer minor units. */
+export function toMinorUnits(amount: number | string): number {
+  const n = toNumber(amount);
   // Round at the cent level before converting, so floating point
   // representation error in `amount` itself can't leak through.
-  return Math.round(amount * 100);
+  return Math.round(n * 100);
 }
 
 /** Convert integer minor units back to a decimal number for display. */
@@ -142,3 +158,4 @@ export function calculateGhanaTax(
     total: vat + nhilLevy + getfundLevy + covidLevy,
   };
 }
+

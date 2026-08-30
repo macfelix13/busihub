@@ -3,11 +3,11 @@
 /**
  * Validation + shape-conversion for the business profile (businesses
  * table) and business settings (business_settings table, Section 3's
- * jsonb groups) forms â€” Phase 4. Same pattern as lib/validation/auth.ts:
+ * jsonb groups) forms — Phase 4. Same pattern as lib/validation/auth.ts:
  * the Server Action re-validates this server-side; the client copy is
  * only for fast feedback.
  *
- * currency_code and country_code are deliberately NOT editable here â€”
+ * currency_code and country_code are deliberately NOT editable here —
  * every money calculation in lib/money and every Ghana-specific tax
  * default assumes the business's currency doesn't silently change after
  * registration. Changing it would need a dedicated, carefully-considered
@@ -38,8 +38,8 @@ const percent = (label: string) =>
     .max(100, `${label} cannot exceed 100%`);
 
 /**
- * Form shape. Rate fields are percentages (0â€“100, what a human types) â€”
- * the DB stores them as decimals (0â€“1), converted at the boundary by
+ * Form shape. Rate fields are percentages (0–100, what a human types) —
+ * the DB stores them as decimals (0–1), converted at the boundary by
  * settingsInputToJsonGroups()/jsonGroupsToSettingsDefaults() below, never
  * inside the schema itself.
  */
@@ -217,3 +217,4 @@ export function jsonGroupsToFormDefaults(row: Partial<BusinessSettingsRow>): Bus
     appearancePrimaryColor: appearance.primary_color ?? "#22a56d",
   };
 }
+

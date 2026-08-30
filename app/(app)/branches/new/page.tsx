@@ -13,7 +13,7 @@ export default async function NewBranchPage() {
   const businessId = await getCurrentBusinessId(supabase);
   const canManage = await hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE);
 
-  // Cosmetic â€” createBranch() re-checks this server-side regardless.
+  // Cosmetic — createBranch() re-checks this server-side regardless.
   if (!canManage) {
     redirect("/branches");
   }
@@ -22,14 +22,15 @@ export default async function NewBranchPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Add branch</h1>
-        <p className="text-neutral-500">New branches start active â€” deactivate one later from its Edit page if needed.</p>
+        <p className="text-neutral-500">New branches start active — deactivate one later from its Edit page if needed.</p>
       </div>
       <BranchForm
         action={createBranch}
         submitLabel="Create branch"
-        pendingLabel="Creatingâ€¦"
+        pendingLabel="Creating…"
         defaultValues={{ timezone: "Africa/Accra" }}
       />
     </div>
   );
 }
+

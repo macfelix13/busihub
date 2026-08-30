@@ -30,7 +30,7 @@ function branchFormValues(formData: FormData) {
 
 /**
  * Resolves the caller's business_id and checks branches.manage. Shared by
- * every mutation below â€” the UI only ever shows these forms/buttons to a
+ * every mutation below — the UI only ever shows these forms/buttons to a
  * user who already has this permission (see hasPermission() calls in the
  * pages), but that's cosmetic; this is the real, server-side check
  * (Section 49), with RLS underneath it as the final backstop either way.
@@ -81,7 +81,7 @@ export async function createBranch(
 
   if (error) {
     console.error("createBranch: insert failed", error);
-    // 23505 = unique_violation â€” branches(business_id, name) (0003).
+    // 23505 = unique_violation — branches(business_id, name) (0003).
     if (error.code === "23505") {
       return {
         error: "A branch with this name already exists.",
@@ -134,7 +134,7 @@ export async function updateBranch(
       timezone,
       status,
     })
-    // business_id filter is belt-and-suspenders â€” RLS already scopes this,
+    // business_id filter is belt-and-suspenders — RLS already scopes this,
     // but an explicit filter means a wrong/forged branchId for another
     // tenant affects 0 rows instead of relying solely on RLS to notice.
     .eq("id", branchId)
@@ -160,7 +160,7 @@ export async function updateBranch(
  * (setMainBranch.bind(null, branch.id)) and used directly as a <form
  * action>, the same no-useFormState pattern as lib/auth/sign-out.ts. Lets
  * an AuthorizationError/NoBusinessError propagate to Next's default error
- * boundary rather than returning a form state â€” acceptable here because
+ * boundary rather than returning a form state — acceptable here because
  * the triggering button is itself only rendered for a user who already
  * has branches.manage (cosmetic check), so a thrown error here means
  * something changed permissions out from under them mid-session, not the
@@ -179,3 +179,4 @@ export async function setMainBranch(branchId: string): Promise<void> {
 
   revalidatePath("/branches");
 }
+

@@ -13,7 +13,7 @@ export default async function BranchesPage() {
   const businessId = await getCurrentBusinessId(supabase);
   const canManage = await hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE);
 
-  // RLS-scoped â€” no explicit .eq("business_id", ...) needed (Section 4, Section 49).
+  // RLS-scoped — no explicit .eq("business_id", ...) needed (Section 4, Section 49).
   const { data: branches, error } = await supabase
     .from("branches")
     .select("id, name, is_main, city, region, phone, email, status")
@@ -48,7 +48,7 @@ export default async function BranchesPage() {
             {branches && branches.length > 0 ? (
               branches.map((branch) => (
                 <li key={branch.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+                  <Link href={`/branches/${branch.id}`} className="flex-1 rounded-lg hover:opacity-80">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{branch.name}</span>
                       {branch.is_main ? (
@@ -64,9 +64,9 @@ export default async function BranchesPage() {
                     </div>
                     <p className="mt-0.5 text-sm text-neutral-500">
                       {[branch.city, branch.region].filter(Boolean).join(", ") || "No location set"}
-                      {branch.phone ? ` Â· ${branch.phone}` : ""}
+                      {branch.phone ? ` · ${branch.phone}` : ""}
                     </p>
-                  </div>
+                  </Link>
                   {canManage ? (
                     <div className="flex items-center gap-2">
                       {!branch.is_main ? <SetMainBranchButton branchId={branch.id} /> : null}

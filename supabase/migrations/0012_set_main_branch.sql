@@ -1,8 +1,8 @@
-﻿-- Busihub â€” 0012: set_main_branch()
+﻿-- Busihub — 0012: set_main_branch()
 --
 -- Exactly one branch per business can have is_main = true (partial unique
 -- index, 0003). Swapping which branch is main is therefore two UPDATEs
--- that must happen atomically â€” a UI that did them as two separate
+-- that must happen atomically — a UI that did them as two separate
 -- requests could crash between them (leaving zero main branches) or race
 -- with a concurrent request. Wrapping both in one function makes it a
 -- single statement from the caller's point of view; Postgres treats the
@@ -11,8 +11,8 @@
 --
 -- Deliberately NOT security definer: it runs with the calling user's own
 -- privileges, so the existing branches_select/branches_update RLS
--- policies (0009) â€” which already require business_id =
--- app_current_business_id() and branches.manage â€” apply exactly as they
+-- policies (0009) — which already require business_id =
+-- app_current_business_id() and branches.manage — apply exactly as they
 -- would to two ordinary UPDATE statements. No new authorization logic to
 -- keep in sync with those policies. Application code should still call
 -- requirePermission(..., 'branches.manage') first for a clean error
@@ -44,3 +44,4 @@ comment on function set_main_branch is
   'Atomically swaps which branch is the main branch for its business. Runs as the caller (not security definer) so branches_update RLS (0009) governs it exactly as it would two ordinary UPDATEs.';
 
 grant execute on function set_main_branch(uuid) to authenticated;
+

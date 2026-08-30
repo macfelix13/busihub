@@ -36,9 +36,10 @@ export function BusinessProfileForm({ defaultValues }: { defaultValues: Business
         <Field label="Region" name="region" defaultValue={defaultValues.region} error={state.fieldErrors?.region} />
       </div>
 
-      <SubmitButton pendingText="Savingâ€¦" className="mt-2 self-start px-6">
+      <SubmitButton pendingText="Saving…" className="mt-2 self-start px-6">
         Save profile
       </SubmitButton>
     </form>
   );
 }
+

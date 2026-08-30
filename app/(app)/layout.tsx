@@ -7,9 +7,9 @@ import { LogoutButton } from "@/components/logout-button";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
- * business profile. This is a convenience redirect for UX â€” the real
+ * business profile. This is a convenience redirect for UX — the real
  * security boundary is RLS (every query below this layout is still
- * scoped by Postgres, not by this check) â€” but without it a
+ * scoped by Postgres, not by this check) — but without it a
  * signed-out visitor would just see empty states instead of being sent
  * to /login, which is confusing rather than insecure.
  */
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .from("profiles")
     // businesses has two FKs to/from profiles (profiles.business_id ->
     // businesses.id, and businesses.created_by -> profiles.id), so the
-    // embed must be disambiguated with the FK constraint name â€” a bare
+    // embed must be disambiguated with the FK constraint name — a bare
     // `businesses (name)` is rejected by PostgREST with PGRST201
     // ("more than one relationship was found"). Confirmed against the
     // real schema; profiles_business_id_fkey is the one we want here.
@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (profileError) {
     // A genuine query failure (RLS denial, PostgREST embed error, etc.)
-    // looks identical to "no profile yet" if we only check `!profile` â€”
+    // looks identical to "no profile yet" if we only check `!profile` —
     // that swallowed real errors during testing and made this
     // undiagnosable. Log it distinctly so the two cases don't get
     // confused again.
@@ -49,18 +49,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!profile) {
     // Authenticated but no business/profile link yet (e.g. email
     // confirmation pending, or the register_business() RPC failed after
-    // signUp â€” see app/(auth)/login/actions.ts). Nothing under (app) can
+    // signUp — see app/(auth)/login/actions.ts). Nothing under (app) can
     // render sensibly without a business_id.
     redirect("/login");
   }
 
   const businessName = (profile as unknown as { businesses: { name: string } | null }).businesses?.name;
 
-  // Cosmetic nav visibility only â€” every page/action behind these links
+  // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
-  const [canManageBranches, canManageBusiness] = await Promise.all([
+  const [canManageBranches, canManageBusiness, canViewProducts] = await Promise.all([
     hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
     hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
+    hasPermission(supabase, profile.business_id!, PERMISSIONS.PRODUCTS_VIEW),
   ]);
 
   return (
@@ -74,6 +75,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard" className="hover:text-neutral-900 dark:hover:text-white">
             Dashboard
           </Link>
+          {canViewProducts ? (
+            <Link href="/products" className="hover:text-neutral-900 dark:hover:text-white">
+              Products
+            </Link>
+          ) : null}
           {canManageBranches ? (
             <Link href="/branches" className="hover:text-neutral-900 dark:hover:text-white">
               Branches
@@ -96,3 +102,4 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+

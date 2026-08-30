@@ -14,7 +14,7 @@ export default async function EditBranchPage({ params }: { params: Promise<{ id:
   const businessId = await getCurrentBusinessId(supabase);
   const canManage = await hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE);
 
-  // Cosmetic â€” updateBranch() re-checks this server-side regardless.
+  // Cosmetic — updateBranch() re-checks this server-side regardless.
   if (!canManage) {
     redirect("/branches");
   }
@@ -45,7 +45,7 @@ export default async function EditBranchPage({ params }: { params: Promise<{ id:
       <BranchForm
         action={boundUpdateBranch}
         submitLabel="Save changes"
-        pendingLabel="Savingâ€¦"
+        pendingLabel="Saving…"
         showStatus
         defaultValues={{
           name: branch.name,
@@ -62,3 +62,4 @@ export default async function EditBranchPage({ params }: { params: Promise<{ id:
     </div>
   );
 }
+

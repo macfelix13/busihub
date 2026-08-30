@@ -1,7 +1,7 @@
 ﻿import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Thrown when the caller has no session, or a session with no linked business (shouldn't happen past the (app) layout guard, but every Server Action here checks independently â€” never assumes a caller reached it "the normal way"). */
+/** Thrown when the caller has no session, or a session with no linked business (shouldn't happen past the (app) layout guard, but every Server Action here checks independently — never assumes a caller reached it "the normal way"). */
 export class NoBusinessError extends Error {
   constructor() {
     super("This account is not linked to a business.");
@@ -19,3 +19,4 @@ export async function getCurrentBusinessId(supabase: SupabaseClient): Promise<st
 
   return data as string;
 }
+

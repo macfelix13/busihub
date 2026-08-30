@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   calculateDiscountAmount,
   calculateGhanaTax,
@@ -6,6 +6,7 @@ import {
   fromMinorUnits,
   isDiscountWithinCap,
   toMinorUnits,
+  toNumber,
 } from "@/lib/money/money";
 
 describe("minor unit conversion", () => {
@@ -13,6 +14,28 @@ describe("minor unit conversion", () => {
     expect(toMinorUnits(19.99)).toBe(1999);
     expect(toMinorUnits(0.1)).toBe(10);
     expect(toMinorUnits(100)).toBe(10000);
+  });
+
+  it("accepts numeric(14,2) columns as returned by supabase-js (JSON strings, not numbers — Phase 5's product prices)", () => {
+    // PostgREST serializes `numeric` as a string specifically to avoid
+    // float precision loss over the wire — this is what a real
+    // product_variants.selling_price value looks like by the time it
+    // reaches application code, not a plain JS number.
+    expect(toMinorUnits("19.99")).toBe(1999);
+    expect(toNumber("19.99")).toBe(19.99);
+  });
+
+  it("rejects a non-numeric string instead of silently producing NaN", () => {
+    expect(() => toMinorUnits("not-a-number")).toThrow();
+    expect(() => toNumber("not-a-number")).toThrow();
+  });
+
+  it("treats an empty string as 0, matching JS's own Number('') coercion, rather than throwing", () => {
+    // Number("") is 0, not NaN — this is standard (if surprising) JS
+    // behavior, not a gap in toNumber(). Documented via a passing test
+    // instead of silently relying on it, after an earlier version of this
+    // test wrongly asserted toNumber("") throws.
+    expect(toNumber("")).toBe(0);
   });
 
   it("round-trips without floating point drift", () => {
@@ -93,3 +116,4 @@ describe("calculateGhanaTax", () => {
     expect(result.total).toBe(0);
   });
 });
+

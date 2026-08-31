@@ -1,4 +1,4 @@
-﻿# Busihub — Architecture
+# Busihub — Architecture
 
 Status: **Phases 0–12 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
@@ -443,8 +443,8 @@ one section of this document expected to change often.
 | 10 | Payments incl. Paystack | **done — verified, see tests/security/payments.sql** (mobile money via each shop's own Paystack account; card & bank transfer deferred) |
 | 11 | Receipts / printing | **done — printed + shareable text; QR and public receipt links deferred** |
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
-| 13 | Expenses | pending |
-| 14 | Reports | pending |
+| 13 | Expenses | pending — **blocks** net profit, expense KPIs and margin-after-costs on the dashboard |
+| 14 | Reports | partial — the dashboard's six analytics functions (0030) are verified (tests/security/dashboard.sql); standalone report pages, date-range exports and P&L still pending |
 | 15 | Notifications | pending |
 | 16 | Offline/PWA | pending |
 | 17 | Synchronization | pending |
@@ -465,6 +465,56 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-31 — Cost of goods (0029) and the dashboard's analytics (0030).
+
+  **Gross profit is now a real number.** `sale_items` gained `unit_cost`,
+  captured from the catalog at the moment of sale, and `refund_items`
+  carries that same cost back out when goods are returned. This is the
+  load-bearing decision in 0029: reading cost from today's catalog would
+  mean a supplier raising his price next month silently rewrites last
+  month's profit. The test that proves it trebles a variant's
+  `cost_price` after the sale and asserts the recorded figure did not
+  move; sabotaging `create_sale` to skip the capture, or `sales_summary`
+  to join the live catalog, both fail it. Sales rung up before 0029 were
+  backfilled from the current catalog and flagged
+  `cost_is_estimated` — surfaced on the dashboard in words rather than
+  quietly averaged in.
+
+  **Six analytics functions** (0030), every one `SECURITY INVOKER` so RLS
+  scopes the total: `sales_trend` (gap-filled buckets in the shop's own
+  timezone), `payment_method_breakdown` (from the tender ledger, cash net
+  of change given, verified tenders only), `top_products` (net of
+  returns), `low_stock_report` (out / critical / low against a per-variant
+  reorder point), `staff_performance` and `branch_performance`.
+  `tests/security/dashboard.sql` adds 11 blocks, half of them about the
+  figure being right and half about it being *theirs*, plus a catalog
+  assertion that none of the reporting functions is `SECURITY DEFINER` —
+  the one-word change that would turn every isolation assertion into the
+  only thing standing between a shop and its neighbour's takings.
+  Sabotaging `sales_trend` to `DEFINER` shows the second business
+  GH₵4,170 it never took.
+
+  **The dashboard** now filters by period and branch through the URL,
+  charts sales and gross profit as server-rendered SVG (no charting
+  library, no client JavaScript), and adds payment mix, best sellers by
+  profit, low stock by severity, staff and branch tables. Period
+  boundaries are computed in the branch's timezone, not the server's:
+  Ghana is UTC+0, so a server-time "today" would be invisibly correct
+  here and wrong for the first business outside that offset, on the figure
+  people check most. `tests/unit/dashboard-period.test.ts` pins that
+  against Auckland and New York.
+
+  **Still absent, deliberately:** net profit, expense totals and margin
+  after costs. There is no expenses table until Phase 13, so a "net
+  profit" here would be gross profit with a misleading label on a screen
+  people price goods from. Gross profit is labelled "before expenses".
+
+  A fixture-order bug fixed on the way: `tests/security/refunds.sql`
+  asserted a literal `RF-000001`, which quietly made it depend on no
+  earlier suite creating a refund. The moment `sales.sql` grew one, it
+  failed. The assertion now derives the expected number the same way the
+  database does — suite order must never be load-bearing.
 
 - 2026-08-31 — A real dashboard, and a fix for multi-minute compiles.
 

@@ -1,4 +1,4 @@
-﻿-- Busihub — behaviour/security test for refunds & voids (migration 0021).
+-- Busihub — behaviour/security test for refunds & voids (migration 0021).
 --
 -- The money here is apportioned from an ORIGINAL sale, so the assertions
 -- concentrate on two things: that a customer is refunded what they
@@ -84,6 +84,7 @@ do $$
 declare
   v_sale uuid; v_item uuid; v_refund uuid; v_r record; v_line record;
   v_stock_before numeric; v_stock_after numeric; v_sale_total numeric;
+  v_biz uuid; v_next int;
 begin
   -- Sell 5 at 60.00 = 300.00 (tax-inclusive).
   select create_sale(
@@ -96,6 +97,20 @@ begin
   select quantity into v_stock_before from stock_levels
   where branch_id = (select branch_a from r_ids) and variant_id = (select rice from r_ids);
 
+  -- What the NEXT refund number for this business should be, worked out
+  -- before the refund exists. This used to assert a literal 'RF-000001',
+  -- which quietly made the whole suite depend on no earlier suite ever
+  -- creating a refund in this business — and the moment sales.sql grew a
+  -- refund of its own (to prove a return takes back the cost it added),
+  -- this failed with 'expected RF-000001, got RF-000002'. The number was
+  -- correct; the assertion was not. Suite order must never be
+  -- load-bearing.
+  select business_id into v_biz from sales where id = v_sale;
+  select coalesce(max((substring(refund_number from '^RF-([0-9]+)$'))::int), 0) + 1
+    into v_next
+  from refunds
+  where business_id = v_biz and refund_number ~ '^RF-[0-9]+$';
+
   -- Two of the five come back.
   select create_refund(v_sale, '00000000-0000-0000-0000-000000000001', 'cash', 'Wrong size',
     jsonb_build_array(jsonb_build_object('sale_item_id', v_item, 'quantity', 2, 'restock', true))
@@ -103,8 +118,13 @@ begin
 
   select * into v_r from refunds where id = v_refund;
 
-  if v_r.refund_number <> 'RF-000001' then
-    raise exception 'TEST FAILED: expected RF-000001, got %', v_r.refund_number using errcode = 'ZZ999';
+  -- Sequential, zero-padded to six, per business, with no gaps.
+  if v_r.refund_number <> 'RF-' || lpad(v_next::text, 6, '0') then
+    raise exception 'TEST FAILED: expected RF-%, got %', lpad(v_next::text, 6, '0'), v_r.refund_number
+      using errcode = 'ZZ999';
+  end if;
+  if v_r.business_id <> v_biz then
+    raise exception 'TEST FAILED: the refund landed on the wrong business' using errcode = 'ZZ999';
   end if;
 
   -- Two fifths of 300.00. Apportioned from the sale, not recomputed.

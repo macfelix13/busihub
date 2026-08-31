@@ -1,4 +1,4 @@
-﻿-- Busihub — behaviour/security test for sales (migration 0020).
+-- Busihub — behaviour/security test for sales (migration 0020).
 --
 -- The till is where the three ledgers meet, so most of these assert that a
 -- REJECTED sale leaves nothing behind: no sale row, no stock movement, no
@@ -769,6 +769,91 @@ begin
   end if;
 
   raise notice 'PASS: the dashboard is bounded by RLS — no shop sees another shop''s debts';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- ── cost of goods: recorded once, at the moment of sale ─────────────────
+--
+-- The whole reason 0029 exists. If the cost were read from the catalog
+-- when a report runs, a supplier raising their price next week would
+-- silently rewrite this week's profit. These assertions are what stop
+-- that being reintroduced.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare
+  v_sale uuid; v_item record; v_variant uuid; v_cost_then numeric;
+  v_before record; v_after record; v_refund uuid; v_ritem record;
+begin
+  select soap into v_variant from s_ids;
+
+  insert into inventory_movements (branch_id, variant_id, quantity_delta, reason)
+  select branch_a, soap, 20, 'receive' from s_ids;
+
+  select cost_price into v_cost_then from product_variants where id = v_variant;
+  if coalesce(v_cost_then, 0) <= 0 then
+    raise exception 'TEST FIXTURE BROKEN: the fixture variant has no cost price' using errcode = 'ZZ999';
+  end if;
+
+  select create_sale((select branch_a from s_ids), '00000000-0000-0000-0000-000000000001', null, 'cash', 1000,
+    jsonb_build_array(jsonb_build_object('variant_id', v_variant, 'quantity', 4))) into v_sale;
+
+  select * into v_item from sale_items where sale_id = v_sale;
+  if v_item.unit_cost <> v_cost_then then
+    raise exception 'TEST FAILED: sale recorded a cost of %, catalog said %', v_item.unit_cost, v_cost_then
+      using errcode = 'ZZ999';
+  end if;
+  if v_item.cost_is_estimated then
+    raise exception 'TEST FAILED: a sale rung up now was marked as an estimated cost' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a sale records what the goods cost at the moment they were sold';
+
+  -- Now the supplier puts the price up. Last week's profit must not move.
+  select * into v_before from sales_summary();
+
+  update product_variants set cost_price = v_cost_then * 3 where id = v_variant;
+
+  if (select unit_cost from sale_items where id = v_item.id) <> v_cost_then then
+    raise exception 'TEST FAILED: changing the catalog cost rewrote a past sale' using errcode = 'ZZ999';
+  end if;
+
+  select * into v_after from sales_summary();
+  if v_after.cost_total <> v_before.cost_total or v_after.gross_profit <> v_before.gross_profit then
+    raise exception 'TEST FAILED: a cost change moved past profit (% -> %)',
+      v_before.gross_profit, v_after.gross_profit using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: raising a supplier price does not rewrite the profit on sales already made';
+
+  -- Put it back so later assertions see the fixture they expect.
+  update product_variants set cost_price = v_cost_then where id = v_variant;
+
+  -- A return takes its own cost back out, not today's.
+  select create_refund(v_sale, '00000000-0000-0000-0000-000000000001', 'cash', null,
+    jsonb_build_array(jsonb_build_object('sale_item_id', v_item.id, 'quantity', 2, 'restock', true))) into v_refund;
+
+  select * into v_ritem from refund_items where refund_id = v_refund;
+  if v_ritem.unit_cost <> v_cost_then then
+    raise exception 'TEST FAILED: the return carried a cost of %, the sale line said %',
+      v_ritem.unit_cost, v_cost_then using errcode = 'ZZ999';
+  end if;
+
+  select * into v_after from sales_summary();
+  if v_after.cost_total <> v_before.cost_total - (2 * v_cost_then) then
+    raise exception 'TEST FAILED: returning 2 units did not remove their cost (% -> %)',
+      v_before.cost_total, v_after.cost_total using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a return removes the cost it added, not the current catalog cost';
+
+  -- And the headline figure has to be internally consistent.
+  if abs(v_after.gross_profit - (v_after.net_total - v_after.cost_total)) > 0.005 then
+    raise exception 'TEST FAILED: gross profit % is not net % less cost %',
+      v_after.gross_profit, v_after.net_total, v_after.cost_total using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: gross profit equals net sales less the cost of what was actually sold';
 end $$;
 
 reset role;

@@ -34,9 +34,14 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
   const router = useRouter();
   const [elapsed, setElapsed] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [declined, setDeclined] = useState<string | null>(null);
   const checking = useRef(false);
 
   useEffect(() => {
+    // Once the charge has definitely failed there is nothing left to
+    // poll for; re-running the effect with `declined` set simply stops.
+    if (declined) return;
+
     let cancelled = false;
     // Read inside the effect, not during render: a component may render
     // more than once, and a clock read while rendering would give a
@@ -59,6 +64,15 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
         const result = await checkSalePayment(saleId);
         if (cancelled) return;
         if (result.error) setNote(result.error);
+
+        // The customer said no, or the charge expired. Stop counting up
+        // as though it might still land — nothing more will happen to
+        // this tender, and the cashier has a queue.
+        if (result.paymentStatus === "failed" || result.paymentStatus === "cancelled") {
+          setDeclined(result.failureReason ?? "The customer did not approve it");
+          return;
+        }
+
         if (result.status === "completed") {
           // The server has already revalidated; this re-renders the page
           // as a finished receipt.
@@ -76,10 +90,38 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
       window.clearInterval(tick);
       window.clearInterval(poll);
     };
-  }, [saleId, router]);
+  }, [saleId, router, declined]);
 
   const seconds = Math.floor(elapsed / 1000);
   const expired = elapsed > GIVE_UP_AFTER_MS;
+
+  if (declined) {
+    return (
+      <div className="rounded-2xl border border-red-300 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/40">
+        <h2 className="font-semibold text-red-900 dark:text-red-200">Payment declined</h2>
+        <p className="mt-2 text-sm text-red-900/90 dark:text-red-200/90">
+          {declined}. Nothing has been charged to {momoNumber ?? "their phone"}.
+        </p>
+        <p className="mt-3 text-sm text-red-900/70 dark:text-red-200/70">
+          The items are still off the shelf against this sale. Cancel it to put them back, then take payment another
+          way.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {canCancel ? (
+            <StatusToggleButton
+              action={cancelSale.bind(null, saleId)}
+              label="Cancel sale and restock"
+              pendingLabel="Cancelling…"
+              variant="danger"
+            />
+          ) : null}
+          <Button type="button" variant="secondary" onClick={() => router.refresh()}>
+            Check again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/40">

@@ -115,7 +115,23 @@ export async function refundSale(saleId: string, _prevState: FormState, formData
  * the same function the webhook uses, so there is one place where a sale
  * becomes paid, not two.
  */
-export async function checkSalePayment(saleId: string): Promise<{ status: string; error?: string }> {
+export interface PaymentCheck {
+  /** The SALE's status: awaiting_payment, completed, cancelled, … */
+  status: string;
+  /**
+   * The momo tender's own status. This is the part that was missing: a
+   * declined prompt leaves the SALE awaiting_payment (correctly — the
+   * goods are still off the shelf and someone must decide what to do),
+   * so reporting only the sale status made "the customer said no"
+   * indistinguishable from "still waiting", and the till counted up for
+   * three minutes as though nothing had happened.
+   */
+  paymentStatus?: string;
+  failureReason?: string | null;
+  error?: string;
+}
+
+export async function checkSalePayment(saleId: string): Promise<PaymentCheck> {
   const supabase = await createServerSupabaseClient();
 
   let businessId: string;
@@ -149,14 +165,19 @@ export async function checkSalePayment(saleId: string): Promise<{ status: string
 
   const { data: paymentRow } = await supabase
     .from("sale_payments")
-    .select("id, status")
+    .select("id, status, failure_reason")
     .eq("sale_id", saleId)
     .eq("method", "momo")
     .maybeSingle();
 
-  const payment = paymentRow as { id: string; status: string } | null;
-  if (!payment || payment.status !== "pending") {
+  const payment = paymentRow as { id: string; status: string; failure_reason: string | null } | null;
+  if (!payment) {
     return { status: sale.status };
+  }
+  if (payment.status !== "pending") {
+    // Already settled — very often FAILED, because the customer declined
+    // the prompt. The till needs to hear that, not just the sale status.
+    return { status: sale.status, paymentStatus: payment.status, failureReason: payment.failure_reason };
   }
 
   const credentials = await loadPaystackCredentials(businessId);
@@ -169,7 +190,7 @@ export async function checkSalePayment(saleId: string): Promise<{ status: string
     // Still waiting, or Paystack did not answer. Either way nothing has
     // changed, and reporting "failed" here would throw away a payment the
     // customer may be about to approve.
-    return { status: sale.status };
+    return { status: sale.status, paymentStatus: "pending" };
   }
 
   const admin = createServiceRoleClient();
@@ -183,13 +204,17 @@ export async function checkSalePayment(saleId: string): Promise<{ status: string
 
   if (settleError) {
     console.error("checkSalePayment: settlement failed", settleError);
-    return { status: sale.status, error: "Couldn't confirm that payment. Please try again." };
+    return { status: sale.status, paymentStatus: "pending", error: "Couldn't confirm that payment. Please try again." };
   }
 
   revalidatePath(`/sales/${saleId}`);
   revalidatePath("/inventory");
 
-  return { status: settled === "completed" ? "completed" : sale.status };
+  return {
+    status: settled === "completed" ? "completed" : sale.status,
+    paymentStatus: verified.status,
+    failureReason: verified.status === "failed" ? (verified.message ?? "The customer did not approve it") : null,
+  };
 }
 
 /**

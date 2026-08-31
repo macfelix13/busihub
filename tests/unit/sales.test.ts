@@ -171,3 +171,94 @@ describe("normaliseMomoNumber", () => {
     expect(normaliseMomoNumber("not a number")).toBe(null);
   });
 });
+
+/**
+ * The shapes the TILL actually submits — not tidy objects, but what
+ * `formData.get()` returns, which is `null` for any input the form did
+ * not render.
+ *
+ * This block exists because cash and on-account checkouts broke the
+ * moment the mobile money fields were added: those inputs are only
+ * rendered for momo and split, so `formData.get("momoNumber")` was null,
+ * `z.string()` rejected it, and the whole sale failed validation on a
+ * field that was not on screen. Every earlier test passed, because every
+ * earlier test built its input by hand with the keys present.
+ */
+describe("checkoutSchema — what formData actually sends", () => {
+  const cart = [line];
+
+  /** Exactly what app/(app)/till/actions.ts reads out of the FormData. */
+  function fromForm(fields: Record<string, string | null>) {
+    return {
+      branchId: fields.branchId ?? null,
+      customerId: fields.customerId ?? null,
+      paymentMethod: fields.paymentMethod ?? null,
+      amountTendered: fields.amountTendered ?? null,
+      cashAmount: fields.cashAmount ?? null,
+      momoNumber: fields.momoNumber ?? null,
+      momoNetwork: fields.momoNetwork ?? null,
+      items: cart,
+    };
+  }
+
+  it("accepts a cash sale, where the momo inputs were never rendered", () => {
+    const result = checkoutSchema.safeParse(
+      fromForm({ branchId: BRANCH, customerId: "", paymentMethod: "cash", amountTendered: "100", cashAmount: "0" })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an on-account sale, likewise", () => {
+    const result = checkoutSchema.safeParse(
+      fromForm({
+        branchId: BRANCH,
+        customerId: CUSTOMER,
+        paymentMethod: "credit",
+        amountTendered: "0",
+        cashAmount: "0",
+      })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a mobile money sale with the fields present", () => {
+    const result = checkoutSchema.safeParse(
+      fromForm({
+        branchId: BRANCH,
+        customerId: "",
+        paymentMethod: "momo",
+        amountTendered: "0",
+        cashAmount: "0",
+        momoNumber: "024 412 3456",
+        momoNetwork: "mtn",
+      })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a split sale", () => {
+    expect(
+      checkoutSchema.safeParse(
+        fromForm({
+          branchId: BRANCH,
+          customerId: "",
+          paymentMethod: "split",
+          amountTendered: "0",
+          cashAmount: "50",
+          momoNumber: "0244123456",
+          momoNetwork: "mtn",
+        })
+      ).success
+    ).toBe(true);
+  });
+
+  it("still demands a number when mobile money IS the method", () => {
+    const result = checkoutSchema.safeParse(
+      fromForm({ branchId: BRANCH, customerId: "", paymentMethod: "momo", amountTendered: "0", cashAmount: "0" })
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === "momoNumber")).toBe(true);
+    }
+  });
+});

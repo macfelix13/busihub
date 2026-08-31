@@ -65,8 +65,14 @@ export const checkoutSchema = z
     amountTendered: tenderedSchema,
     /** Only for a split: how much of the total is cash. */
     cashAmount: tenderedSchema,
-    momoNumber: z.string().optional().or(z.literal("")),
-    momoNetwork: z.string().optional().or(z.literal("")),
+    // NULL, not undefined. These inputs are only rendered for a mobile
+    // money or split sale, so on a cash or on-account checkout
+    // `formData.get("momoNumber")` returns null — and `z.string()`
+    // rejects null, failing the whole sale on a field that is not even on
+    // screen. That is exactly what happened: cash and on-account stopped
+    // working the moment these fields were added.
+    momoNumber: z.preprocess((v) => (v === null || v === undefined ? "" : v), z.string()),
+    momoNetwork: z.preprocess((v) => (v === null || v === undefined ? "" : v), z.string()),
     items: z.array(cartLineSchema).min(1, "Add something to the sale first."),
   })
   .superRefine((data, ctx) => {

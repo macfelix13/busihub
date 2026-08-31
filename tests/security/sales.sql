@@ -597,5 +597,182 @@ begin
   raise notice 'PASS: stock, balances and sale totals all reconcile';
 end $$;
 
+-- ── sales_summary: the takings line on the history page ─────────────────
+--
+-- A total on a money screen is either right or worse than useless, and
+-- this one is computed in the database precisely so it covers the whole
+-- filtered period rather than one page of it (migration 0027). Two things
+-- have to hold: it counts only sales that were actually paid for, and it
+-- is bounded by the same RLS as the list it sits above.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare
+  v_row record; v_completed numeric; v_refunded numeric; v_count bigint;
+begin
+  select * into v_row from sales_summary();
+
+  select count(*), coalesce(sum(total), 0) into v_count, v_completed
+  from sales where status = 'completed';
+  select coalesce(sum(r.total), 0) into v_refunded
+  from refunds r join sales s on s.id = r.sale_id where s.status = 'completed';
+
+  if v_row.sale_count <> v_count then
+    raise exception 'TEST FAILED: summary counted %, expected %', v_row.sale_count, v_count using errcode = 'ZZ999';
+  end if;
+  if v_row.gross_total <> v_completed then
+    raise exception 'TEST FAILED: summary gross %, expected %', v_row.gross_total, v_completed using errcode = 'ZZ999';
+  end if;
+  if v_row.refunded_total <> v_refunded then
+    raise exception 'TEST FAILED: summary refunded %, expected %', v_row.refunded_total, v_refunded
+      using errcode = 'ZZ999';
+  end if;
+  if v_row.net_total <> v_completed - v_refunded then
+    raise exception 'TEST FAILED: net % does not equal gross minus refunds', v_row.net_total using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: the takings line equals completed sales less what was returned';
+
+  -- A sale still waiting for mobile money has not been paid for. It stays
+  -- in the LIST — that is the point of a history — but counting it as
+  -- takings would overstate the day, silently, which is the dangerous
+  -- kind of wrong. Made here rather than assumed from another suite, so
+  -- this holds whatever order the suites run in.
+  declare
+    v_unpaid uuid; v_after record;
+  begin
+    -- Earlier assertions in this suite deliberately sell the shelf down,
+    -- so put one back before ringing this up.
+    insert into inventory_movements (branch_id, variant_id, quantity_delta, reason)
+    select branch_a, soap, 10, 'receive' from s_ids;
+
+    select create_sale((select branch_a from s_ids), '00000000-0000-0000-0000-000000000001', null, null, null,
+      jsonb_build_array(jsonb_build_object('variant_id', (select soap from s_ids), 'quantity', 1)),
+      jsonb_build_array(jsonb_build_object(
+        'method', 'momo', 'momo_number', '0244123456', 'momo_network', 'mtn'))
+    ) into v_unpaid;
+
+    if (select status from sales where id = v_unpaid) <> 'awaiting_payment' then
+      raise exception 'TEST FIXTURE BROKEN: the momo sale did not end up awaiting payment' using errcode = 'ZZ999';
+    end if;
+
+    select * into v_after from sales_summary();
+    if v_after.sale_count <> v_row.sale_count or v_after.gross_total <> v_row.gross_total then
+      raise exception 'TEST FAILED: an unpaid sale was counted as takings (% -> %)',
+        v_row.gross_total, v_after.gross_total using errcode = 'ZZ999';
+    end if;
+    raise notice 'PASS: a sale still waiting for payment is listed but not counted as takings';
+  end;
+
+  -- A window with nothing in it is zero, not null — a blank card on the
+  -- page would read as "broken" rather than "no sales that day".
+  select * into v_row from sales_summary('1990-01-01'::timestamptz, '1990-01-02'::timestamptz);
+  if v_row.sale_count <> 0 or v_row.gross_total <> 0 or v_row.net_total <> 0 then
+    raise exception 'TEST FAILED: an empty period is not zero' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a period with no sales totals zero rather than null';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- The other business's owner must not be able to total our takings. The
+-- function is SECURITY INVOKER for exactly this reason; if it were ever
+-- changed to DEFINER, this is the assertion that should fail.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000046';
+
+do $$
+declare v_row record; v_theirs numeric;
+begin
+  select * into v_row from sales_summary();
+
+  select coalesce(sum(s.total), 0) into v_theirs
+  from sales s where s.status = 'completed' and s.business_id = (select biz_f from s_ids);
+
+  if v_row.gross_total <> v_theirs then
+    raise exception 'TEST FAILED: business F totalled % but owns only %', v_row.gross_total, v_theirs
+      using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: the takings line is bounded by RLS — each shop totals only its own sales';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- ── dashboard_snapshot: the numbers on the front page ───────────────────
+--
+-- Totals over whole tables, so they are computed in the database for the
+-- same reason as the takings line. The one that matters most here is the
+-- last: a shopkeeper opening the app must never be shown another shop's
+-- debts.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_snap record; v_owed numeric; v_waiting bigint;
+begin
+  select * into v_snap from dashboard_snapshot();
+
+  select coalesce(sum(balance), 0) into v_owed from customer_balances where balance > 0;
+  if v_snap.owed_total <> v_owed then
+    raise exception 'TEST FAILED: owed % but customers owe %', v_snap.owed_total, v_owed using errcode = 'ZZ999';
+  end if;
+
+  select count(*) into v_waiting from sales where status = 'awaiting_payment';
+  if v_snap.awaiting_payment_count <> v_waiting then
+    raise exception 'TEST FAILED: % sales waiting, snapshot says %', v_waiting, v_snap.awaiting_payment_count
+      using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: the dashboard counts match the tables they summarise';
+
+  -- A customer in credit must not reduce what everybody else owes. If
+  -- balances were summed unconditionally, one refunded customer would
+  -- silently understate the shop's debtors.
+  if exists (select 1 from customer_balances where balance < 0) then
+    if v_snap.owed_total <> (select coalesce(sum(balance), 0) from customer_balances where balance > 0) then
+      raise exception 'TEST FAILED: a customer in credit is offsetting the debts' using errcode = 'ZZ999';
+    end if;
+    raise notice 'PASS: a customer in credit does not reduce what others owe';
+  else
+    raise notice 'PASS: (no customer in credit to check offsetting against)';
+  end if;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000046';
+
+do $$
+declare v_snap record; v_theirs numeric;
+begin
+  select * into v_snap from dashboard_snapshot();
+
+  select coalesce(sum(b.balance), 0) into v_theirs
+  from customer_balances b
+  join customers c on c.id = b.customer_id
+  where b.balance > 0 and c.business_id = (select biz_f from s_ids);
+
+  if v_snap.owed_total <> v_theirs then
+    raise exception 'TEST FAILED: business F sees % owed but is owed %', v_snap.owed_total, v_theirs
+      using errcode = 'ZZ999';
+  end if;
+  if v_snap.awaiting_payment_count <> (select count(*) from sales where business_id = (select biz_f from s_ids)
+                                        and status = 'awaiting_payment') then
+    raise exception 'TEST FAILED: business F is counting another shop''s unpaid sales' using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: the dashboard is bounded by RLS — no shop sees another shop''s debts';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
 \echo ''
 \echo 'All sales tests passed.'

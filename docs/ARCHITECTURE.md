@@ -466,6 +466,53 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-08-31 — A real dashboard, and a fix for multi-minute compiles.
+
+  **Compiles.** `next dev` was logging `Watchpack Error (initial scan):
+  EINVAL … lstat 'F:\System Volume Information'` — Next had inferred the
+  workspace root as the DRIVE, not the project, so the file watcher was
+  scanning all of `F:\` (Windows system folders included) at startup and
+  on every change. `turbopack.root` and `outputFileTracingRoot` are now
+  pinned to the project directory. The remaining cost is environmental:
+  the project lives on `F:`, and Next itself reports the filesystem as
+  slow.
+
+  **Dashboard.** Replaces the foundation-phase placeholder. What needs
+  doing comes before what merely happened: a banner for sales still
+  waiting for payment (they are holding stock off the shelf) and for
+  products at or below the low-stock threshold, then today's and this
+  month's net takings, what was returned, and what customers owe, then the
+  latest sales. `dashboard_snapshot()` (0028) computes the counts in the
+  database for the same reason `sales_summary()` does — a total assembled
+  from whatever rows a page fetched is not a smaller truth, it is a false
+  one. Money figures need `reports.view`: processing sales does not imply
+  being trusted with the day's takings.
+
+  Two sabotages confirm the assertions: as `SECURITY DEFINER` the second
+  test business is shown GH₵200 of debts it is not owed, and summing
+  balances unconditionally lets a customer in credit silently reduce what
+  everyone else owes.
+
+- 2026-08-31 — Sales history at `/sales`: every sale newest-first, with
+  status tabs, a date range and receipt-number search that all live in the
+  URL so a particular day can be bookmarked or sent to someone, plus
+  paging at 50.
+
+  The takings line above it is computed in the database
+  (`sales_summary()`, migration 0027) rather than by adding up the visible
+  rows — adding up a page would report "today: GH₵240" when today was
+  GH₵3,000 across four pages, and a wrong total on a money screen is worse
+  than no total. It counts only **completed** sales: voided, cancelled and
+  still-awaiting-payment sales stay in the list, because a history that
+  hides them is not a history, but counting them as takings would
+  overstate the day silently.
+
+  The function is `SECURITY INVOKER` on purpose, so the same RLS that
+  decides which sales a person may list decides which they may total.
+  Sabotaging it to `SECURITY DEFINER` makes the suite fail with the other
+  business totalling GH₵2,550 it does not own — which is the assertion
+  earning its place.
+
 - 2026-08-30 — Phase 11: receipts. `/sales/[id]/receipt` prints a slip
   sized to the shop's paper setting — 32 characters on a 58mm roll, 42 on
   80mm, 60 on A4 — with the shop name, address, cashier, every tender, and

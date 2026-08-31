@@ -58,7 +58,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
-  const [canManageBranches, canManageBusiness, canViewProducts, canViewInventory, canViewSuppliers, canViewCustomers, canSell] =
+  const [
+    canManageBranches,
+    canManageBusiness,
+    canViewProducts,
+    canViewInventory,
+    canViewSuppliers,
+    canViewCustomers,
+    canSell,
+    canViewReports,
+  ] =
     await Promise.all([
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
@@ -67,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, profile.business_id!, PERMISSIONS.SUPPLIERS_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.CUSTOMERS_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.SALES_PROCESS),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.REPORTS_VIEW),
     ]);
 
   return (
@@ -81,6 +91,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {canSell ? (
             <Link href="/till" className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
               Till
+            </Link>
+          ) : null}
+          {/* Anyone who can ring up a sale can look back at them; a
+              reports-only role (an accountant) reaches the same page
+              without ever seeing the till. */}
+          {canSell || canViewReports ? (
+            <Link href="/sales" className="hover:text-neutral-900 dark:hover:text-white">
+              Sales
             </Link>
           ) : null}
           <Link href="/dashboard" className="hover:text-neutral-900 dark:hover:text-white">

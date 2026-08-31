@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money/money";
+import { formatQuantity } from "@/lib/validation/inventory";
 import { setProductStatus, setVariantStatus } from "../actions";
 import { StatusToggleButton } from "../status-toggle-button";
 
@@ -22,10 +23,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
 
-  const [canEdit, canArchive, canChangePrice, { data: business }] = await Promise.all([
+  const [canEdit, canArchive, canChangePrice, canViewStock, { data: business }] = await Promise.all([
     hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_EDIT),
     hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_ARCHIVE),
     hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CHANGE_PRICE),
+    hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_VIEW),
     supabase.from("businesses").select("currency_code").eq("id", businessId).maybeSingle(),
   ]);
   const currencyCode = business?.currency_code ?? "GHS";
@@ -50,6 +52,35 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   // sku is optional (0014) — a.sku.localeCompare would throw on null, so
   // variants without one sort after every variant that has one, and
   // amongst themselves by nothing in particular (insertion order).
+  // Current stock, per variant per branch. Read-only here: changing it is
+  // a receive, an adjustment or a count, each of which has its own page
+  // and its own reason recorded in the ledger.
+  // Asked only when the caller may see stock. RLS would otherwise filter
+  // the rows away silently and the column would read "none" for a product
+  // that is fully stocked — a wrong answer is worse than no column.
+  const variantIds = product.product_variants.map((v: { id: string }) => v.id);
+  const { data: stockRows, error: stockError } = canViewStock && variantIds.length
+    ? await supabase
+        .from("stock_levels")
+        .select("variant_id, quantity, branches(name)")
+        .in("variant_id", variantIds)
+    : { data: [], error: null };
+
+  if (stockError) {
+    console.error("ProductDetailPage: stock query failed", stockError);
+  }
+
+  const stockByVariant = new Map<string, { branch: string; quantity: number }[]>();
+  for (const row of (stockRows ?? []) as unknown as {
+    variant_id: string;
+    quantity: number | string;
+    branches: { name: string } | null;
+  }[]) {
+    const list = stockByVariant.get(row.variant_id) ?? [];
+    list.push({ branch: row.branches?.name ?? "—", quantity: Number(row.quantity) });
+    stockByVariant.set(row.variant_id, list);
+  }
+
   const variants = [...product.product_variants].sort((a, b) => {
     if (a.sku === null && b.sku === null) return 0;
     if (a.sku === null) return 1;
@@ -111,6 +142,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   {product.has_variants ? <th className="px-4 py-3 font-medium">Options</th> : null}
                   <th className="px-4 py-3 font-medium">Cost</th>
                   <th className="px-4 py-3 font-medium">Price</th>
+                  {canViewStock ? <th className="px-4 py-3 font-medium">In stock</th> : null}
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium"></th>
                 </tr>
@@ -125,6 +157,22 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     ) : null}
                     <td className="px-4 py-3">{formatMoneyMinor(variant.cost_price, currencyCode)}</td>
                     <td className="px-4 py-3">{formatMoneyMinor(variant.selling_price, currencyCode)}</td>
+                    {canViewStock ? (
+                    <td className="px-4 py-3 tabular-nums">
+                      {(stockByVariant.get(variant.id) ?? []).length === 0 ? (
+                        <span className="text-neutral-400">none</span>
+                      ) : (
+                        <span className="flex flex-col">
+                          {(stockByVariant.get(variant.id) ?? []).map((level) => (
+                            <span key={level.branch}>
+                              {formatQuantity(level.quantity)}
+                              <span className="ml-1 text-xs text-neutral-500">{level.branch}</span>
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       {variant.status === "archived" ? (
                         <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">

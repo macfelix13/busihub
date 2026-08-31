@@ -67,6 +67,9 @@ jobs:
       - name: Run payment (mobile money / split tender) tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/payments.sql
 
+      - name: Run opening stock tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/opening_stock.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

@@ -86,12 +86,27 @@ const costPriceSchema = z.preprocess(
  * silently swallowing the message instead of showing it. Caught by
  * tracing through exactly this "leave an option blank" path, not assumed.
  */
+/**
+ * What is already on the shelf when the product is first added. Blank
+ * means none — the overwhelmingly common case for a product being set up
+ * before it arrives — so it is preprocessed to "0" rather than being a
+ * required field. Three decimals because a product may be weighed.
+ */
+const openingStockSchema = z.preprocess(
+  (v) => (v === null || v === undefined || (typeof v === "string" && v.trim().length === 0) ? "0" : v),
+  decimalField({ decimals: 3, requiredMessage: "Enter a quantity", invalidMessage: "Enter a number" }).refine(
+    (n) => n >= 0,
+    { message: "Cannot be negative" }
+  )
+);
+
 export const variantRowSchema = z.object({
   sku: skuSchema,
   barcode: barcodeSchema,
   variantOptions: z.record(z.string(), z.string().trim()).default({}),
   costPrice: costPriceSchema,
   sellingPrice: sellingPriceSchema,
+  openingStock: openingStockSchema,
 });
 
 export type VariantRowInput = z.infer<typeof variantRowSchema>;
@@ -151,10 +166,23 @@ export const createProductSchema = productDetailsSchema
   .extend({
     variantOptionNames: z.array(z.string().trim().min(1).max(40)).max(3).default([]),
     variants: z.array(variantRowSchema).min(1, "At least one variant is required").max(200),
+    /** Where any opening stock lands. Only required if some is given. */
+    branchId: z.union([z.literal(""), z.string().uuid()]).optional(),
   })
   .superRefine((data, ctx) => {
     validateVariantOptionKeys(data.variants, data.variantOptionNames, ctx, (i) => ["variants", i, "variantOptions"]);
     validateNoDuplicates(data.variants, ctx, (i, field) => ["variants", i, field]);
+
+    // create_product refuses this too. Catching it here means the message
+    // names the branch box rather than arriving as a rejected product
+    // with a form full of typing to redo.
+    if (data.variants.some((v) => v.openingStock > 0) && !data.branchId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Choose which branch this stock is at.",
+        path: ["branchId"],
+      });
+    }
   });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

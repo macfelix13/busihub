@@ -106,3 +106,86 @@ describe("createProductSchema", () => {
     }
   });
 });
+
+describe("createProductSchema — opening stock", () => {
+  const base = {
+    name: "Opening Stock Rice",
+    description: "",
+    category: "",
+    unitOfMeasure: "each",
+    taxCategory: "standard",
+    variantOptionNames: [],
+    variants: [{ sku: "OSR-1", barcode: "", variantOptions: {}, costPrice: "30", sellingPrice: "60" }],
+    branchId: "",
+  };
+  const BRANCH = "11111111-1111-1111-1111-111111111111";
+
+  it("treats a blank opening stock as none, so a product can be added before it arrives", () => {
+    const result = createProductSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.variants[0]?.openingStock).toBe(0);
+  });
+
+  it("accepts a quantity with a branch", () => {
+    const result = createProductSchema.safeParse({
+      ...base,
+      branchId: BRANCH,
+      variants: [{ ...base.variants[0], openingStock: "40" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.variants[0]?.openingStock).toBe(40);
+  });
+
+  it("asks where the stock is, rather than guessing a branch", () => {
+    const result = createProductSchema.safeParse({
+      ...base,
+      variants: [{ ...base.variants[0], openingStock: "40" }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === "branchId")).toBe(true);
+    }
+  });
+
+  it("does not ask for a branch when there is no stock to place", () => {
+    expect(
+      createProductSchema.safeParse({ ...base, variants: [{ ...base.variants[0], openingStock: "0" }] }).success
+    ).toBe(true);
+  });
+
+  it("refuses a negative opening stock — that is an adjustment, not an opening balance", () => {
+    expect(
+      createProductSchema.safeParse({
+        ...base,
+        branchId: BRANCH,
+        variants: [{ ...base.variants[0], openingStock: "-5" }],
+      }).success
+    ).toBe(false);
+  });
+
+  it("refuses a quantity that is not a number", () => {
+    expect(
+      createProductSchema.safeParse({
+        ...base,
+        branchId: BRANCH,
+        variants: [{ ...base.variants[0], openingStock: "forty" }],
+      }).success
+    ).toBe(false);
+  });
+
+  it("allows a weighed quantity to three decimals", () => {
+    const ok = createProductSchema.safeParse({
+      ...base,
+      branchId: BRANCH,
+      variants: [{ ...base.variants[0], openingStock: "12.500" }],
+    });
+    expect(ok.success).toBe(true);
+    expect(
+      createProductSchema.safeParse({
+        ...base,
+        branchId: BRANCH,
+        variants: [{ ...base.variants[0], openingStock: "12.5005" }],
+      }).success
+    ).toBe(false);
+  });
+});

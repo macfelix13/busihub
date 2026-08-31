@@ -1,6 +1,6 @@
 ﻿# Busihub — Architecture
 
-Status: **Phases 0–10 and 12 complete (see the roadmap below).** This document is
+Status: **Phases 0–12 complete (see the roadmap below).** This document is
 the living architecture reference for Busihub, a multi-tenant Point-of-Sale
 and business-management SaaS for small retail businesses, built primarily for
 the Ghanaian market with an extensible architecture for other countries.
@@ -441,7 +441,7 @@ one section of this document expected to change often.
 | 8 | Customers (contacts + credit accounts) | **done — verified, see tests/security/customers.sql** (loyalty points deferred) |
 | 9 | POS core (cash + credit, PIN till login) | **done — schema verified (tests/security/sales.sql); till UI needs browser verification** |
 | 10 | Payments incl. Paystack | **done — verified, see tests/security/payments.sql** (mobile money via each shop's own Paystack account; card & bank transfer deferred) |
-| 11 | Receipts / printing | pending |
+| 11 | Receipts / printing | **done — printed + shareable text; QR and public receipt links deferred** |
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
 | 13 | Expenses | pending |
 | 14 | Reports | pending |
@@ -465,6 +465,63 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-30 — Phase 11: receipts. `/sales/[id]/receipt` prints a slip
+  sized to the shop's paper setting — 32 characters on a 58mm roll, 42 on
+  80mm, 60 on A4 — with the shop name, address, cashier, every tender, and
+  the configured footer.
+
+  The printed slip and the "copy for WhatsApp" text are **the same
+  string**, not two layouts that resemble each other, so they cannot
+  quietly disagree about a total. That string comes from a pure function
+  (`lib/receipts/format.ts`) because receipt layout is arithmetic —
+  columns aligned inside a fixed character width — and arithmetic inside a
+  React component is arithmetic nobody tests. 26 assertions cover it,
+  including that no line ever exceeds the roll and every amount sits flush
+  to the right edge. Writing those tests immediately found a real bug: a
+  long product name overflowed the width, which does not fail visibly on
+  screen — it just prints wrong.
+
+  Two things deliberately NOT built. There is no "send to customer"
+  button: sending means a receipt anyone with the link can open, an
+  unauthenticated page showing what someone bought and paid, which is a
+  privacy decision deserving its own design rather than being added in
+  passing. And the QR setting is saved but not printed — a code is only
+  worth scanning once there is a link for it to point at — with a note
+  beside the setting saying so, rather than a checkbox that silently does
+  nothing.
+
+- 2026-08-30 — **Do not migrate `useFormState` to `useActionState`.**
+  Attempted and reverted. React 18.3.1 emits a deprecation warning in the
+  console on every form page ("ReactDOM.useFormState has been renamed to
+  React.useActionState") — that is 18.3's job, warning about React 19 —
+  but `useActionState` does **not exist** in React 18, so acting on the
+  warning breaks all 20 form components at once. `npm ls react react-dom`
+  is the check; `package.json` alone is not, since a pin can drift from
+  what is installed. The rename becomes correct only after React 19 is
+  actually installed, and `useFormStatus` stays in react-dom either way.
+
+- 2026-08-30 — Opening stock on the new-product form (0026). A new product
+  used to start at zero, so putting an existing shelf into Busihub meant
+  visiting /inventory/receive again for every product. There is now a
+  quantity box per variant and a branch selector that appears only once
+  there is stock to place.
+
+  It is not a way to write a stock level. Opening stock becomes a real
+  `receive` movement in the same ledger as every other movement, in the
+  same transaction as the product — so a product either exists with its
+  stock or does not exist at all, and "where did these 40 bags come from?"
+  still has a row with a date and a person on it. `create_product` still
+  runs as the caller, so it goes through the inventory ledger's own RLS:
+  a Cashier who may add products but not receive stock is refused, which
+  is asserted rather than assumed. The product page also shows current
+  stock per branch, read-only, and only to someone holding
+  `inventory.view` — RLS would otherwise filter the rows away silently
+  and the column would read "none" for a fully stocked product.
+
+  `tests/security/opening_stock.sql` adds 9 assertions — **191 across
+  nine suites** — including that the old eight-argument `create_product`
+  call still works and invents no stock.
 
 - 2026-08-30 — Fix (0025): every mobile money sale was refused in the
   browser with "Every payment needs an amount greater than zero", while

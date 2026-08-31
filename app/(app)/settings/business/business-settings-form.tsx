@@ -67,6 +67,10 @@ export function BusinessSettingsForm({ defaultValues }: { defaultValues: Busines
         />
         <Checkbox label="Show logo on receipt" name="receiptShowLogo" defaultChecked={defaultValues.receiptShowLogo} />
         <Checkbox label="Show QR code on receipt" name="receiptShowQrCode" defaultChecked={defaultValues.receiptShowQrCode} />
+        <p className="-mt-1 text-sm text-neutral-500">
+          The QR code is saved but not printed yet: a code is only worth scanning once there is a shareable
+          receipt link for it to point at. Everything else here applies to printed and shared receipts today.
+        </p>
       </Section>
 
       <Section title="Invoices">
@@ -148,4 +152,3 @@ export function BusinessSettingsForm({ defaultValues }: { defaultValues: Busines
     </form>
   );
 }
-

@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -20,4 +20,41 @@ body {
 /* Touch targets: nothing interactive on the POS should be smaller than this. */
 :root {
   --min-touch-target: 44px;
+}
+
+/* ── Printing a receipt ───────────────────────────────────────────────────
+   The receipt page marks its own chrome print:hidden, but the app shell
+   around it (header, nav, footer) knows nothing about printing. Rather
+   than hunt those elements down one by one — and miss the next one added
+   — anything OUTSIDE the receipt sheet is hidden, and the sheet is lifted
+   to the top of the page.
+
+   The dark theme is deliberately overridden: a receipt printed from a
+   dark-mode screen would otherwise come out as white text a thermal
+   printer cannot produce at all, and an inkjet would waste a cartridge
+   on. */
+@media print {
+  body:has(.receipt-sheet) * {
+    visibility: hidden;
+  }
+
+  body:has(.receipt-sheet) .receipt-sheet,
+  body:has(.receipt-sheet) .receipt-sheet * {
+    visibility: visible;
+  }
+
+  body:has(.receipt-sheet) .receipt-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  @page {
+    margin: 4mm;
+  }
 }

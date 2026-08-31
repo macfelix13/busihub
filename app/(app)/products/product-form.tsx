@@ -19,6 +19,13 @@ interface VariantRow {
   variantOptions: Record<string, string>;
   costPrice: string;
   sellingPrice: string;
+  /** What is already on the shelf. Blank means none. */
+  openingStock: string;
+}
+
+export interface ProductFormBranch {
+  id: string;
+  name: string;
 }
 
 function emptyVariant(optionNames: string[]): VariantRow {
@@ -28,12 +35,14 @@ function emptyVariant(optionNames: string[]): VariantRow {
     variantOptions: Object.fromEntries(optionNames.map((n) => [n, ""])),
     costPrice: "0",
     sellingPrice: "",
+    openingStock: "",
   };
 }
 
 /** Create-product form: base details + an optional variant-axis definition + one row per starting SKU. Every product needs at least one variant even if "This product comes in variants" stays unchecked — that single row becomes the product's sole (is_default) variant server-side. */
-export function ProductForm() {
+export function ProductForm({ branches, canReceiveStock }: { branches: ProductFormBranch[]; canReceiveStock: boolean }) {
   const [state, formAction] = useFormState(createProduct, initialState);
+  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
 
   const [hasVariants, setHasVariants] = useState(false);
   const [optionNamesText, setOptionNamesText] = useState("");
@@ -64,6 +73,10 @@ export function ProductForm() {
   }
 
   const effectiveVariants = hasVariants ? variants : [variants[0] ?? emptyVariant([])];
+
+  // The branch box only appears once there is stock to place, so a shop
+  // adding a product that has not arrived yet is never asked where it is.
+  const anyOpeningStock = effectiveVariants.some((row) => Number(row.openingStock) > 0);
   const effectiveOptionNames = hasVariants ? optionNames : [];
 
   return (
@@ -168,6 +181,20 @@ export function ProductForm() {
                     error={state.fieldErrors?.[`variants.${index}.sellingPrice`]}
                   />
                 </div>
+                {canReceiveStock ? (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                    <Field
+                      label="Stock on hand now"
+                      type="number"
+                      step="0.001"
+                      min={0}
+                      placeholder="0"
+                      value={row.openingStock}
+                      onChange={(e) => patchVariant(index, { openingStock: e.target.value })}
+                      error={state.fieldErrors?.[`variants.${index}.openingStock`]}
+                    />
+                  </div>
+                ) : null}
                 {hasVariants && effectiveVariants.length > 1 ? (
                   <Button type="button" variant="ghost" className="mt-3" onClick={() => removeRow(index)}>
                     Remove this variant
@@ -191,6 +218,25 @@ export function ProductForm() {
         </p>
       ) : null}
 
+      {canReceiveStock && anyOpeningStock ? (
+        <div className="flex flex-col gap-2">
+          <Select
+            label="Where is this stock?"
+            name="branchId"
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+            error={state.fieldErrors?.branchId}
+            options={branches.map((b) => ({ value: b.id, label: b.name }))}
+          />
+          <p className="text-sm text-neutral-500">
+            This is recorded as stock received today, so it shows in the inventory history like any other delivery.
+            Leave the boxes empty if the goods haven&apos;t arrived yet.
+          </p>
+        </div>
+      ) : (
+        <input type="hidden" name="branchId" value="" />
+      )}
+
       <input type="hidden" name="variantOptionNamesJson" value={JSON.stringify(effectiveOptionNames)} />
       <input
         type="hidden"
@@ -202,6 +248,7 @@ export function ProductForm() {
             variantOptions: hasVariants ? row.variantOptions : {},
             costPrice: row.costPrice,
             sellingPrice: row.sellingPrice,
+            openingStock: canReceiveStock ? row.openingStock : "",
           }))
         )}
       />

@@ -189,6 +189,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               variant="danger"
             />
           ) : null}
+          <Link href={`/sales/${sale.id}/receipt`}>
+            <Button variant="secondary">Receipt</Button>
+          </Link>
           <Link href="/till">
             <Button>Next sale</Button>
           </Link>

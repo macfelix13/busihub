@@ -46,6 +46,7 @@ function createProductFormValues(formData: FormData) {
     taxCategory: formData.get("taxCategory"),
     variantOptionNames: jsonField<string[]>(formData, "variantOptionNamesJson", []),
     variants: jsonField<unknown[]>(formData, "variantsJson", []),
+    branchId: formData.get("branchId"),
   };
 }
 
@@ -91,7 +92,8 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, category, unitOfMeasure, taxCategory, variantOptionNames, variants } = parsed.data;
+  const { name, description, category, unitOfMeasure, taxCategory, variantOptionNames, variants, branchId } =
+    parsed.data;
 
   const { error } = await supabase.rpc("create_product", {
     p_business_id: businessId,
@@ -107,7 +109,12 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
       variant_options: v.variantOptions,
       cost_price: v.costPrice,
       selling_price: v.sellingPrice,
+      // Opening stock becomes a real `receive` movement inside
+      // create_product, in the same transaction as the product itself
+      // (migration 0026) — never a written stock level.
+      opening_stock: v.openingStock,
     })),
+    p_branch_id: branchId || null,
   });
 
   if (error) {
@@ -115,6 +122,23 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     const dup = error.code === "23505" ? duplicateFieldFromError(error.message ?? "") : null;
     if (dup) {
       return { error: dup.text, fieldErrors: { [dup.field]: dup.text } };
+    }
+    // "Choose which branch the opening stock is at", "Opening stock
+    // cannot be negative" — written for the person filling in the form.
+    if (error.code === "P0001" && error.message) {
+      return { error: error.message };
+    }
+    if (error.code === "P0002") {
+      return { error: "That branch could not be found." };
+    }
+    // Opening stock goes through the inventory ledger, so it needs
+    // inventory.receive. Someone who may add products but not receive
+    // stock should be told which half was refused.
+    if (error.code === "42501") {
+      return {
+        error:
+          "You can add the product, but not the opening stock — that needs permission to receive inventory. Leave the stock boxes empty, or ask an owner.",
+      };
     }
     return { error: "Couldn't create the product. Please try again." };
   }

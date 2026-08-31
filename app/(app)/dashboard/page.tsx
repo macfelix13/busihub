@@ -6,7 +6,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
-import { RANGES, resolvePeriod } from "./period";
+import { RANGES, resolvePeriod, periodDates } from "./period";
 import { SalesChart, type TrendPoint } from "./sales-chart";
 
 export const metadata = { title: "Dashboard" };
@@ -28,13 +28,17 @@ export const metadata = { title: "Dashboard" };
  * every `canSeeMoney` check in this file would change what is drawn, not
  * what can be obtained.
  *
- * WHAT IS NOT HERE, AND WHY
+ * NET PROFIT
  *
- * Net profit, expense totals, and profit margin after costs. Busihub has
- * no expenses table yet (that is Phase 13), so a "net profit" on this
- * page would be gross profit with a different label — a number a
- * shopkeeper would price goods against. Gross profit IS here and is
- * real; it is labelled "before expenses" so nobody mistakes it.
+ * Real since Phase 13: gross profit (sales less what the goods cost,
+ * from 0029) minus recorded expenses (0031). Both halves are aggregates
+ * the database computed over whole tables; the only arithmetic done here
+ * is the subtraction, which is why it is safe to do in the page.
+ *
+ * It is shown ONLY to someone who can see both halves. A person with
+ * reports.view but not expenses.view would otherwise be handed a "net
+ * profit" that is really gross profit — the exact mislabelling this page
+ * spent the previous phase avoiding.
  */
 
 interface SummaryRow {
@@ -110,12 +114,21 @@ export default async function DashboardPage({
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
 
-  const [canSell, canReport, canViewInventory, canViewCustomers, { data: business }, { data: branchRows }] =
+  const [
+    canSell,
+    canReport,
+    canViewInventory,
+    canViewCustomers,
+    canViewExpenses,
+    { data: business },
+    { data: branchRows },
+  ] =
     await Promise.all([
       hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
       hasPermission(supabase, businessId, PERMISSIONS.REPORTS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.CUSTOMERS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
       supabase.from("businesses").select("name, currency_code").eq("id", businessId).maybeSingle(),
       supabase.from("branches").select("id, name, is_main, timezone").eq("status", "active").order("is_main", {
         ascending: false,
@@ -142,6 +155,8 @@ export default async function DashboardPage({
   const canSeeMoney = canReport;
   const fromIso = period.from.toISOString();
   const toIso = period.to.toISOString();
+  // Expenses are booked to a day, not an instant — see periodDates().
+  const { from: fromDate, to: toDate } = periodDates(period);
 
   const empty = Promise.resolve({ data: null, error: null });
 
@@ -154,6 +169,8 @@ export default async function DashboardPage({
     { data: lowStockRows },
     { data: staffRows },
     { data: branchPerfRows },
+    { data: expenseRows },
+    { data: expenseCategoryRows },
     { data: recent, error: recentError },
   ] = await Promise.all([
     canSeeMoney
@@ -181,6 +198,17 @@ export default async function DashboardPage({
       : empty,
     canSeeMoney && branches.length > 1
       ? supabase.rpc("branch_performance", { p_from: fromIso, p_to: toIso })
+      : empty,
+    canViewExpenses
+      ? supabase.rpc("expense_summary", { p_from: fromDate, p_to: toDate, p_branch_id: branchId })
+      : empty,
+    canViewExpenses
+      ? supabase.rpc("expenses_by_category", {
+          p_from: fromDate,
+          p_to: toDate,
+          p_branch_id: branchId,
+          p_limit: 5,
+        })
       : empty,
     supabase
       .from("sales")
@@ -241,6 +269,17 @@ export default async function DashboardPage({
     net_total: number | string;
     gross_profit: number | string;
   }[];
+  const expenses = ((expenseRows ?? []) as unknown as {
+    expense_total: number | string;
+    expense_count: number | string;
+    cash_paid_out: number | string;
+  }[])[0];
+  const expenseCategories = (expenseCategoryRows ?? []) as unknown as {
+    category_id: string | null;
+    category_name: string;
+    amount: number | string;
+    expense_count: number | string;
+  }[];
   const recentSales = (recent ?? []) as unknown as RecentSale[];
 
   const waiting = Number(snapshot?.awaiting_payment_count ?? 0);
@@ -249,6 +288,12 @@ export default async function DashboardPage({
   const netTotal = Number(summary?.net_total ?? 0);
   const averageSale = saleCount > 0 ? netTotal / saleCount : 0;
   const paymentTotal = payments.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const expenseTotal = Number(expenses?.expense_total ?? 0);
+  const grossProfit = Number(summary?.gross_profit ?? 0);
+  // Only claimed when both halves are actually visible — see the note at
+  // the top of this file.
+  const canSeeNetProfit = canSeeMoney && canViewExpenses;
+  const netProfit = grossProfit - expenseTotal;
   const urgentStock = lowStock.filter((row) => row.severity !== "low").length;
 
   /** Keeps the current filters when switching one of them. */
@@ -398,11 +443,17 @@ export default async function DashboardPage({
                   value: money(summary?.gross_profit),
                   sub: "before expenses",
                 },
-                {
-                  label: "Average sale",
-                  value: money(averageSale),
-                  sub: `${Number(summary?.items_sold ?? 0)} items sold`,
-                },
+                canSeeNetProfit
+                  ? {
+                      label: "Net profit",
+                      value: money(netProfit),
+                      sub: `after ${money(expenseTotal)} of expenses`,
+                    }
+                  : {
+                      label: "Average sale",
+                      value: money(averageSale),
+                      sub: `${Number(summary?.items_sold ?? 0)} items sold`,
+                    },
                 {
                   label: "Returned",
                   value: money(summary?.refunded_total),
@@ -423,6 +474,13 @@ export default async function DashboardPage({
             {/* Said plainly rather than buried: sales rung up before cost
                 tracking existed carry a cost estimated from today's
                 catalog, so their profit is an approximation. */}
+            {canSeeNetProfit && netProfit < 0 ? (
+              <p className="-mt-3 text-xs text-neutral-500">
+                Expenses came to more than the profit on what was sold {period.label}. A month with rent in it often
+                looks like this on a quiet day &mdash; the figure to watch is the month, not the day.
+              </p>
+            ) : null}
+
             {summary?.any_cost_estimated ? (
               <p className="-mt-3 text-xs text-neutral-500">
                 Some sales in this period were rung up before Busihub recorded cost prices. Their profit is estimated
@@ -513,6 +571,44 @@ export default async function DashboardPage({
             </div>
           </>
         )
+      ) : null}
+
+      {canViewExpenses && expenseCategories.length > 0 ? (
+        <Card>
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-semibold">Where the money went</h2>
+            <Link href="/expenses" className="text-sm text-brand-700 hover:underline dark:text-brand-300">
+              All expenses
+            </Link>
+          </div>
+          <ul className="mt-4 flex flex-col gap-3">
+            {expenseCategories.map((row) => {
+              const amount = Number(row.amount ?? 0);
+              // Scaled against the biggest line, not against the total:
+              // with five categories, shares of the total are all short
+              // stubs and the comparison the eye is actually making —
+              // "which of these is the big one" — gets harder to see.
+              const biggest = Number(expenseCategories[0]?.amount ?? 0);
+              const share = biggest > 0 ? (amount / biggest) * 100 : 0;
+              return (
+                <li key={row.category_id ?? row.category_name}>
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="font-medium">{row.category_name}</span>
+                    <span className="tabular-nums">{money(amount)}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                    <div className="h-full rounded-full bg-neutral-400 dark:bg-neutral-500" style={{ width: `${share}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {Number(expenses?.cash_paid_out ?? 0) > 0 ? (
+            <p className="mt-4 text-xs text-neutral-500">
+              {money(expenses?.cash_paid_out)} of this came out of the till, so the drawer will be short by that much.
+            </p>
+          ) : null}
+        </Card>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">

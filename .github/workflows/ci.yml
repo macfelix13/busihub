@@ -73,6 +73,9 @@ jobs:
       - name: Run dashboard analytics tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/dashboard.sql
 
+      - name: Run expense tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/expenses.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

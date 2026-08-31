@@ -217,6 +217,27 @@ export function resolvePeriod(
   }
 }
 
+/**
+ * A period's endpoints as local `YYYY-MM-DD` dates.
+ *
+ * Sales happen at an instant; expenses are booked to a day. So the
+ * expense functions take dates, and this is the conversion — including
+ * the fiddly bit: `period.to` is EXCLUSIVE (midnight the morning after),
+ * so the last day actually inside the period is the millisecond before
+ * it. Passing period.to's own date would silently include tomorrow.
+ */
+export function periodDates(period: Period): { from: string; to: string } {
+  const asDate = (date: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: period.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+
+  return { from: asDate(period.from), to: asDate(new Date(period.to.getTime() - 1)) };
+}
+
 /** How a bucket start should read on the chart's axis. */
 export function bucketLabel(iso: string, bucket: Period["bucket"], timezone: string): string {
   const date = new Date(iso);

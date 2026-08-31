@@ -443,8 +443,8 @@ one section of this document expected to change often.
 | 10 | Payments incl. Paystack | **done — verified, see tests/security/payments.sql** (mobile money via each shop's own Paystack account; card & bank transfer deferred) |
 | 11 | Receipts / printing | **done — printed + shareable text; QR and public receipt links deferred** |
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
-| 13 | Expenses | pending — **blocks** net profit, expense KPIs and margin-after-costs on the dashboard |
-| 14 | Reports | partial — the dashboard's six analytics functions (0030) are verified (tests/security/dashboard.sql); standalone report pages, date-range exports and P&L still pending |
+| 13 | Expenses | **done — verified, see tests/security/expenses.sql** (no approval workflow and no recurring expenses, both by decision; see 0031's header) |
+| 14 | Reports | partial — the dashboard's analytics (0030) and the expense summaries (0031) are verified; standalone report pages, exports and a full P&L still pending |
 | 15 | Notifications | pending |
 | 16 | Offline/PWA | pending |
 | 17 | Synchronization | pending |
@@ -465,6 +465,52 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-08-31 — Phase 13: expenses, and a net profit that means something.
+
+  Gross profit (0029) is sales less what the goods cost. Net profit is
+  that less rent, wages, light and water — which Busihub had nowhere to
+  record until now, which is why the dashboard was careful to label its
+  profit figure "before expenses". `expenses` and `expense_categories`
+  (0031) close that, and the dashboard's third KPI is now Net profit,
+  shown **only** to someone who can see both halves: a person with
+  reports.view but not expenses.view would otherwise be handed gross
+  profit under a net-profit label, which is the exact mislabelling the
+  previous phase went out of its way to avoid.
+
+  **Three decisions, taken deliberately and recorded in the migration
+  header.** An expense counts the moment it is recorded — no approval
+  queue, because a queue nobody empties makes "this month's profit" wrong
+  until someone remembers to click. No recurring-expense machinery: rent
+  is typed each month, because posting money into the books that nobody
+  agreed to is worse than a figure arriving late. And an expense records
+  WHERE the money came from, which is the one that earns its keep: a
+  cashier paying the water bill out of the till is the commonest reason a
+  drawer comes up short, and `cash_drawer_summary()` now says takings in,
+  cash expenses out, what should be there.
+
+  `expenses.approve` had no approval left to authorise, so rather than
+  leaving a permission describing a workflow that does not exist, its
+  catalog description was corrected to what it now gates: voiding an
+  expense and shaping the category list. Recording one is
+  `expenses.create`, and the two being separate is what stops a clerk
+  making last month's rent disappear.
+
+  **Nothing is deleted and nothing is edited.** A mistake is voided with
+  a reason; it stops counting and stays on the page. The amount and date
+  are not updatable at all — `revoke update on expenses` first, then
+  `grant update (status, voided_by, voided_at, void_reason)`, because a
+  table-level grant authorises every column regardless of any per-column
+  revoke (the same trap as `profiles.pin_hash` in 0018). The test for
+  that runs as the OWNER, since testing it as someone the policy already
+  refuses would prove nothing.
+
+  25 assertions in `tests/security/expenses.sql`, and nine sabotages each
+  confirmed to fail it — including running `expense_summary` as
+  `SECURITY DEFINER`, which tells a cashier what the shop spent, and
+  dropping the `if not found` raise from `void_expense`, which tells a
+  clerk the rent has been cancelled when it has not.
+
 
 - 2026-08-31 — Cost of goods (0029) and the dashboard's analytics (0030).
 

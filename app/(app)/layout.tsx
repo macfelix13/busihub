@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -67,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canViewCustomers,
     canSell,
     canViewReports,
+    canViewExpenses,
   ] =
     await Promise.all([
       hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
@@ -77,6 +78,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, profile.business_id!, PERMISSIONS.CUSTOMERS_VIEW),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.SALES_PROCESS),
       hasPermission(supabase, profile.business_id!, PERMISSIONS.REPORTS_VIEW),
+      hasPermission(supabase, profile.business_id!, PERMISSIONS.EXPENSES_VIEW),
     ]);
 
   return (
@@ -127,6 +129,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {canViewCustomers ? (
             <Link href="/customers" className="hover:text-neutral-900 dark:hover:text-white">
               Customers
+            </Link>
+          ) : null}
+          {canViewExpenses ? (
+            <Link href="/expenses" className="hover:text-neutral-900 dark:hover:text-white">
+              Expenses
             </Link>
           ) : null}
           {canManageBranches ? (

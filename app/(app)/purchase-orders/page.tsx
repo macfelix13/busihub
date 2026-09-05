@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { PURCHASE_ORDER_STATUSES, purchaseOrderStatusLabel } from "@/lib/validation/purchasing";
 
 export const metadata = { title: "Purchase orders" };
+
+const PAGE_SIZE = 50;
 
 const STATUS_CLASSES: Record<string, string> = {
   draft: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
@@ -30,10 +32,11 @@ interface OrderRow {
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, page } = await searchParams;
   const activeStatus = PURCHASE_ORDER_STATUSES.some((s) => s.value === status) ? status! : null;
+  const pageNumber = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
 
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
@@ -46,20 +49,29 @@ export default async function PurchaseOrdersPage({
     redirect("/dashboard");
   }
 
+  // Paginated for the same reason products/suppliers now are: an
+  // unbounded "every order this shop has ever raised" query only looks
+  // cheap in a fresh database.
   let query = supabase
     .from("purchase_orders")
-    .select("id, reference, status, expected_date, created_at, suppliers(name), branches(name)")
-    .order("created_at", { ascending: false });
+    .select("id, reference, status, expected_date, created_at, suppliers(name), branches(name)", {
+      count: "exact",
+    })
+    .order("created_at", { ascending: false })
+    .range((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE - 1);
 
   if (activeStatus) {
     query = query.eq("status", activeStatus);
   }
 
-  const { data: orders, error } = await query;
+  const { data: orders, error, count } = await query;
 
   if (error) {
     console.error("PurchaseOrdersPage: query failed", error);
   }
+
+  const totalCount = count ?? 0;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,6 +152,36 @@ export default async function PurchaseOrdersPage({
           </ul>
         </div>
       )}
+
+      {totalCount > PAGE_SIZE ? (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">
+            Page {pageNumber} of {lastPage} · {totalCount} orders
+          </span>
+          <div className="flex gap-2">
+            {pageNumber > 1 ? (
+              <Link
+                href={{
+                  pathname: "/purchase-orders",
+                  query: { ...(activeStatus ? { status: activeStatus } : {}), page: String(pageNumber - 1) },
+                }}
+              >
+                <Button variant="secondary">Previous</Button>
+              </Link>
+            ) : null}
+            {pageNumber < lastPage ? (
+              <Link
+                href={{
+                  pathname: "/purchase-orders",
+                  query: { ...(activeStatus ? { status: activeStatus } : {}), page: String(pageNumber + 1) },
+                }}
+              >
+                <Button variant="secondary">Next</Button>
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

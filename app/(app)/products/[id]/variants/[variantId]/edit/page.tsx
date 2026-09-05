@@ -1,4 +1,4 @@
-﻿import { notFound, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -24,23 +24,25 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
     redirect(`/products/${id}`);
   }
 
-  const { data: product, error: productError } = await supabase
-    .from("products")
-    .select("id, name, variant_option_names")
-    .eq("id", id)
-    .maybeSingle();
+  // Neither query needs the other's result — both key off the route
+  // params alone — so they run together rather than one after the other.
+  const [
+    { data: product, error: productError },
+    { data: variant, error: variantError },
+  ] = await Promise.all([
+    supabase.from("products").select("id, name, variant_option_names").eq("id", id).maybeSingle(),
+    supabase
+      .from("product_variants")
+      .select("id, sku, barcode, variant_options, cost_price, selling_price")
+      .eq("id", variantId)
+      .eq("product_id", id)
+      .maybeSingle(),
+  ]);
 
   if (productError || !product) {
     console.error("EditVariantPage: product query failed", productError);
     notFound();
   }
-
-  const { data: variant, error: variantError } = await supabase
-    .from("product_variants")
-    .select("id, sku, barcode, variant_options, cost_price, selling_price")
-    .eq("id", variantId)
-    .eq("product_id", id)
-    .maybeSingle();
 
   if (variantError) {
     console.error("EditVariantPage: variant query failed", variantError);

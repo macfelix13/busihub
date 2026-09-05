@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
@@ -9,8 +10,22 @@ import type { CookieToSet } from "./cookie-types";
  * Use this in Server Components, Route Handlers, and Server Actions for
  * any read/write that should respect the signed-in user's permissions —
  * i.e. almost everything.
+ *
+ * Wrapped in React's cache() so every Server Component rendered for the
+ * SAME request — the (app) layout and whatever page it wraps — gets back
+ * the identical client instance instead of each constructing its own.
+ * That matters for more than tidiness: lib/auth/current-business.ts also
+ * memoizes per request, keyed on this exact object, and that only
+ * collapses the "which business is this?" lookup down to one round trip
+ * per page load if every caller is holding the same client. A Server
+ * Action runs as its own separate invocation, not inside this render, so
+ * it gets a fresh client and a fresh cache — no session ever leaks
+ * between requests. Building the client itself does no I/O (cookies() is
+ * the only read, and it is request-scoped already), so caching it is
+ * free; it's the RPC/query calls made WITH it that this is designed to
+ * dedupe.
  */
-export async function createServerSupabaseClient() {
+export const createServerSupabaseClient = cache(async function createServerSupabaseClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(supabaseUrl(), supabaseAnonKey(), {
@@ -31,7 +46,7 @@ export async function createServerSupabaseClient() {
       },
     },
   });
-}
+});
 
 /**
  * SERVICE-ROLE client. Bypasses Row Level Security entirely.

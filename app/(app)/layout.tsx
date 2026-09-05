@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { LogoutButton } from "@/components/logout-button";
@@ -56,6 +57,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const businessName = (profile as unknown as { businesses: { name: string } | null }).businesses?.name;
 
+  // Goes through the same cached lookup every page below uses (rather
+  // than trusting profile.business_id from the query above) so that the
+  // app_current_business_id() RPC runs at most ONCE per request: this is
+  // the first thing on the page to ask for it, so it does the real round
+  // trip, and every page's own getCurrentBusinessId(supabase) call below
+  // this layout gets a cache hit instead of repeating it (0033).
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+  } catch {
+    redirect("/login");
+  }
+
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49).
   const [
@@ -70,15 +84,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canViewExpenses,
   ] =
     await Promise.all([
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.BRANCHES_MANAGE),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.BUSINESS_MANAGE),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.PRODUCTS_VIEW),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.INVENTORY_VIEW),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.SUPPLIERS_VIEW),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.CUSTOMERS_VIEW),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.SALES_PROCESS),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.REPORTS_VIEW),
-      hasPermission(supabase, profile.business_id!, PERMISSIONS.EXPENSES_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE),
+      hasPermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE),
+      hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.SUPPLIERS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.CUSTOMERS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
+      hasPermission(supabase, businessId, PERMISSIONS.REPORTS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
     ]);
 
   return (

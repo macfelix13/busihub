@@ -453,7 +453,7 @@ one section of this document expected to change often.
 | 20 | Audit/security monitoring surfaces | pending |
 | 21 | Automated test suite hardening | pending |
 | 22 | Security review pass | pending |
-| 23 | Performance review pass | pending |
+| 23 | Performance review pass | **partial, brought forward ahead of Phase 15 at request — see changelog** (parallel-safety fix, redundant-lookup fix, and pagination on 3 of 4 unbounded list pages are done and verified; customers.tsx pagination and a real sale_payments/RLS scaling limit are measured and documented, not fixed) |
 | 24 | Deployment prep & documentation | pending |
 
 **This session's committed scope**: Phases 0–3 (architecture, schema, RLS,
@@ -465,6 +465,94 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-05 — Phase 23 (brought forward): a performance pass, done with measurements rather than guesses.
+
+  Requested ahead of sequence — "make it load fast" — scoped as a general
+  review across page load, database query speed, and perceived speed on
+  the patchy mobile connections Busihub's actual users are on. Everything
+  below was found by reading the code and, for the database claims,
+  proven with `EXPLAIN ANALYZE` against a seeded 300,000-row database
+  (roughly a shop after a couple of years of trading), not assumed.
+
+  **Every RLS-protected query in this database was running on one CPU
+  core.** All six of the small security-definer helper functions behind
+  Busihub's RLS policies (`app_has_permission`, `app_current_business_id`,
+  and four more, 0008/0025) default to `PARALLEL UNSAFE` — Postgres's
+  default for any function not explicitly marked otherwise — which forces
+  Postgres to abandon parallel execution on any query that touches them,
+  which in this database is nearly every query. Measured on
+  `payment_method_breakdown()` (one of the dashboard's own functions) at
+  300k rows: 1.77s single-threaded, 0.45s once the six functions were
+  marked `PARALLEL SAFE` (0033) — a real change, since they are pure
+  reads with no side effects, so this only changes how fast the answer
+  arrives, never what it is. All 12 existing SQL security suites (251
+  assertions) still pass unchanged with this migration applied.
+
+  **The same investigation also tried, and failed, to fix a bigger
+  problem, and says so rather than papering over it.** Every dashboard
+  and report query filtering `sale_payments`/`sales` by date scales with
+  the TOTAL number of historical rows in those tables, not with the
+  period actually requested — "last 30 days" costs the same as "all
+  time" once a shop has enough history. The cause: as soon as
+  `app_has_permission()`'s OR-chain sits in the same `WHERE` clause,
+  Postgres stops using date columns as an index condition at all, no
+  matter the index shape (plain composite, partial, with or without a
+  `coalesce()` rewrite) — proven by removing the RLS predicate and
+  watching the identical index start working correctly (sub-2ms). This is
+  a structural interaction between Postgres RLS and a joined,
+  permission-checked query, not something an index in a migration can
+  fix. 0033's header has the full writeup; the honest fix is architectural
+  (a rollup table, or partitioning) and is real enough work that it
+  belongs in its own migration once a business's data actually reaches a
+  size where two seconds on a dashboard load is worth chasing further —
+  not bundled into a parallel-safety fix that would have overstated what
+  it verifiably does.
+
+  **One RPC call, not two, on every single page load.** The (app) layout
+  and the page it wraps were each independently asking "which business is
+  this?" — the layout via its own `profiles` query, every page underneath
+  it via its own `app_current_business_id()` RPC. `createServerSupabaseClient()`
+  and `getCurrentBusinessId()` are now wrapped in React's `cache()`, and
+  the layout calls the latter itself so it primes the memo before any
+  page below it asks again. A Server Action is its own separate
+  invocation, so it gets a fresh client and a fresh cache — nothing about
+  who a request belongs to can leak between requests.
+
+  **Four sequential round trips collapsed into one, on the page a cashier
+  lands on after most sales and refunds.** `sales/[id]`,
+  `purchase-orders/[id]`, `suppliers/[id]`, and the product-variant edit
+  page were each awaiting two-to-four independent queries one after
+  another when none of them depended on another's result — every one
+  filters only on a route param. Now `Promise.all`. RLS scopes each query
+  exactly as before; only the latency changed.
+
+  **A loading state for the six busiest screens that had none at all** —
+  most pointedly the till, which fires five-plus queries after every sale
+  and, until now, showed nothing while they ran. `components/ui/skeleton.tsx`
+  gives every route the same plain, numberless skeleton dashboard's
+  `loading.tsx` already used (a skeleton with a real-looking number on it
+  for even a fraction of a second is a number a shopkeeper could act on).
+
+  **Three of four unbounded list pages now paginate; the fourth is
+  flagged instead of rushed.** Products, suppliers, and purchase orders
+  were shipping their entire filtered result set on every visit — fine at
+  a few dozen rows, a real and growing cost at a few thousand. Paginated
+  the same way sales/expenses already were: a bounded `.range()` plus a
+  separate exact count, never "fetch everything and slice it in
+  JavaScript". Customers was NOT touched: its "who owes money" filter and
+  total are computed by joining every customer against every balance at
+  the application layer, and pagination underneath that join would either
+  paginate before the owing-filter is applied (wrong count) or require
+  moving the aggregation into SQL first (its own considered change, not a
+  find-and-replace of `.range()`). Left as unbounded and documented here
+  rather than shipped half-correct.
+
+  Till and inventory's own unbounded catalogue/customer fetch was raised
+  and deliberately left as-is at the time: a real fix there is a bigger
+  UX change (server-side search-as-you-type instead of an instant local
+  filter) that belongs with Phase 16's offline/sync design, not bolted on
+  ahead of it.
 
 - 2026-09-03 — Phase 14: four reports, and three ways to get them out.
 

@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -99,13 +99,26 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
   // (even just to wrap a comment in) widens it to `string` and collapses
   // the inferred row type to GenericStringError, so every field access
   // below fails to typecheck. Hence one long line, comment up here.
-  const { data: orderData, error } = await supabase
-    .from("purchase_orders")
-    .select(
-      "id, reference, status, expected_date, notes, created_at, approved_at, suppliers(id, name), branches(id, name), raised_by:profiles!purchase_orders_created_by_fkey(first_name, last_name), approved_by_profile:profiles!purchase_orders_approved_by_fkey(first_name, last_name)"
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // Both queries key off `id` alone (neither needs the other's result),
+  // so they run together instead of one after the other.
+  const [
+    { data: orderData, error },
+    { data: items, error: itemsError },
+  ] = await Promise.all([
+    supabase
+      .from("purchase_orders")
+      .select(
+        "id, reference, status, expected_date, notes, created_at, approved_at, suppliers(id, name), branches(id, name), raised_by:profiles!purchase_orders_created_by_fkey(first_name, last_name), approved_by_profile:profiles!purchase_orders_approved_by_fkey(first_name, last_name)"
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("purchase_order_items")
+      .select(
+        "id, quantity_ordered, quantity_received, unit_cost, product_variants(id, sku, variant_options, products(name))"
+      )
+      .eq("purchase_order_id", id),
+  ]);
 
   if (error) {
     console.error("PurchaseOrderDetailPage: query failed", error);
@@ -116,13 +129,6 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
   }
 
   const order = orderData as unknown as OrderRow;
-
-  const { data: items, error: itemsError } = await supabase
-    .from("purchase_order_items")
-    .select(
-      "id, quantity_ordered, quantity_received, unit_cost, product_variants(id, sku, variant_options, products(name))"
-    )
-    .eq("purchase_order_id", id);
 
   if (itemsError) {
     console.error("PurchaseOrderDetailPage: items query failed", itemsError);

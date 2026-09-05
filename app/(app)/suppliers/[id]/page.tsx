@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -21,12 +21,24 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
     hasPermission(supabase, businessId, PERMISSIONS.PURCHASE_ORDERS_CREATE),
   ]);
 
-  // RLS-scoped: another tenant's supplier id simply isn't found.
-  const { data: supplier, error } = await supabase
-    .from("suppliers")
-    .select("id, name, contact_name, phone, email, address, payment_terms, notes, status")
-    .eq("id", id)
-    .maybeSingle();
+  // RLS-scoped: another tenant's supplier id simply isn't found. Both
+  // queries key off `id` alone, so they run together.
+  const [
+    { data: supplier, error },
+    { data: orders, error: ordersError },
+  ] = await Promise.all([
+    supabase
+      .from("suppliers")
+      .select("id, name, contact_name, phone, email, address, payment_terms, notes, status")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("purchase_orders")
+      .select("id, reference, status, expected_date, created_at")
+      .eq("supplier_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
 
   if (error) {
     console.error("SupplierDetailPage: query failed", error);
@@ -35,13 +47,6 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
   if (!supplier) {
     notFound();
   }
-
-  const { data: orders, error: ordersError } = await supabase
-    .from("purchase_orders")
-    .select("id, reference, status, expected_date, created_at")
-    .eq("supplier_id", id)
-    .order("created_at", { ascending: false })
-    .limit(20);
 
   if (ordersError) {
     console.error("SupplierDetailPage: orders query failed", ordersError);

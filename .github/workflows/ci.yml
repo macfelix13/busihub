@@ -79,6 +79,9 @@ jobs:
       - name: Run report tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/reports.sql
 
+      - name: Run query parallel-safety regression test
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/query_parallel_safety.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

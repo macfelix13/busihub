@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 
 export const metadata = { title: "Products" };
+
+const PAGE_SIZE = 50;
 
 interface ProductRow {
   id: string;
@@ -31,11 +33,12 @@ function priceRangeLabel(variants: { selling_price: number | string }[], currenc
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; category?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; category?: string; page?: string }>;
 }) {
-  const { q, status, category } = await searchParams;
+  const { q, status, category, page } = await searchParams;
   const activeStatus = status === "archived" ? "archived" : "active";
   const activeCategory = category && category.trim().length > 0 ? category.trim() : null;
+  const pageNumber = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
 
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
@@ -58,11 +61,20 @@ export default async function ProductsPage({
   ).sort((a, b) => a.localeCompare(b));
 
   // RLS-scoped — no explicit .eq("business_id", ...) needed (Section 4, Section 49).
+  //
+  // A shop with a large catalogue was shipping every active product over
+  // the network on every visit to this page — fine for a few dozen SKUs,
+  // a real and growing cost for a few thousand. Paginated the same way
+  // sales/expenses already are: a bounded page of rows plus a separate
+  // exact count, not "fetch everything and slice it in JavaScript".
   let query = supabase
     .from("products")
-    .select("id, name, category, status, has_variants, product_variants(selling_price)")
+    .select("id, name, category, status, has_variants, product_variants(selling_price)", {
+      count: "exact",
+    })
     .eq("status", activeStatus)
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .range((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE - 1);
 
   if (q && q.trim().length > 0) {
     query = query.ilike("name", `%${q.trim()}%`);
@@ -72,11 +84,20 @@ export default async function ProductsPage({
     query = query.eq("category", activeCategory);
   }
 
-  const { data: products, error } = await query;
+  const { data: products, error, count } = await query;
 
   if (error) {
     console.error("ProductsPage: products query failed", error);
   }
+
+  const totalCount = count ?? 0;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageQuery = (overrides: Record<string, string>) => ({
+    ...(q ? { q } : {}),
+    ...(activeStatus === "archived" ? { status: "archived" } : {}),
+    ...(activeCategory ? { category: activeCategory } : {}),
+    ...overrides,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,6 +201,26 @@ export default async function ProductsPage({
           </ul>
         </div>
       )}
+
+      {totalCount > PAGE_SIZE ? (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">
+            Page {pageNumber} of {lastPage} · {totalCount} products
+          </span>
+          <div className="flex gap-2">
+            {pageNumber > 1 ? (
+              <Link href={{ pathname: "/products", query: pageQuery({ page: String(pageNumber - 1) }) }}>
+                <Button variant="secondary">Previous</Button>
+              </Link>
+            ) : null}
+            {pageNumber < lastPage ? (
+              <Link href={{ pathname: "/products", query: pageQuery({ page: String(pageNumber + 1) }) }}>
+                <Button variant="secondary">Next</Button>
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

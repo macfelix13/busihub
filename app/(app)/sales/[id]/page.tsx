@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -62,13 +62,40 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   // sales has one FK to profiles (cashier_id) and one to customers, so
   // these embeds are unambiguous; created_by is not embedded here, which
   // is what keeps it that way.
-  const { data: saleData, error } = await supabase
-    .from("sales")
-    .select(
-      "id, receipt_number, status, payment_method, subtotal, tax_total, total, amount_tendered, change_given, created_at, branches(name), customers(id, name), cashier:profiles!sales_cashier_id_fkey(first_name, last_name)"
-    )
-    .eq("id", id)
-    .maybeSingle();
+  //
+  // All four queries below key off `id` (the route param) alone — none
+  // needs another's result — so they run together rather than as four
+  // round trips stacked one after another. RLS still scopes each one
+  // independently; running them concurrently changes nothing about who
+  // can see what, only how long it takes to find out.
+  const [
+    { data: saleData, error },
+    { data: items, error: itemsError },
+    { data: paymentRows, error: paymentsError },
+    { data: refunds, error: refundsError },
+  ] = await Promise.all([
+    supabase
+      .from("sales")
+      .select(
+        "id, receipt_number, status, payment_method, subtotal, tax_total, total, amount_tendered, change_given, created_at, branches(name), customers(id, name), cashier:profiles!sales_cashier_id_fkey(first_name, last_name)"
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("sale_items")
+      .select("id, description, sku, quantity, unit_price, line_total")
+      .eq("sale_id", id),
+    supabase
+      .from("sale_payments")
+      .select("id, method, amount, status, momo_number, momo_network, failure_reason")
+      .eq("sale_id", id)
+      .order("created_at"),
+    supabase
+      .from("refunds")
+      .select("id, refund_number, method, reason, total, created_at")
+      .eq("sale_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (error) {
     console.error("SaleDetailPage: query failed", error);
@@ -80,30 +107,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
 
   const sale = saleData as unknown as SaleRow;
 
-  const { data: items, error: itemsError } = await supabase
-    .from("sale_items")
-    .select("id, description, sku, quantity, unit_price, line_total")
-    .eq("sale_id", id);
-
   if (itemsError) {
     console.error("SaleDetailPage: items query failed", itemsError);
   }
 
-  const { data: paymentRows, error: paymentsError } = await supabase
-    .from("sale_payments")
-    .select("id, method, amount, status, momo_number, momo_network, failure_reason")
-    .eq("sale_id", id)
-    .order("created_at");
-
   if (paymentsError) {
     console.error("SaleDetailPage: payments query failed", paymentsError);
   }
-
-  const { data: refunds, error: refundsError } = await supabase
-    .from("refunds")
-    .select("id, refund_number, method, reason, total, created_at")
-    .eq("sale_id", id)
-    .order("created_at", { ascending: false });
 
   if (refundsError) {
     console.error("SaleDetailPage: refunds query failed", refundsError);

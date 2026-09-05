@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -8,13 +8,16 @@ import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Suppliers" };
 
+const PAGE_SIZE = 50;
+
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
-  const { q, status } = await searchParams;
+  const { q, status, page } = await searchParams;
   const activeStatus = status === "archived" ? "archived" : "active";
+  const pageNumber = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
 
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
@@ -29,21 +32,34 @@ export default async function SuppliersPage({
     redirect("/dashboard");
   }
 
+  // Paginated for the same reason products/sales/expenses are: an
+  // established shop's full supplier list, fetched unbounded on every
+  // visit, is exactly the kind of payload that is invisible in testing
+  // and slow on a real phone once it grows.
   let query = supabase
     .from("suppliers")
-    .select("id, name, contact_name, phone, email, payment_terms, status")
+    .select("id, name, contact_name, phone, email, payment_terms, status", { count: "exact" })
     .eq("status", activeStatus)
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .range((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE - 1);
 
   if (q && q.trim().length > 0) {
     query = query.ilike("name", `%${q.trim()}%`);
   }
 
-  const { data: suppliers, error } = await query;
+  const { data: suppliers, error, count } = await query;
 
   if (error) {
     console.error("SuppliersPage: query failed", error);
   }
+
+  const totalCount = count ?? 0;
+  const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageQuery = (overrides: Record<string, string>) => ({
+    ...(q ? { q } : {}),
+    ...(activeStatus === "archived" ? { status: "archived" } : {}),
+    ...overrides,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -125,6 +141,26 @@ export default async function SuppliersPage({
           </ul>
         </div>
       )}
+
+      {totalCount > PAGE_SIZE ? (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-neutral-500">
+            Page {pageNumber} of {lastPage} · {totalCount} suppliers
+          </span>
+          <div className="flex gap-2">
+            {pageNumber > 1 ? (
+              <Link href={{ pathname: "/suppliers", query: pageQuery({ page: String(pageNumber - 1) }) }}>
+                <Button variant="secondary">Previous</Button>
+              </Link>
+            ) : null}
+            {pageNumber < lastPage ? (
+              <Link href={{ pathname: "/suppliers", query: pageQuery({ page: String(pageNumber + 1) }) }}>
+                <Button variant="secondary">Next</Button>
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -99,7 +99,15 @@ export function NotificationBell() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+        // Anchored to the viewport, not to this button, on narrow screens.
+        // The bell sits to the left of "Sign out" in the header (see
+        // AppShell), not at the true right edge — so a fixed-width panel
+        // anchored with `right-0` to this button's own wrapper can run off
+        // the left side of a phone screen. `top-[4.5rem]` matches the
+        // header's own height (h-11 button + py-3 padding, plus a small
+        // gap) — update it if the header's size ever changes. From `sm:`
+        // up there is enough room for the original bell-relative popover.
+        <div className="fixed inset-x-4 top-[4.5rem] z-20 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-900 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[90vw]">
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
             <span className="text-sm font-semibold">Notifications</span>
             {unreadCount > 0 ? (

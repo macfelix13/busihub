@@ -1,18 +1,10 @@
-﻿Responsiveness pass, batch 4 (final): fix long merchant-data labels in report line items
+﻿Fix notification bell dropdown clipping off-screen on mobile
 
-Audited every Reports and Settings page. Settings needed no changes.
-Reports had one bug in the shared StatementLine component that every
-report's line-item rows use: two callers (profit-and-loss's expense
-category breakdown, and the sales report's Best sellers list) pass it
-merchant-typed data with no length limit, which could force a row wider
-than the screen. Fixed once in the shared component so every report
-benefits - the label now wraps instead of overflowing, and the amount
-is pinned so it never gets squeezed.
-
-This closes the responsiveness pass across the app: Till/Dashboard/
-Products, Inventory/Sales, Suppliers/Customers/Expenses/Branches, and
-Reports/Settings have all been read end to end and fixed where real
-bugs existed.
+The panel was anchored right-0 to its own button, which only works if
+that button sits at the true right edge of the screen - it doesn't,
+Sign out sits to its right in the header. Anchors to the viewport's own
+edges below the tablet breakpoint instead, where this actually mattered.
+Found from a real phone-width screenshot rather than reading the code.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

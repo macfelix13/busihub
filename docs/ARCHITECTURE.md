@@ -466,6 +466,36 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Responsiveness pass, follow-up: fixed the notification
+  bell dropdown running off the left edge of the screen on mobile,
+  found from an actual phone-width screenshot rather than from reading
+  the code — the kind of bug a source read alone would not have caught,
+  since nothing in `notification-bell.tsx` looks wrong out of context.
+
+  The panel was `absolute right-0` relative to its own button's
+  wrapper, which is correct only if that button sits at the true right
+  edge of the screen. It doesn't: in the header (`app-shell.tsx`), the
+  bell sits to the *left* of "Sign out", not at the edge. Anchoring a
+  320px-wide panel's right edge to that button's much-further-left
+  position pushed the panel's left edge off-screen on a phone, cutting
+  off the first several characters of every line ("Notifications" read
+  as "...cations").
+
+  Fixed by switching the panel to `fixed inset-x-4` (anchored to the
+  viewport's own edges, with a fixed top offset matching the header's
+  height) below the `sm:` breakpoint, where a phone-width screen makes
+  the bell's position within the header matter; from `sm:` up, screens
+  are wide enough that the original bell-relative `absolute right-0`
+  popover was never actually at risk, so it's kept unchanged there.
+
+  This is exactly the class of bug the four batches above could not
+  have caught by reading source alone — the component's own code has
+  no visible defect; the defect is in the *relationship* between two
+  components (where the bell sits in the header) that only shows up
+  once rendered at a real width. Worth remembering next time a "read
+  every file" pass is called done: a few real screenshots at each
+  breakpoint remain the only way to catch this class of bug.
+
 - 2026-09-06 — Responsiveness pass, batch 4 (final): audited every
   Reports and Settings page — the four reports plus their shared shell
   (`reports/*`, 9 files) and Business/Payments/PIN settings (`settings/*`,

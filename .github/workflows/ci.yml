@@ -76,6 +76,9 @@ jobs:
       - name: Run expense tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/expenses.sql
 
+      - name: Run report tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/reports.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

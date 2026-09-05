@@ -136,6 +136,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Expenses
             </Link>
           ) : null}
+          {canViewReports ? (
+            <Link href="/reports" className="hover:text-neutral-900 dark:hover:text-white">
+              Reports
+            </Link>
+          ) : null}
           {canManageBranches ? (
             <Link href="/branches" className="hover:text-neutral-900 dark:hover:text-white">
               Branches

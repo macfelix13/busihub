@@ -6,7 +6,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
-import { RANGES, resolvePeriod, periodDates } from "./period";
+import { RANGES, resolvePeriod, periodDates } from "@/lib/reports/period";
 import { SalesChart, type TrendPoint } from "./sales-chart";
 
 export const metadata = { title: "Dashboard" };

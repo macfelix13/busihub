@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -56,5 +56,49 @@ body {
 
   @page {
     margin: 4mm;
+  }
+}
+
+/* ── Printing a report ────────────────────────────────────────────────────
+   Same approach as the receipt above and for the same reason: the app
+   shell knows nothing about printing, so anything outside the report
+   sheet is hidden rather than hunted down element by element.
+
+   A report goes on A4, not on a 58mm roll, so it keeps its own padding
+   instead of a second @page rule — @page is global, and two of them in
+   one stylesheet is a conflict rather than a choice.
+
+   Dark mode is overridden for the same reason as the receipt: a report
+   printed from a dark screen comes out as white text on white paper. */
+@media print {
+  body:has(.report-sheet) * {
+    visibility: hidden;
+  }
+
+  body:has(.report-sheet) .report-sheet,
+  body:has(.report-sheet) .report-sheet * {
+    visibility: visible;
+  }
+
+  body:has(.report-sheet) .report-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 8mm;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Keep a table's heading with at least some of its rows. */
+  body:has(.report-sheet) .report-sheet table {
+    page-break-inside: auto;
+  }
+  body:has(.report-sheet) .report-sheet tr {
+    page-break-inside: avoid;
+  }
+  body:has(.report-sheet) .report-sheet thead {
+    display: table-header-group;
   }
 }

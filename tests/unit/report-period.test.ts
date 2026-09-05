@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bucketLabel, resolvePeriod, RANGES } from "@/app/(app)/dashboard/period";
+import { bucketLabel, resolvePeriod, RANGES } from "@/lib/reports/period";
 
 /**
  * The dashboard's date ranges.

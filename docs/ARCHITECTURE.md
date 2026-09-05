@@ -444,7 +444,7 @@ one section of this document expected to change often.
 | 11 | Receipts / printing | **done — printed + shareable text; QR and public receipt links deferred** |
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
 | 13 | Expenses | **done — verified, see tests/security/expenses.sql** (no approval workflow and no recurring expenses, both by decision; see 0031's header) |
-| 14 | Reports | partial — the dashboard's analytics (0030) and the expense summaries (0031) are verified; standalone report pages, exports and a full P&L still pending |
+| 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
 | 15 | Notifications | pending |
 | 16 | Offline/PWA | pending |
 | 17 | Synchronization | pending |
@@ -465,6 +465,65 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-03 — Phase 14: four reports, and three ways to get them out.
+
+  **Profit and loss, receivables by age, stock valuation, and a sales
+  report** — each one printable, copyable as WhatsApp text, and
+  downloadable as CSV behind the `reports.export` permission that had
+  been in the catalog unused since Phase 1.
+
+  **The P&L is composed, not re-derived.** `profit_and_loss()` (0032) is
+  built out of `sales_summary()` (0029) and `expense_summary()` (0031)
+  rather than writing a third query over the same tables. Two definitions
+  of "net sales" is two definitions that eventually disagree, and the day
+  they disagree is the day a shopkeeper stops trusting both. The test
+  asserts the composition holds, not merely that the statement is
+  internally consistent — a self-consistent P&L built on its own second
+  definition would pass the weaker test and still contradict the
+  dashboard beside it.
+
+  **Payments settle the oldest charge first.** That choice is the whole
+  basis of the ageing buckets and it is stated on the report itself, not
+  only in the migration: someone reading a 90-day column is entitled to
+  know how a payment was applied to produce it. The ledger (0017) records
+  a running account rather than payments against specific charges —
+  which is how these accounts actually work in a shop — so the allocation
+  had to be chosen, and oldest-first is the one that stops a customer who
+  pays regularly from appearing to owe 90-day debt forever. Fixtures sit
+  on the exact bucket boundaries (29/30/59/60/89/90 days), which is what
+  makes an off-by-one fail: charges at 5/45/75/120 days would have passed
+  an ageing function with every edge wrong.
+
+  **Stock is valued at today's prices, which is the opposite of what cost
+  of goods does.** Not an inconsistency: a past sale's profit must never
+  move (0029), but stock in hand is worth what it is worth today. Lines
+  in negative stock are surfaced rather than clamped, because they mean
+  the ledger and the shelf disagree and every total above them is wrong
+  until someone counts.
+
+  **CSV export is a real endpoint, and its own security surface.**
+  `lib/reports/csv.ts` handles RFC 4180 quoting and — the part that
+  matters — neutralises formula injection: Excel, LibreOffice and Sheets
+  all execute a cell beginning `=`, `+`, `-` or `@`, and Busihub lets
+  people type product names, customer names and expense descriptions that
+  all end up in a file emailed to a bookkeeper. A negative NUMBER is left
+  alone so the accountant's columns still add up; a negative arriving as
+  a string is not. The route re-checks the permission, re-validates the
+  branch id, and calls the same SECURITY INVOKER functions, so an edited
+  URL cannot return a row the caller could not already read.
+
+  13 assertions in `tests/security/reports.sql` and 22 in
+  `tests/unit/report-csv.test.ts`. Nine sabotages each confirmed to fail
+  the SQL suite, including an exclusive end date (loses the busiest day
+  of any report run in the afternoon), payments settling the newest
+  charge, and `profit_and_loss` as `SECURITY DEFINER`, which shows the
+  second business GH₵5,270 of takings it never had.
+
+  `period.ts` moved from `app/(app)/dashboard/` to `lib/reports/`, since
+  a report page depending on a file inside the dashboard route was the
+  wrong way round.
+
 
 - 2026-08-31 — Phase 13: expenses, and a net profit that means something.
 

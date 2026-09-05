@@ -1,4 +1,4 @@
-import { bucketLabel, type Period } from "./period";
+import { bucketLabel, type Period } from "@/lib/reports/period";
 
 /**
  * The sales chart, drawn as plain SVG on the server.

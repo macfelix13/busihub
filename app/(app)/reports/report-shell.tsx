@@ -177,12 +177,12 @@ export function StatementLine({
         rule ? "border-t border-neutral-300 dark:border-neutral-700" : ""
       }`}
     >
-      <span className={emphasis ? "font-semibold" : ""}>
+      <span className={`min-w-0 break-words ${emphasis ? "font-semibold" : ""}`}>
         {label}
         {note ? <span className="ml-2 text-xs text-neutral-500">{note}</span> : null}
       </span>
       <span
-        className={`tabular-nums ${emphasis ? "text-lg font-semibold" : ""} ${
+        className={`flex-shrink-0 tabular-nums ${emphasis ? "text-lg font-semibold" : ""} ${
           negative ? "text-red-600 dark:text-red-400" : ""
         }`}
       >

@@ -174,9 +174,9 @@ export default async function ExpensesPage({
               const share = biggest > 0 ? (amount / biggest) * 100 : 0;
               return (
                 <li key={row.category_id ?? row.category_name}>
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="font-medium">{row.category_name}</span>
-                    <span className="tabular-nums">{money(amount)}</span>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate font-medium">{row.category_name}</span>
+                    <span className="flex-shrink-0 tabular-nums">{money(amount)}</span>
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
                     <div className="h-full rounded-full bg-brand-500" style={{ width: `${share}%` }} />

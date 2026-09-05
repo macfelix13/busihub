@@ -136,8 +136,8 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
             key={row.label}
             className="flex items-baseline justify-between gap-4 border-b border-neutral-100 px-5 py-3 text-sm last:border-b-0 dark:border-neutral-800"
           >
-            <dt className="text-neutral-500">{row.label}</dt>
-            <dd className="text-right font-medium">{row.value}</dd>
+            <dt className="flex-shrink-0 text-neutral-500">{row.label}</dt>
+            <dd className="min-w-0 break-words text-right font-medium">{row.value}</dd>
           </div>
         ))}
       </dl>

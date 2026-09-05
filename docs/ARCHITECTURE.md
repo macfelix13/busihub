@@ -466,6 +466,74 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Responsiveness pass, batch 4 (final): audited every
+  Reports and Settings page — the four reports plus their shared shell
+  (`reports/*`, 9 files) and Business/Payments/PIN settings (`settings/*`,
+  9 files). **This closes the responsiveness pass** the user asked for
+  across the app: Till/Dashboard/Products, Inventory/Sales, Suppliers/
+  Customers/Expenses/Branches, and now Reports/Settings have all been
+  read end to end and fixed where a real bug existed.
+
+  Settings needed nothing — every form is already one or two columns,
+  and the Paystack webhook URL (the one genuinely unbreakable long
+  string on any of these pages) already had `break-all` applied from
+  when it was first built.
+
+  Reports had one real bug, in the shared `StatementLine` component
+  (`report-shell.tsx`) that every report's line-item rows are built
+  from. Most callers pass it fixed, app-defined labels ("Net profit",
+  "Cost of goods sold") which are safe by construction, but two callers
+  pass it merchant data with no length limit: the profit-and-loss
+  report's expense-category breakdown (`row.category_name`) and the
+  sales report's "Best sellers" list (`row.product_name`). Since the fix
+  belongs to the shared component rather than each call site, every
+  report gets it at once: `min-w-0 break-words` on the label so a long
+  value wraps instead of forcing the row wider than the screen, and
+  `flex-shrink-0` on the amount so it never gets squeezed by the wrap.
+
+  Every report's own tables (receivables, stock valuation, staff
+  performance) were already `overflow-x-auto` with a `min-w`, and every
+  card grid already `grid-cols-2 sm:grid-cols-4` — both patterns
+  established in earlier phases and left untouched.
+
+- 2026-09-06 — Responsiveness pass, batch 3: audited every Supplier,
+  Customer, Expense, and Branch page — list, detail, and forms
+  (`suppliers/*`, `customers/*`, `expenses/*`, `branches/*`, 21 files in
+  total including the shared `*-form.tsx` components).
+
+  Almost everything held up: every form is already single- or
+  two-column with `grid-cols-1 sm:grid-cols-2`; every detail page's
+  field list already stacks label-over-value on mobile via `grid-cols-1
+  sm:grid-cols-3`; list rows already go `flex-col` on mobile before
+  becoming a row at `sm:`. Free-text fields that wrap on spaces (a
+  supplier's payment terms, a branch's address) were left as-is — CSS
+  lets a flex item shrink to its min-content and wrap before it
+  overflows, so plain prose here was never actually at risk, matching
+  the same reasoning already used for the header rows in batch 1.
+
+  Two bugs did turn up, both from the same root cause as batch 2's
+  refund-reason fix: a value with no natural break point sitting next
+  to a fixed sibling in a plain flex row.
+
+  1. `expenses/[id]/page.tsx`'s summary list uses a right-aligned
+     `dt`/`dd` row (unlike the other three areas' stacking `dl` grid),
+     and one of its rows is "Reference" — a Momo transaction id, cheque
+     number, or receipt number, per the form's own placeholder text.
+     Those are exactly the kind of long, space-free string that can't
+     wrap and forces the row wider than the screen. Fixed by letting the
+     value break mid-string when it has to (`min-w-0 break-words` on the
+     `dd`) rather than changing the row's layout.
+  2. `expenses/page.tsx`'s "Where the money went" category breakdown put
+     a merchant-typed category name next to its amount with no
+     protection; a long category name (nothing stops a business from
+     naming one anything) could do the same. Fixed by truncating the
+     name with an ellipsis instead — this row already has a progress bar
+     underneath naming the same category, so truncation loses nothing a
+     user needs.
+
+  Not yet touched: Reports and Settings — the last batch before this
+  request's responsiveness pass is complete.
+
 - 2026-09-05 — Responsiveness pass, batch 2: audited every Inventory and
   Sales detail/action page — `inventory/page.tsx`, `inventory/[variantId]/
   page.tsx`, `inventory/stock-form.tsx`, `inventory/receive/page.tsx`,

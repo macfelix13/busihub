@@ -1,11 +1,18 @@
-﻿Responsiveness pass, batch 2: fix refund-reason row wrapping on sale detail page
+﻿Responsiveness pass, batch 4 (final): fix long merchant-data labels in report line items
 
-Audited every Inventory and Sales detail/action page against a narrow
-viewport. Found and fixed one bug: the refund-reason row on a sale's
-detail page put staff-typed free text next to the refunded amount in a
-non-wrapping flex row, which could push the amount off-screen on a
-narrow phone when the reason was long. Everything else in this batch
-was already responsive from earlier phases.
+Audited every Reports and Settings page. Settings needed no changes.
+Reports had one bug in the shared StatementLine component that every
+report's line-item rows use: two callers (profit-and-loss's expense
+category breakdown, and the sales report's Best sellers list) pass it
+merchant-typed data with no length limit, which could force a row wider
+than the screen. Fixed once in the shared component so every report
+benefits - the label now wraps instead of overflowing, and the amount
+is pinned so it never gets squeezed.
+
+This closes the responsiveness pass across the app: Till/Dashboard/
+Products, Inventory/Sales, Suppliers/Customers/Expenses/Branches, and
+Reports/Settings have all been read end to end and fixed where real
+bugs existed.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

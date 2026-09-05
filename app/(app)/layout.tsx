@@ -5,6 +5,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { LogoutButton } from "@/components/logout-button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -175,7 +176,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             My PIN
           </Link>
         </nav>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Fetches its own data via a Server Action and polls — see
+              components/notifications/notification-bell.tsx. No permission
+              check needed here: it renders for everyone, and a person with
+              none of the relevant permissions just sees an empty feed,
+              exactly as RLS already scopes low_stock_report()/
+              customer_balances/sales/notifications for them elsewhere. */}
+          <NotificationBell />
           <span className="hidden text-sm text-neutral-500 sm:inline">
             {profile.first_name} {profile.last_name}
           </span>

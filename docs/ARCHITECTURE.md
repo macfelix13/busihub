@@ -445,7 +445,7 @@ one section of this document expected to change often.
 | 12 | Refunds & voids | **done — verified, see tests/security/refunds.sql** (brought forward ahead of Phase 10/11; exchanges deferred) |
 | 13 | Expenses | **done — verified, see tests/security/expenses.sql** (no approval workflow and no recurring expenses, both by decision; see 0031's header) |
 | 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
-| 15 | Notifications | pending |
+| 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | pending |
 | 17 | Synchronization | pending |
 | 18 | Subscriptions & entitlements enforcement | pending |
@@ -465,6 +465,80 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-05 — Phase 15: notifications, in-app only, after asking rather than assuming the scope.
+
+  Scoped with two questions before any schema was written: which channels
+  (in-app only, chosen over SMS/email — both need a third-party account
+  that is a real cost/business decision, not something a migration can
+  provision), and which of five candidate events to cover this pass (low
+  stock, customer credit limit reached, refund or void performed, sale
+  stuck awaiting payment — purchase-order approvals deferred to a later
+  pass on the same two patterns established here).
+
+  **Two kinds of alert, deliberately handled differently.** Low stock,
+  credit limit and stuck payment are STATES — true right now, false once
+  the shelf is restocked or the balance is paid down, with no "this
+  happened at 3:41pm" moment. Refund and void are EVENTS — something that
+  happened once and stays true forever after. Storing a state as a row
+  would either go stale (still shown after the shop restocks) or
+  duplicate (a new row every time someone happens to trigger a re-check
+  while it is still true) — the exact kind of derived truth this codebase
+  has refused to trust since `stock_levels` and `customer_balances`. So
+  0034 stores events (`notifications`, written once by `void_sale()`/
+  `create_refund()`, the same functions that perform the action) and
+  computes states fresh on every read (`notification_feed_base()`,
+  composed from `low_stock_report()` (0030) rather than re-deriving what
+  counts as low a second time). A restocked product simply stops
+  appearing; there was never a row to clean up.
+
+  **No new permission.** Visibility is entirely inherited from
+  permissions that already exist and already gate the tables each alert
+  reads from — inventory.view for low stock, customers.view for credit
+  limit, sales.process/reports.view for stuck payments (all via the
+  underlying table's own RLS, not re-checked here and risking drift from
+  it), reports.view/sales.void/sales.refund for the event log. A Cashier
+  and an Auditor genuinely see different bells, with no notifications
+  code aware that roles exist.
+
+  **The INSERT policy on `notifications` is the real gate, not the two
+  call sites.** `void_sale()`/`create_refund()` run as the caller, not
+  SECURITY DEFINER, so a direct PostgREST insert bypassing both entirely
+  is only as dangerous as its WITH CHECK allows: business_id is forced to
+  the caller's own, actor_user_id must be the caller themselves (nobody
+  can attribute an event to a colleague), the referenced sale must be
+  real and in-business, and the type must match a permission the caller
+  actually holds. Confirmed by sabotage: weakening any one of those four
+  clauses lets a Cashier holding neither sales.void nor sales.refund
+  fabricate an event, or lets the Owner frame a colleague for one — both
+  caught by tests/security/notifications.sql.
+
+  **Read state is per-user and keyed by content, not by a foreign key.**
+  `notification_dismissals` uses a stable text key
+  (`low_stock:<variant_id>:<branch_id>`, `event:<notifications.id>`, …)
+  because a STATE alert has no row to point a foreign key at.
+  `mark_notification_read()`/`mark_all_notifications_read()` fill in
+  user_id/business_id from the session rather than accepting either from
+  the client — one more id off the never-trust-the-client list.
+
+  **Deliberately not built: Supabase Realtime.** The original system
+  diagram names it as the eventual mechanism, and it may still be right,
+  but this sandbox has no live Supabase project to prove an `alter
+  publication` statement actually delivers an event against your real
+  project — shipping that unverified is exactly what "do not fake
+  completion" rules out. The bell polls every 45 seconds instead: slower,
+  but the entire path from RLS to render is something
+  tests/security/notifications.sql can actually prove works. Wiring
+  Realtime on top, once it's confirmed against the live project, is a
+  follow-up, not a redesign.
+
+  14 assertions in tests/security/notifications.sql, covering both
+  severity mapping, the notification_settings.low_stock_alerts toggle,
+  the credit-limit boundary (exactly at the limit alerts, one pesewa under
+  does not), the 15-minute stuck-payment floor, event data integrity,
+  cross-tenant isolation, the Cashier/Auditor permission split, the four
+  INSERT-policy sabotages above, per-user read isolation, and a catalog
+  check that nothing here is SECURITY DEFINER.
 
 - 2026-09-05 — Phase 23 (brought forward): a performance pass, done with measurements rather than guesses.
 

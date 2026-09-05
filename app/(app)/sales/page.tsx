@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -294,7 +294,7 @@ export default async function SalesPage({
       )}
 
       {totalCount > PAGE_SIZE ? (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-neutral-500">
             Page {pageNumber} of {lastPage} · {totalCount} sales
           </span>

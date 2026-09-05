@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
@@ -152,7 +152,7 @@ export function PurchaseOrderForm({
           </div>
         ))}
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Button type="button" variant="secondary" onClick={() => setLines((r) => [...r, emptyLine()])}>
             + Add line
           </Button>

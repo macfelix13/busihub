@@ -63,7 +63,7 @@ export default async function SuppliersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Suppliers</h1>
           <p className="text-neutral-500">Businesses you buy stock from.</p>
@@ -143,7 +143,7 @@ export default async function SuppliersPage({
       )}
 
       {totalCount > PAGE_SIZE ? (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-neutral-500">
             Page {pageNumber} of {lastPage} · {totalCount} suppliers
           </span>

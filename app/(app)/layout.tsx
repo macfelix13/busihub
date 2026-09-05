@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
@@ -6,6 +5,8 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { LogoutButton } from "@/components/logout-button";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { AppShell } from "@/components/layout/app-shell";
+import type { NavPermissions } from "@/components/layout/nav-items";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -72,12 +73,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   // Cosmetic nav visibility only — every page/action behind these links
-  // re-checks the same permission server-side (Section 49).
+  // re-checks the same permission server-side (Section 49). Three more
+  // than the old flat nav needed (canCreateProducts, canReceiveInventory,
+  // canAdjustInventory): Products/Inventory becoming dropdowns gave their
+  // existing action pages somewhere to live in the nav for the first time,
+  // and each mirrors the exact permission the target page itself already
+  // enforces (confirmed against each page's own hasPermission/
+  // requirePermission call), not a new rule invented for the sidebar.
   const [
     canManageBranches,
     canManageBusiness,
     canViewProducts,
+    canCreateProducts,
     canViewInventory,
+    canReceiveInventory,
+    canAdjustInventory,
     canViewSuppliers,
     canViewCustomers,
     canSell,
@@ -88,7 +98,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE),
       hasPermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE),
       hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
       hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
+      hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_ADJUST),
       hasPermission(supabase, businessId, PERMISSIONS.SUPPLIERS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.CUSTOMERS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
@@ -96,101 +109,36 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
     ]);
 
+  // Mirrors app/(app)/sales/page.tsx's own access check exactly — a
+  // reports-only role (an accountant) reaches the sale history list
+  // without ever seeing the till, same as before this redesign.
+  const canViewSalesHistory = canSell || canViewReports;
+
+  const navPermissions: NavPermissions = {
+    canSell,
+    canViewSalesHistory,
+    canViewProducts,
+    canCreateProducts,
+    canViewInventory,
+    canReceiveInventory,
+    canAdjustInventory,
+    canViewSuppliers,
+    canViewCustomers,
+    canViewExpenses,
+    canManageBranches,
+    canViewReports,
+    canManageBusiness,
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
-      <header className="flex flex-col gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex items-center gap-2">
-          <span className="rounded-lg bg-brand-600 px-2 py-1 text-sm font-bold text-white">B</span>
-          <span className="font-semibold">{businessName ?? "Busihub"}</span>
-        </div>
-        <nav className="flex items-center gap-4 text-sm font-medium text-neutral-600 dark:text-neutral-300">
-          {/* The till comes first: it is what a cashier opens all day. */}
-          {canSell ? (
-            <Link href="/till" className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
-              Till
-            </Link>
-          ) : null}
-          {/* Anyone who can ring up a sale can look back at them; a
-              reports-only role (an accountant) reaches the same page
-              without ever seeing the till. */}
-          {canSell || canViewReports ? (
-            <Link href="/sales" className="hover:text-neutral-900 dark:hover:text-white">
-              Sales
-            </Link>
-          ) : null}
-          <Link href="/dashboard" className="hover:text-neutral-900 dark:hover:text-white">
-            Dashboard
-          </Link>
-          {canViewProducts ? (
-            <Link href="/products" className="hover:text-neutral-900 dark:hover:text-white">
-              Products
-            </Link>
-          ) : null}
-          {canViewInventory ? (
-            <Link href="/inventory" className="hover:text-neutral-900 dark:hover:text-white">
-              Inventory
-            </Link>
-          ) : null}
-          {canViewSuppliers ? (
-            <>
-              <Link href="/purchase-orders" className="hover:text-neutral-900 dark:hover:text-white">
-                Orders
-              </Link>
-              <Link href="/suppliers" className="hover:text-neutral-900 dark:hover:text-white">
-                Suppliers
-              </Link>
-            </>
-          ) : null}
-          {canViewCustomers ? (
-            <Link href="/customers" className="hover:text-neutral-900 dark:hover:text-white">
-              Customers
-            </Link>
-          ) : null}
-          {canViewExpenses ? (
-            <Link href="/expenses" className="hover:text-neutral-900 dark:hover:text-white">
-              Expenses
-            </Link>
-          ) : null}
-          {canViewReports ? (
-            <Link href="/reports" className="hover:text-neutral-900 dark:hover:text-white">
-              Reports
-            </Link>
-          ) : null}
-          {canManageBranches ? (
-            <Link href="/branches" className="hover:text-neutral-900 dark:hover:text-white">
-              Branches
-            </Link>
-          ) : null}
-          {canManageBusiness ? (
-            <Link href="/settings/business" className="hover:text-neutral-900 dark:hover:text-white">
-              Settings
-            </Link>
-          ) : null}
-          {canManageBusiness ? (
-            <Link href="/settings/payments" className="hover:text-neutral-900 dark:hover:text-white">
-              Payments
-            </Link>
-          ) : null}
-          {/* Personal, not permissioned — anyone who works a till needs one. */}
-          <Link href="/settings/pin" className="hover:text-neutral-900 dark:hover:text-white">
-            My PIN
-          </Link>
-        </nav>
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Fetches its own data via a Server Action and polls — see
-              components/notifications/notification-bell.tsx. No permission
-              check needed here: it renders for everyone, and a person with
-              none of the relevant permissions just sees an empty feed,
-              exactly as RLS already scopes low_stock_report()/
-              customer_balances/sales/notifications for them elsewhere. */}
-          <NotificationBell />
-          <span className="hidden text-sm text-neutral-500 sm:inline">
-            {profile.first_name} {profile.last_name}
-          </span>
-          <LogoutButton />
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</main>
-    </div>
+    <AppShell
+      permissions={navPermissions}
+      businessName={businessName ?? "Busihub"}
+      userLabel={`${profile.first_name} ${profile.last_name}`}
+      notificationSlot={<NotificationBell />}
+      logoutSlot={<LogoutButton />}
+    >
+      {children}
+    </AppShell>
   );
 }

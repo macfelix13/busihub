@@ -361,13 +361,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {refundRows.map((r) => (
-                <li key={r.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                  <span>
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-sm">
+                  <span className="min-w-0">
                     <span className="font-medium">{r.refund_number}</span>
                     <span className="ml-2 text-neutral-500">{refundMethodLabel(r.method)}</span>
                     {r.reason ? <span className="ml-2 text-neutral-500">· {r.reason}</span> : null}
                   </span>
-                  <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
+                  <span className="whitespace-nowrap font-medium tabular-nums text-red-600 dark:text-red-400">
                     −{formatMoney(toMinorUnits(r.total), currencyCode)}
                   </span>
                 </li>

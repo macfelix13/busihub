@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -26,7 +26,7 @@ export default async function BranchesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Branches</h1>
           <p className="text-neutral-500">Locations your business operates from.</p>

@@ -466,6 +466,133 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-05 — Responsiveness pass, batch 2: audited every Inventory and
+  Sales detail/action page — `inventory/page.tsx`, `inventory/[variantId]/
+  page.tsx`, `inventory/stock-form.tsx`, `inventory/receive/page.tsx`,
+  `inventory/adjust/page.tsx`, `inventory/count/page.tsx`, `sales/
+  page.tsx`, `sales/[id]/page.tsx`, `sales/refund-form.tsx`, `sales/[id]/
+  refund/page.tsx`, `sales/[id]/receipt/page.tsx`, and `sales/[id]/
+  receipt/receipt-controls.tsx` — read end to end, not sampled.
+
+  This batch was mostly a clean bill: the stock-count "on hand" list rows
+  and the movement-history table already bound their content correctly
+  (the table already scrolls in its own `overflow-x-auto` container);
+  `adjust/page.tsx` and `count/page.tsx` are thin wrappers around the
+  already-safe `StockForm`, and `sales/[id]/refund/page.tsx` is the same
+  around `RefundForm`; the receipt page and its print/WhatsApp controls
+  already wrap correctly, and the pagination fix from batch 1 was
+  confirmed still in place on `sales/page.tsx`.
+
+  One genuine bug, found by the same reasoning as batch 1 (unbounded,
+  variable-length content next to a non-shrinking sibling, with no wrap
+  or `min-w-0`): the refund-reason row on a sale's detail page rendered
+  `refund_number`, method, and an optional free-text `reason` typed by
+  staff at refund time, next to the refunded amount, in a bare `flex
+  items-center justify-between`. A long reason could force the amount
+  off the right edge on a phone. Fixed by adding `flex-wrap gap-x-3
+  gap-y-1`, `min-w-0` on the text span, and `whitespace-nowrap` on the
+  amount, so the text wraps onto its own line and the amount never
+  breaks across lines.
+
+  Not yet touched: Suppliers/Customers/Expenses/Branches (list, detail,
+  and forms) and Reports/Settings — the remaining batches.
+
+- 2026-09-05 — Responsiveness pass, batch 1: audited Till, Dashboard, and
+  Products end to end against a 375px viewport, then swept the rest of the
+  app for the same class of bug rather than stopping at three pages.
+
+  Most of the app already held up well — every existing data table was
+  already wrapped in its own `overflow-x-auto` container with a `min-w`,
+  every multi-field form already collapsed to one column below `sm:`, and
+  list rows already used `min-w-0`/`truncate` where a label could run
+  long. That discipline predates this pass; it didn't need fixing.
+
+  What did need fixing, found by grep across every page rather than by
+  guessing: the pagination row ("Page 3 of 12 · 214 items" plus Previous/
+  Next) on Products, Suppliers, Purchase Orders, Sales, and Expenses used
+  a bare `flex items-center justify-between` with two buttons that don't
+  shrink — on a narrow phone with a long count string, that is a real
+  candidate for overflow, not a theoretical one. Fixed by adding
+  `flex-wrap gap-2` to all five, so the buttons drop to their own line
+  under the count instead of forcing width. The same unwrapped pattern
+  also showed up on eight page/section header rows (a title+subtitle
+  block paired with a primary action button, e.g. Products' "Add
+  product") — lower risk in practice since CSS flexbox already lets
+  wrapping text shrink below its own max-content width, but hardened the
+  same way for consistency and margin, matching the `flex-wrap` pattern
+  the dashboard's own filter rows already used.
+
+  Not yet touched: everything outside this batch. This was a targeted
+  fix for a confirmed, repeatable bug plus a consistency pass, not a
+  page-by-page rebuild — the remaining batches (Inventory/Sales detail,
+  Suppliers/Customers/Expenses/Branches, Reports/Settings) still need
+  their own look before this request is fully done.
+
+- 2026-09-05 — Navigation redesign: a left sidebar on desktop/tablet, a
+  hamburger drawer on mobile. **This entry covers the nav shell only** —
+  the broader ask ("make every page fully responsive... no horizontal
+  scrolling, clipping, or elements going off-screen") is explicitly
+  deferred to a follow-up pass across the app's existing pages, done in
+  batches, per the user's own chosen sequencing. Do not read this as
+  Phase-anything being "done" for responsiveness — it isn't yet.
+
+  **Structure** grouped exactly as asked: Till and Dashboard stay direct
+  links; Sales (the existing `/sales` history list — present in the old
+  flat nav and carried over unchanged) sits with them since it is till
+  activity, not a report; Products and Inventory stay separate dropdowns
+  (each gaining the create/receive/adjust/count action pages that
+  previously had no home in the nav); Orders/Suppliers/Customers/
+  Expenses/Branches group under Operations; Reports, Settings (Business +
+  Payments) get their own dropdowns; My PIN stays a direct link. Every
+  sub-item's visibility is driven by the exact permission the target page
+  itself already enforces (confirmed by reading each page's own
+  `hasPermission`/`requirePermission` call, not invented fresh for the
+  sidebar) — `components/layout/nav-items.tsx`'s `NavPermissions` is a
+  UX convenience computed once in the layout, same as the flat nav it
+  replaces; RLS and each page's own permission check remain the only
+  real gate underneath.
+
+  **lucide-react** (chosen over hand-drawn inline SVGs, by explicit
+  choice) supplies one icon per nav item/dropdown. This sandbox has no
+  open npm registry access (confirmed: `npm view lucide-react version`
+  returns 403, same as other packages), so the exact published version
+  and icon-name spellings could not be verified against the live
+  registry — pinned to a long-stable, well-known set of icon names on
+  training-knowledge confidence; if `npm install` reports an unknown
+  export, that is the first thing to check.
+
+  **Server Component children through a Client Component boundary.**
+  `AppShell`/`Sidebar` need interactive state (the mobile drawer,
+  manual group expand/collapse) and so must be Client Components — but
+  `LogoutButton` has no `"use client"` of its own (it renders a client
+  `SubmitButton` underneath, same pattern as everywhere else in this
+  codebase) and cannot be imported into a Client Component's module and
+  rendered as JSX there; React only allows a Server Component to reach a
+  Client Component as an already-rendered element passed down through
+  props/children. So `app/(app)/layout.tsx` (still a Server Component)
+  renders `<NotificationBell />`/`<LogoutButton />` itself and passes the
+  results into `<AppShell notificationSlot={...} logoutSlot={...}>` —
+  `AppShell` never imports either component directly.
+
+  **Group expansion is derived from the route on every render, not
+  synced into state with an effect.** The first version used
+  `useEffect(() => { ... setExpanded(...) }, [pathname])` to auto-open
+  whichever group held the current route — the same shape of code
+  (`setState` inside a `useEffect` body) that tripped
+  `react-hooks/set-state-in-effect` on the notification bell earlier this
+  week (see that entry below). Rather than risk the same lint failure a
+  second time, `Sidebar` instead computes "is this group open" straight
+  from `pathname` during render, with a small `overrides` state object
+  recording only groups a person has manually clicked — no effect
+  needed, and one fewer render per navigation than the effect-based
+  version would have caused.
+
+  Files: `components/layout/nav-items.tsx` (nav tree + permission types,
+  new), `components/layout/sidebar.tsx` (new), `components/layout/
+  app-shell.tsx` (new), `app/(app)/layout.tsx` (modified — computes the
+  permission booleans and renders `<AppShell>` instead of the old
+  `<header>`/flat `<nav>`), `package.json` (adds `lucide-react`).
+
 - 2026-09-05 — Phase 15: notifications, in-app only, after asking rather than assuming the scope.
 
   Scoped with two questions before any schema was written: which channels

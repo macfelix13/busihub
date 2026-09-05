@@ -1,0 +1,11 @@
+﻿Responsiveness pass, batch 2: fix refund-reason row wrapping on sale detail page
+
+Audited every Inventory and Sales detail/action page against a narrow
+viewport. Found and fixed one bug: the refund-reason row on a sale's
+detail page put staff-typed free text next to the refunded amount in a
+non-wrapping flex row, which could push the amount off-screen on a
+narrow phone when the reason was long. Everything else in this batch
+was already responsive from earlier phases.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

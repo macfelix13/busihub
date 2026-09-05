@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
@@ -123,7 +123,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">Variants</h2>
           {canEdit && product.has_variants ? (
             <Link href={`/products/${product.id}/variants/new`}>

@@ -320,7 +320,7 @@ export default async function ExpensesPage({
       </div>
 
       {lastPage > 1 ? (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-neutral-500">
             Page {pageNumber} of {lastPage} · {totalCount} expenses
           </span>

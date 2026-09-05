@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
@@ -48,7 +48,7 @@ export function ReceiveForm({ action, lines }: ReceiveFormProps) {
         </p>
       ) : null}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-500">Enter how much of each item actually arrived. Leave a line blank if none did.</p>
         <Button type="button" variant="secondary" onClick={fillOutstanding}>
           Receive all outstanding

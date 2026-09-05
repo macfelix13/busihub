@@ -26,7 +26,8 @@
     "tailwind-merge": "2.5.2",
     "date-fns": "3.6.0",
     "bcryptjs": "2.4.3",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "lucide-react": "^0.460.0"
   },
   "devDependencies": {
     "pg": "8.12.0",

@@ -4,6 +4,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { LogoutButton } from "@/components/logout-button";
+import { supportEmail, supportPhone } from "@/lib/env";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AppShell } from "@/components/layout/app-shell";
 import type { NavPermissions } from "@/components/layout/nav-items";
@@ -67,6 +68,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // under (app), including the till, renders through this layout, so
   // checking here covers all of them without touching each page.
   if (business && business.status !== "active") {
+    // Real, configurable values (lib/env.ts) — not hardcoded strings here —
+    // so support can update them later via a Vercel env var + redeploy.
+    // Shown for both suspended and closed: either way the owner needs a
+    // way to reach Busihub, not just staff who happen to see "suspended".
+    const email = supportEmail();
+    const phone = supportPhone();
+    const whatsappDigits = phone.replace(/[^0-9]/g, "");
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
         <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
@@ -76,8 +85,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="mt-2 text-sm text-neutral-500">
             {business.status === "suspended"
               ? "This business's Busihub account has been suspended. Contact Busihub support for help."
-              : "This business's Busihub account is no longer active."}
+              : "This business's Busihub account is no longer active. Contact Busihub support if you believe this is a mistake."}
           </p>
+          <div className="mt-4 flex flex-col items-center gap-1 text-sm">
+            <a href={`mailto:${email}`} className="min-w-0 break-words text-brand-700 hover:underline dark:text-brand-300">
+              {email}
+            </a>
+            <a
+              href={`https://wa.me/${whatsappDigits}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-700 hover:underline dark:text-brand-300"
+            >
+              {phone} (WhatsApp)
+            </a>
+          </div>
           <div className="mt-5 flex justify-center">
             <LogoutButton />
           </div>

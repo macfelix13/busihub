@@ -466,6 +466,24 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-05 — Real, configurable support contact on the suspended/closed
+  screen. The account-suspended page (`app/(app)/layout.tsx`, added in the
+  Super Admin phase below) told a locked-out owner to "contact Busihub
+  support" without saying how. Two new functions in `lib/env.ts`,
+  `supportEmail()` and `supportPhone()`, follow the exact pattern the file
+  already used for `supabaseAppUrl()`: read an env var
+  (`NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_PHONE`), falling back
+  to today's real values (`support@busihub.app`, `+233543945668`) if unset.
+  Neither is hardcoded into the JSX — support contact details can change
+  later with a Vercel env var update and a redeploy, no code change, per
+  the explicit requirement that these be editable going forward. The page
+  now renders a `mailto:` link and a `wa.me` WhatsApp link built from the
+  same phone number, shown for both `suspended` and `closed` (previously
+  only `suspended` mentioned support at all — an owner whose account was
+  closed by mistake needs a way to reach Busihub just as much). Documented
+  the two new optional env vars in `.env.example` alongside the existing
+  `NEXT_PUBLIC_APP_URL` entry.
+
 - 2026-09-06 — Super Admin platform-operator console (first version):
   a business list, a business detail page, and Suspend/Reactivate,
   reachable only by Busihub's own platform staff, never by any tenant.

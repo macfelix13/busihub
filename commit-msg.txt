@@ -1,12 +1,9 @@
-﻿Add Super Admin platform-operator console (v1)
+﻿Add real, configurable support contact to suspended/closed page
 
-Completes database groundwork that existed since the earliest phases
-(is_super_admin, app_is_super_admin RLS escape hatch, businesses.status,
-audit_logs) but was never finished. Adds one migration granting
-bootstrap_super_admin() (manual-only, revoked from every app role), a
-separate /admin route tree with a business list and Suspend/Reactivate,
-enforcement that actually blocks a suspended business's staff from
-signing in, and the first real calls to log_audit_event().
+Show support@busihub.app and +233543945668 (WhatsApp) as mailto/wa.me
+links on the account-suspended and account-closed screens, read from
+env vars with real fallback values so they can be changed later via
+Vercel without a code change.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

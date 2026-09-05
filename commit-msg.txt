@@ -1,10 +1,12 @@
-﻿Fix notification bell dropdown clipping off-screen on mobile
+﻿Add Super Admin platform-operator console (v1)
 
-The panel was anchored right-0 to its own button, which only works if
-that button sits at the true right edge of the screen - it doesn't,
-Sign out sits to its right in the header. Anchors to the viewport's own
-edges below the tablet breakpoint instead, where this actually mattered.
-Found from a real phone-width screenshot rather than reading the code.
+Completes database groundwork that existed since the earliest phases
+(is_super_admin, app_is_super_admin RLS escape hatch, businesses.status,
+audit_logs) but was never finished. Adds one migration granting
+bootstrap_super_admin() (manual-only, revoked from every app role), a
+separate /admin route tree with a business list and Suspend/Reactivate,
+enforcement that actually blocks a suspended business's staff from
+signing in, and the first real calls to log_audit_event().
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

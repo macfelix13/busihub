@@ -35,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // `businesses (name)` is rejected by PostgREST with PGRST201
     // ("more than one relationship was found"). Confirmed against the
     // real schema; profiles_business_id_fkey is the one we want here.
-    .select("id, first_name, last_name, business_id, businesses!profiles_business_id_fkey (name)")
+    .select("id, first_name, last_name, business_id, businesses!profiles_business_id_fkey (name, status)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -57,7 +57,34 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  const businessName = (profile as unknown as { businesses: { name: string } | null }).businesses?.name;
+  const business = (profile as unknown as { businesses: { name: string; status: string } | null }).businesses;
+  const businessName = business?.name;
+
+  // Suspend/close has existed as a businesses.status value since the
+  // earliest phases (0002) but nothing anywhere ever actually enforced
+  // it — a "suspended" business's staff could sign in and use Busihub
+  // exactly as before. This is the one enforcement point: every route
+  // under (app), including the till, renders through this layout, so
+  // checking here covers all of them without touching each page.
+  if (business && business.status !== "active") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
+          <h1 className="text-lg font-semibold">
+            {business.status === "suspended" ? "Account suspended" : "Account closed"}
+          </h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            {business.status === "suspended"
+              ? "This business's Busihub account has been suspended. Contact Busihub support for help."
+              : "This business's Busihub account is no longer active."}
+          </p>
+          <div className="mt-5 flex justify-center">
+            <LogoutButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Goes through the same cached lookup every page below uses (rather
   // than trusting profile.business_id from the query above) so that the

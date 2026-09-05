@@ -466,6 +466,96 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Super Admin platform-operator console (first version):
+  a business list, a business detail page, and Suspend/Reactivate,
+  reachable only by Busihub's own platform staff, never by any tenant.
+
+  **Correction to what I told the user going in.** Asked whether the
+  codebase had any support for a cross-tenant admin console, I said no —
+  without actually checking first. That was wrong. `profiles.is_super_admin`
+  (0004), the `app_is_super_admin()` RLS escape hatch threaded through
+  every single tenant table's policies (0008, and then every migration
+  after it), `businesses.status` including `suspended` (0002), and the
+  `audit_logs` table with `business_id` explicitly nullable "for
+  platform-level events" (0007) — all of this was deliberately designed
+  in the earliest phases of this project. It was just never finished:
+  nothing could ever actually set is_super_admin (the column existed,
+  locked down, with no function allowed to write it), no route used the
+  escape hatch, and businesses.status = 'suspended' was never read by
+  anything. This phase completes that, rather than starting it.
+
+  **0035_super_admin_console.sql** adds exactly one thing:
+  `bootstrap_super_admin(p_user_id)`, following the same
+  privileged-write pattern already used for `set_cashier_pin` (0011) —
+  it flips the session-local flag the profiles trigger checks for,
+  updates the row, and logs it. `EXECUTE` is explicitly revoked from
+  `anon`/`authenticated`/`public`: Postgres grants a new function to
+  PUBLIC by default, which both of those roles inherit, so without the
+  revoke this would work today but be one accidental
+  `supabase.rpc('bootstrap_super_admin', …)` away from being reachable
+  from application code. It's runnable only by hand, as the Postgres/
+  service role, in the Supabase SQL editor — matching the column's own
+  comment from day one. No other schema changes; the console reads
+  businesses/profiles through the RLS policies that already let a super
+  admin through, and writes through `log_audit_event()`, which has
+  existed since 0007/0008 but had never actually been called by any
+  application code until this phase's Suspend/Reactivate actions.
+
+  **A deliberately separate route tree**, `app/admin/*`, with its own
+  layout — no AppShell, no Sidebar, no business/branch/till context. A
+  Super Admin profile has `business_id = null` (the same constraint that
+  requires every ordinary profile to have one), so there is no "current
+  business" to scope a shared shell to, and keeping the two shells
+  completely apart means no component can accidentally carry a
+  "which business" assumption from one into the other. The layout's
+  guard (`isSuperAdmin()`, checked fresh, never trusted from a prop) is
+  UX only, same relationship every other layout guard in this app has to
+  RLS: even if it somehow let the wrong person through, `businesses_select`
+  still only returns that person's own single business, not the list.
+  A non-admin hitting `/admin` lands on the ordinary `/dashboard`, not an
+  error page — nothing suggests the console exists.
+
+  **Suspend now actually does something.** Until this phase,
+  `businesses.status = 'suspended'` was pure record-keeping — a
+  suspended business's staff could sign in and use Busihub exactly as
+  before, since no login check, middleware, or layout ever read it. One
+  check added to `app/(app)/layout.tsx` (which already loads the
+  business row) covers every route underneath, including the till: a
+  non-active business renders a plain "account suspended/closed" page
+  with just a sign-out button, instead of the dashboard.
+
+  **The business list and detail pages are the one place in this whole
+  app where a query is deliberately not scoped to a single business_id**
+  — heavily commented as such at both call sites, specifically so it's
+  never mistaken later for the tenant-isolation bug it would be
+  everywhere else. Staff count and last-activity are computed in JS from
+  a plain profiles query (grouped and reduced client-side, the same
+  "fetch raw rows, aggregate in JS" idiom already used for customer
+  balances) rather than a new SQL view, keeping this migration to just
+  the one function.
+
+  **Explicitly out of scope for this version**: impersonation / support
+  login-as-a-business (a separate, higher-risk feature — breaking tenant
+  isolation on purpose, even briefly and even for support, needs its own
+  audit-heavy design before any code) and anything about plans or
+  billing (there is no subscription concept anywhere in this schema yet
+  — "which plan" isn't a real question until one is designed).
+
+  **One known gap, noted rather than silently accepted**: if
+  `log_audit_event()` itself fails inside `suspendBusiness`/
+  `reactivateBusiness`, the status change still goes through — it's
+  logged to the server console, not surfaced to the admin, so the
+  action doesn't appear to fail for something that already succeeded.
+  Worth revisiting if audit completeness for platform actions ever
+  becomes load-bearing (e.g. a compliance requirement), but not before.
+
+  Files: `supabase/migrations/0035_super_admin_console.sql` (new),
+  `lib/auth/is-super-admin.ts` (new), `app/admin/layout.tsx` (new),
+  `app/admin/page.tsx` (new), `app/admin/businesses/page.tsx` (new),
+  `app/admin/businesses/[id]/page.tsx` (new), `app/admin/businesses/
+  [id]/actions.ts` (new), `app/(app)/layout.tsx` (modified — adds the
+  suspended/closed block and selects `status` alongside `name`).
+
 - 2026-09-06 — Responsiveness pass, follow-up: fixed the notification
   bell dropdown running off the left edge of the screen on mobile,
   found from an actual phone-width screenshot rather than from reading

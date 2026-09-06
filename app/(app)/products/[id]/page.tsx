@@ -111,7 +111,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             ) : null}
           </div>
           <p className="text-neutral-500">
-            {(product.categories as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
+            {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
             {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
           </p>
           {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{product.description}</p> : null}

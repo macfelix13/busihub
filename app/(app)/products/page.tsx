@@ -20,6 +20,7 @@ interface ProductRow {
   has_variants: boolean;
   type: "product" | "service";
   duration_minutes: number | null;
+  available_at_till: boolean;
   // numeric(14,2) comes back from PostgREST as a string, not a number —
   // see the comment on lib/money/money.ts's toNumber().
   product_variants: { selling_price: number | string }[];
@@ -90,7 +91,7 @@ export default async function ProductsPage({
 
   let query = supabase
     .from("products")
-    .select(`id, name, category_id, categories(name, icon), status, has_variants, type, duration_minutes, ${variantEmbed}`, {
+    .select(`id, name, category_id, categories(name, icon), status, has_variants, type, duration_minutes, available_at_till, ${variantEmbed}`, {
       count: "exact",
     })
     .eq("status", activeStatus)
@@ -322,6 +323,11 @@ export default async function ProductsPage({
                           {product.has_variants ? (
                             <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                               {product.product_variants.length} variants
+                            </span>
+                          ) : null}
+                          {!product.available_at_till ? (
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                              Hidden from till
                             </span>
                           ) : null}
                         </div>

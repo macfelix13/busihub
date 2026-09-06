@@ -416,6 +416,145 @@ begin
   raise notice 'PASS: a second business sees none of this business''s service-provider figures';
 end $$;
 
+-- ── 8. available_at_till (migration 0043): a plain products.edit column ──
+--
+-- Whether an item shows up in the till's own search is a separate flag
+-- from active/archived (an item can stay in the catalog — reports, sale
+-- history, editing — while being hidden from checkout). Defaults to true
+-- so nothing already sellable disappears from the till the moment this
+-- migration runs, and it is gated by products.edit like every other
+-- plain catalog attribute (category, duration) — never a new permission,
+-- per this project's standing "no permission backfill" reasoning.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000700';
+
+do $$
+declare v_product uuid; v_available boolean;
+begin
+  select product_id into v_product from product_variants where id = (select braiding from svc_variants);
+
+  select available_at_till into v_available from products where id = v_product;
+  if v_available is distinct from true then
+    raise exception 'TEST FAILED: a new service was not available_at_till by default' using errcode = 'ZZ999';
+  end if;
+
+  -- The Owner holds products.edit (indeed everything) — hiding it from
+  -- the till must succeed and must not touch status (still active).
+  update products set available_at_till = false where id = v_product;
+  if not found then
+    raise exception 'TEST FAILED: an Owner could not hide a service from the till' using errcode = 'ZZ999';
+  end if;
+  if (select status from products where id = v_product) <> 'active' then
+    raise exception 'TEST FAILED: hiding from the till changed the product''s active/archived status' using errcode = 'ZZ999';
+  end if;
+
+  update products set available_at_till = true where id = v_product;
+  raise notice 'PASS: available_at_till defaults to true, and an Owner can toggle it without touching status';
+end $$;
+
+-- Barber 701 holds no role at all (see this file's own fixture header) —
+-- zero permissions, including products.edit and products.archive — so
+-- products_update's own RLS policy (0013: requires one of those two just
+-- to see the row as updatable) rejects this before
+-- enforce_product_field_permissions() even runs. RLS on UPDATE fails
+-- closed by matching zero rows, not by raising (the same pattern
+-- categories.sql and expenses.sql document in their own headers) — reload
+-- and confirm nothing moved, rather than trusting the absence of an
+-- exception.
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000701';
+
+do $$
+declare v_product uuid;
+begin
+  select product_id into v_product from product_variants where id = (select braiding from svc_variants);
+
+  update products set available_at_till = false where id = v_product;
+
+  if exists (select 1 from products where id = v_product and available_at_till = false) then
+    raise exception 'TEST FAILED: a staff member with no products.edit/products.archive could hide an item from the till' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: toggling available_at_till needs products.edit (or at least products.archive, via RLS), not available to a no-role staff member';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- The barber-701 case above only proves the coarse RLS gate (products.edit
+-- OR products.archive) blocks someone with NEITHER — it would pass even if
+-- available_at_till had been left out of enforce_product_field_permissions()
+-- entirely, since RLS would already have stopped a zero-permission caller
+-- before the trigger ever ran. To actually prove available_at_till landed
+-- in the products.edit bucket (not, say, silently ungated, or wrongly
+-- bucketed under products.archive), a role holding products.archive but
+-- NOT products.edit must pass RLS (so the trigger genuinely runs) and
+-- still be refused by the trigger itself.
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at)
+values
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000703',
+   'authenticated', 'authenticated', 'archiveronly@busihub.dev.example', 'x', now())
+on conflict (id) do nothing;
+
+do $$
+declare v_biz uuid; v_branch uuid; v_role uuid;
+begin
+  select biz, branch into v_biz, v_branch from svc_ids;
+
+  insert into roles (business_id, name, description, is_system_role)
+    values (v_biz, 'Archiver Only', 'Can archive/restore items, nothing else about them.', false)
+    on conflict do nothing;
+  select id into v_role from roles where business_id = v_biz and name = 'Archiver Only';
+  insert into role_permissions (role_id, permission_id)
+    select v_role, id from permissions where key = 'products.archive'
+    on conflict do nothing;
+
+  if exists (
+    select 1 from role_permissions rp join permissions p on p.id = rp.permission_id
+    where rp.role_id = v_role and p.key = 'products.edit'
+  ) then
+    raise exception 'TEST FIXTURE BROKEN: Archiver Only somehow holds products.edit' using errcode = 'ZZ999';
+  end if;
+
+  perform set_config('busihub.privileged_write', 'on', true);
+  insert into profiles (id, business_id, first_name, last_name, email)
+    values ('00000000-0000-0000-0000-000000000703', v_biz, 'Archiver', 'Only', 'archiveronly@busihub.dev.example')
+    on conflict (id) do nothing;
+  perform set_config('busihub.privileged_write', 'off', true);
+
+  insert into user_branch_roles (business_id, branch_id, user_id, role_id, granted_by)
+    values (v_biz, v_branch, '00000000-0000-0000-0000-000000000703', v_role, '00000000-0000-0000-0000-000000000700')
+    on conflict do nothing;
+end $$;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000703';
+
+do $$
+declare v_product uuid;
+begin
+  select product_id into v_product from product_variants where id = (select braiding from svc_variants);
+
+  -- RLS lets this row through (products.archive is held), so a rejection
+  -- here can only come from enforce_product_field_permissions() itself —
+  -- unlike the barber-701 case above, this genuinely exercises the
+  -- trigger's own column bucketing, not just the coarse RLS gate.
+  begin
+    update products set available_at_till = false where id = v_product;
+    raise exception 'TEST FAILED: products.archive alone could toggle available_at_till (should need products.edit)' using errcode = 'ZZ999';
+  exception when insufficient_privilege or sqlstate '42501' then
+    raise notice 'PASS: available_at_till is genuinely bucketed under products.edit in the trigger, not just gated by coarse RLS';
+  end;
+
+  -- Contrast check: the same role CAN toggle status, since that's the one
+  -- column products.archive itself is meant to cover — confirms this role
+  -- isn't simply blocked from every update for some unrelated reason.
+  update products set status = 'archived' where id = v_product;
+  if not found then
+    raise exception 'TEST FAILED: products.archive alone could not archive/restore the product it is meant to' using errcode = 'ZZ999';
+  end if;
+  update products set status = 'active' where id = v_product;
+end $$;
+
 reset role;
 reset request.jwt.claim.sub;
 

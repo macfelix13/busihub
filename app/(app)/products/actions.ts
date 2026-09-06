@@ -359,6 +359,38 @@ export async function setProductStatus(productId: string, status: "active" | "ar
   revalidatePath(`/products/${productId}`);
 }
 
+/**
+ * Plain (no useFormState) action bound to a product id and target
+ * availability, same shape as setProductStatus above — but gated by
+ * products.edit, not products.archive: this is a catalog attribute
+ * (like category or duration), not a lifecycle transition, so it needs
+ * no confirmation step and rides the same permission every other
+ * catalog-attribute edit already needs (migration 0043's file header).
+ * The triggering button is only ever rendered for a caller who already
+ * has products.edit (cosmetic check), so a thrown error here means
+ * permissions changed out from under them mid-session, not the expected
+ * path.
+ */
+export async function setProductTillAvailability(productId: string, availableAtTill: boolean): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  const businessId = await requireProductPermission(supabase, PERMISSIONS.PRODUCTS_EDIT);
+
+  const { error } = await supabase
+    .from("products")
+    .update({ available_at_till: availableAtTill })
+    .eq("id", productId)
+    .eq("business_id", businessId);
+
+  if (error) {
+    console.error("setProductTillAvailability: update failed", error);
+    throw new Error("Couldn't update whether this shows up at the till. Please try again.");
+  }
+
+  revalidatePath("/products");
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/till");
+}
+
 export async function setVariantStatus(productId: string, variantId: string, status: "active" | "archived"): Promise<void> {
   const supabase = await createServerSupabaseClient();
   const businessId = await requireProductPermission(supabase, PERMISSIONS.PRODUCTS_ARCHIVE);

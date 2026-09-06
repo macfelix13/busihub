@@ -123,10 +123,15 @@ export default async function TillPage({
     supabase
       .from("product_variants")
       .select(
-        "id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type, duration_minutes)"
+        "id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type, duration_minutes, available_at_till)"
       )
       .eq("status", "active")
-      .eq("products.status", "active"),
+      .eq("products.status", "active")
+      // Migration 0043 — "some products and services should be available
+      // in the till": a separate flag from active/archived, defaulting to
+      // true, so an item can stay in the full catalog while being hidden
+      // from checkout specifically.
+      .eq("products.available_at_till", true),
     supabase.from("customers").select("id, name, phone").eq("status", "active").order("name"),
     supabase.from("business_settings").select("pos_settings").eq("business_id", businessId).maybeSingle(),
     // One bit, not the payment settings row: a cashier cannot read that

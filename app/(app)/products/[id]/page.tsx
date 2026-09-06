@@ -7,7 +7,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
-import { setProductStatus, setVariantStatus } from "../actions";
+import { setProductStatus, setProductTillAvailability, setVariantStatus } from "../actions";
 import { StatusToggleButton } from "../status-toggle-button";
 
 export const metadata = { title: "Product" };
@@ -36,7 +36,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, category_id, categories(name, icon), unit_of_measure, tax_category, has_variants, variant_option_names, status, type, duration_minutes, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
+      "id, name, description, category_id, categories(name, icon), unit_of_measure, tax_category, has_variants, variant_option_names, status, type, duration_minutes, available_at_till, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -109,6 +109,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 Archived
               </span>
             ) : null}
+            {!product.available_at_till ? (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                Hidden from till
+              </span>
+            ) : null}
           </div>
           <p className="text-neutral-500">
             {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
@@ -121,6 +126,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <Link href={`/products/${product.id}/edit`}>
               <Button variant="secondary">Edit</Button>
             </Link>
+          ) : null}
+          {canEdit ? (
+            // A catalog attribute, not a lifecycle transition (migration
+            // 0043) — reversible with one click either way, so no confirm
+            // dialog, unlike archive/restore just below.
+            <StatusToggleButton
+              action={setProductTillAvailability.bind(null, product.id, !product.available_at_till)}
+              label={product.available_at_till ? "Hide from till" : "Show at till"}
+              pendingLabel="Saving…"
+              variant="secondary"
+            />
           ) : null}
           {canArchive ? (
             <StatusToggleButton

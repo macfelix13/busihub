@@ -466,6 +466,44 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — "Some products and services should be available in the
+  till" — before this, the till showed every active product/service
+  automatically; there was no way to keep something in the full catalog
+  (reports, sale history, editing) while keeping it out of checkout
+  specifically. Asked which shape this should take before writing code: a
+  brand-new independent toggle defaulting to visible for everything that
+  already exists (chosen), versus tying visibility to something that
+  already existed like category or branch.
+
+  Migration 0043 adds `products.available_at_till boolean not null default
+  true`, joins it into `enforce_product_field_permissions()`'s existing
+  products.edit bucket alongside category_id/duration_minutes (0041) — a
+  catalog attribute, not a lifecycle transition, so it needs no new
+  permission and no confirmation dialog, unlike archiving — and adds a
+  composite index (`business_id, status, available_at_till`) since the
+  till's own query now filters on both together. `app/(app)/till/page.tsx`
+  gained that filter directly on the product_variants query (an `!inner`
+  embed's own column, so a hidden item is excluded server-side, not just
+  hidden in the UI). The product/service detail page gained a "Hide from
+  till" / "Show at till" toggle (reusing StatusToggleButton, no confirm
+  needed since it's fully reversible either way) and an amber "Hidden from
+  till" badge, mirrored as a smaller badge on the products list.
+
+  `tests/security/services.sql` gained a new section verifying three
+  things against a real Postgres instance: the column defaults to true and
+  an Owner can toggle it without touching status; a staff member with
+  neither products.edit nor products.archive is blocked by the coarse RLS
+  gate; and — the test that actually matters for proving the trigger
+  change landed correctly, not just the RLS gate — a purpose-built role
+  holding products.archive but NOT products.edit passes RLS (so the
+  trigger genuinely runs) and is still refused specifically on this
+  column, while the same role can still archive/restore the product
+  normally. That distinction is what proves available_at_till was
+  correctly bucketed under products.edit in the trigger itself, rather
+  than silently left ungated (which the RLS-only test on its own would not
+  have caught, since a zero-permission caller is stopped by RLS before the
+  trigger ever runs).
+
 - 2026-09-06 — Two follow-ups to the categories table shipped a day
   earlier (0041), both requested directly: (1) "categories... should be
   optional and ability to write your own category" — categories were

@@ -507,6 +507,62 @@ before being called done, per Section 2's completion definition.
   the old, business-wide expectation and needed updating to match the
   now-intended behavior.
 
+- 2026-09-06 — The till PIN now only ever confirms the account that is
+  actually signed in; it can no longer be used to "become" a colleague.
+  Requested directly. Before this, `verify_profile_pin(p_profile_id, p_pin)`
+  let any authenticated user verify any colleague's PIN in the same
+  business — it checked that the target profile belonged to the caller's
+  own business, but never that the target *was* the caller. That was the
+  exact mechanism behind the till's "Who's at the till? Pick your name"
+  screen (a shared-till convenience for a device that stays signed in as
+  one account all day while different people PIN-verify in turn), and the
+  gap it left: knowing or guessing a colleague's short PIN was enough to
+  attribute a sale or refund to them without them being the one who rang
+  it up — the exact risk `docs/RBAC.md` had documented as a known,
+  deliberate limitation when 0037/0038 shipped.
+
+  Fixed by design discussion before any code: the user was walked through
+  the current model and its gap, then asked (via three targeted
+  clarifying questions across two rounds) how switching cashiers on a
+  shared till should work, whether the PIN should be required on every
+  till page load, and — once it was pointed out that a literal "every
+  load" reading would mean re-entering a PIN after *every single sale*
+  (`completeSale()` redirects to `/sales/[id]`, whose "back to till" link
+  is a fresh page load) — how strict that requirement should actually be
+  once that consequence was visible. The resulting design
+  (`0039_till_pin_self_only.sql`):
+
+  - `verify_profile_pin()` is now single-argument (`p_pin` only) and
+    always checks it against `auth.uid()` — there is no parameter left to
+    name a different target with, not even by tampering with a request.
+  - `create_sale()`/`create_refund()` keep the `p_cashier_id` parameter
+    (so neither needed a new overload) but no longer trust it: `cashier_id`
+    is always set to `auth.uid()` server-side, and a client-supplied value
+    that doesn't match the caller is now a hard `42501` rejection.
+  - The till's 12-hour signed-cookie session (`lib/auth/till-session.ts`)
+    is kept, but `readTillSession()` now refuses to honour a cookie whose
+    identity doesn't match the currently signed-in account, so an unlock
+    can never survive a switch to a different login.
+  - Switching cashiers on a shared device is a new, explicit "Switch user"
+    step (`app/(app)/till/actions.ts`) that performs a real Supabase Auth
+    password sign-in — reusing the exact mechanism `app/(auth)/login/actions.ts`
+    already uses — rather than a PIN check against someone else's hash.
+
+  Net effect on `docs/RBAC.md`'s "known, deliberate limitation": the
+  `cashier_id`/`created_by` mismatch it described can no longer happen for
+  any sale or refund made from this migration forward (see that document
+  and `docs/AUTH.md`'s till section for the updated detail). Verified
+  against a real Postgres instance before being called done, per this
+  project's standing rule: `tests/security/pin.sql` was rewritten (its
+  old Section 3 asserted, as a *positive* case, that a cashier could
+  verify a colleague's PIN — precisely the behavior this migration
+  removes) rather than weakened or deleted, and `tests/security/sales.sql`
+  / `tests/security/refunds.sql` each gained a dedicated test proving the
+  new `42501` guard actually rejects a mismatched `p_cashier_id` and falls
+  back to the caller when `null` is passed. The full CI-ordered security
+  suite (all 16 files) passes against a from-scratch database with all 39
+  migrations applied.
+
 - 2026-09-06 — Fix: staff invite links landed on the login page instead of
   letting the invited person set a password. `inviteStaff()`
   (`app/(app)/settings/staff/actions.ts`) was sending the invitee to

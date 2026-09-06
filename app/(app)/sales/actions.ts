@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -6,7 +6,6 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { requirePermission, AuthorizationError } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
-import { readTillSession } from "@/lib/auth/till-session";
 import { refundSchema } from "@/lib/validation/refunds";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
 import { loadPaystackCredentials, verifyTransaction } from "@/lib/paystack/client";
@@ -80,13 +79,14 @@ export async function refundSale(saleId: string, _prevState: FormState, formData
     return { error: "Something went wrong. Please try again." };
   }
 
-  // Who handled the return, from the signed till cookie — never the form.
-  const till = await readTillSession();
+  // Who handled the return: create_refund() (0039) always attributes it
+  // to whoever's actual Supabase session made this call — there is no
+  // longer a separate "who's at the till" identity to read here at all.
   const { method, reason, lines: refundLines } = parsed.data;
 
   const { error } = await supabase.rpc("create_refund", {
     p_sale_id: saleId,
-    p_cashier_id: till?.cashierId ?? null,
+    p_cashier_id: null,
     p_method: method,
     p_reason: reason || null,
     // Amounts are NOT sent: create_refund apportions them from the

@@ -502,7 +502,48 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
--- ── 13b. allow_negative_stock is honoured, not just declared ─────────────
+-- ── 13b. A sale can only ever be attributed to whoever is signed in (0039) ──
+-- create_sale() keeps the p_cashier_id parameter (so nothing needed a new
+-- overload), but it is no longer trusted for the insert: naming anyone but
+-- the caller is a hard 42501, and null falls back to auth.uid() — exactly
+-- what the till UI sends now (app/(app)/till/actions.ts no longer reads a
+-- till-session cashier id at all).
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_sale uuid;
+begin
+  -- Naming a DIFFERENT real, valid account is refused outright, even
+  -- though that account genuinely exists in this same business.
+  begin
+    perform create_sale(
+      (select branch_a from s_ids), '00000000-0000-0000-0000-000000000096', null, 'cash', 1000,
+      jsonb_build_array(jsonb_build_object('variant_id', (select soap from s_ids), 'quantity', 1))
+    );
+    raise exception 'TEST FAILED: a sale was attributed to an account other than the caller'
+      using errcode = 'ZZ999';
+  exception when sqlstate '42501' then
+    raise notice 'PASS: create_sale() refuses a p_cashier_id that is not the caller''s own';
+  end;
+
+  -- null (what the till actually sends) falls back to whoever is signed in.
+  select create_sale(
+    (select branch_a from s_ids), null, null, 'cash', 1000,
+    jsonb_build_array(jsonb_build_object('variant_id', (select soap from s_ids), 'quantity', 1))
+  ) into v_sale;
+
+  if (select cashier_id from sales where id = v_sale) <> '00000000-0000-0000-0000-000000000001' then
+    raise exception 'TEST FAILED: a null p_cashier_id did not fall back to the caller' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a null p_cashier_id attributes the sale to the caller';
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- ── 13c. allow_negative_stock is honoured, not just declared ─────────────
 -- 0020 made the negative-stock rule read business_settings rather than
 -- being hardcoded. That claim is only worth anything if the other branch
 -- actually works, so both settings are exercised.

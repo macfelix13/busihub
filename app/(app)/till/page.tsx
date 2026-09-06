@@ -1,10 +1,10 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { readTillSession } from "@/lib/auth/till-session";
-import { PinPad, type TillCashier } from "./pin-pad";
+import { PinPad, type TillCashier, type TillColleague } from "./pin-pad";
 import { Till, type TillProduct, type TillCustomer } from "./till";
 
 export const metadata = { title: "Till" };
@@ -28,6 +28,14 @@ export default async function TillPage({
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const [canSell, { data: business }] = await Promise.all([
     hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
     supabase.from("businesses").select("currency_code").eq("id", businessId).maybeSingle(),
@@ -41,33 +49,61 @@ export default async function TillPage({
 
   const currencyCode = business?.currency_code ?? "GHS";
 
-  // Who is at the counter? pin_set_at is readable; pin_hash is not
-  // (migration 0018), so "can this person sign in?" needs no privileged
-  // query.
-  const till = await readTillSession();
+  // Confirm it's actually you. verify_profile_pin() (0039) only ever
+  // checks the CALLER's own PIN — there is no way to name anyone else —
+  // and readTillSession() only honours a cookie whose identity matches
+  // the account that is currently logged in, so switching to a different
+  // Supabase login (see the "switch user" flow below) can never inherit
+  // someone else's unlock.
+  const till = await readTillSession(user.id);
 
   if (!till) {
-    const { data: staff, error: staffError } = await supabase
-      .from("profiles")
-      .select("id, display_name, first_name, last_name, pin_set_at, pin_locked_until, status")
-      .eq("status", "active")
-      .not("pin_set_at", "is", null)
-      .order("first_name");
+    const [{ data: own, error: ownError }, { data: colleagues, error: colleaguesError }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, display_name, first_name, last_name, pin_set_at, pin_locked_until")
+        .eq("id", user.id)
+        .maybeSingle(),
+      // For the "switch user" step only — no PIN data needed here at all,
+      // since switching now means signing in as them (their password),
+      // never checking their PIN on this device.
+      supabase
+        .from("profiles")
+        .select("id, display_name, first_name, last_name, email")
+        .eq("status", "active")
+        .neq("id", user.id)
+        .order("first_name"),
+    ]);
 
-    if (staffError) {
-      console.error("TillPage: staff query failed", staffError);
+    if (ownError) {
+      console.error("TillPage: own profile query failed", ownError);
+    }
+    if (colleaguesError) {
+      console.error("TillPage: colleagues query failed", colleaguesError);
     }
 
-    const cashiers: TillCashier[] = (staff ?? []).map((s) => ({
-      id: s.id,
+    const ownName =
+      (own as { display_name: string | null } | null)?.display_name ||
+      [own?.first_name, own?.last_name].filter(Boolean).join(" ") ||
+      "You";
+
+    const cashier: TillCashier = {
+      id: user.id,
+      name: ownName,
+      hasPin: Boolean(own?.pin_set_at),
+      lockedUntil: (own as { pin_locked_until: string | null } | null)?.pin_locked_until ?? null,
+    };
+
+    const colleagueList: TillColleague[] = (colleagues ?? []).map((c) => ({
+      id: c.id,
       name:
-        (s as { display_name: string | null }).display_name ||
-        [s.first_name, s.last_name].filter(Boolean).join(" ") ||
+        (c as { display_name: string | null }).display_name ||
+        [c.first_name, c.last_name].filter(Boolean).join(" ") ||
         "Unnamed",
-      lockedUntil: (s as { pin_locked_until: string | null }).pin_locked_until,
+      email: (c as { email: string | null }).email,
     }));
 
-    return <PinPad cashiers={cashiers} />;
+    return <PinPad cashier={cashier} colleagues={colleagueList} />;
   }
 
   const [

@@ -402,6 +402,41 @@ begin
   end;
 end $$;
 
+-- ── 9b. A refund can only ever be attributed to whoever is signed in (0039) ──
+-- Same guard as create_sale()'s 13b in sales.sql: p_cashier_id may be null
+-- (falls back to the caller) or the caller's own id, and nothing else.
+
+do $$
+declare v_sale uuid; v_item uuid; v_refund uuid;
+begin
+  select create_sale(
+    (select branch_a from r_ids), null, null, 'cash', 100,
+    jsonb_build_array(jsonb_build_object('variant_id', (select rice from r_ids), 'quantity', 1))
+  ) into v_sale;
+  select id into v_item from sale_items where sale_id = v_sale;
+
+  -- Naming a different real, valid account (the till-only Cashier from
+  -- fixture 095) is refused outright.
+  begin
+    perform create_refund(v_sale, '00000000-0000-0000-0000-000000000095', 'cash', null,
+      jsonb_build_array(jsonb_build_object('sale_item_id', v_item, 'quantity', 1, 'restock', true)));
+    raise exception 'TEST FAILED: a refund was attributed to an account other than the caller'
+      using errcode = 'ZZ999';
+  exception when sqlstate '42501' then
+    raise notice 'PASS: create_refund() refuses a p_cashier_id that is not the caller''s own';
+  end;
+
+  -- null falls back to whoever is actually signed in.
+  select create_refund(v_sale, null, 'cash', null,
+    jsonb_build_array(jsonb_build_object('sale_item_id', v_item, 'quantity', 1, 'restock', true))
+  ) into v_refund;
+
+  if (select cashier_id from refunds where id = v_refund) <> '00000000-0000-0000-0000-000000000001' then
+    raise exception 'TEST FAILED: a null p_cashier_id did not fall back to the caller' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a null p_cashier_id attributes the refund to the caller';
+end $$;
+
 reset role;
 reset request.jwt.claim.sub;
 

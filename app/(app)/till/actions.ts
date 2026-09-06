@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requirePermission, AuthorizationError } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
-import { startTillSession, readTillSession, endTillSession } from "@/lib/auth/till-session";
+import { startTillSession, endTillSession } from "@/lib/auth/till-session";
 import { assertValidPinFormat, InvalidPinFormatError } from "@/lib/auth/pin";
 import { checkoutSchema, normaliseMomoNumber } from "@/lib/validation/sales";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -19,18 +19,15 @@ export interface FormState {
 }
 
 /**
- * Signs a colleague in at the counter. The PIN is verified inside the
- * database (migration 0019) — the hash is never readable by any client,
- * and the lockout counter is maintained in the same call, so an attacker
- * cannot decline to report their own failures.
+ * Confirms it's really you. The PIN is verified inside the database
+ * (migration 0039) against the CALLER's own profile only — there is no
+ * parameter here to name anyone else, by design, so this can never be
+ * used to sign in "as" a colleague. The hash is never readable by any
+ * client, and the lockout counter is maintained in the same call, so an
+ * attacker cannot decline to report their own failures.
  */
-export async function signInCashier(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const cashierId = String(formData.get("cashierId") ?? "");
+export async function verifyOwnPin(_prevState: FormState, formData: FormData): Promise<FormState> {
   const pin = String(formData.get("pin") ?? "");
-
-  if (!cashierId) {
-    return { error: "Choose who is at the till." };
-  }
 
   try {
     assertValidPinFormat(pin);
@@ -43,24 +40,18 @@ export async function signInCashier(_prevState: FormState, formData: FormData): 
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name")
-    .eq("id", cashierId)
-    .maybeSingle();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (profileError || !profile) {
-    console.error("signInCashier: profile lookup failed", profileError);
-    return { error: "That person could not be found." };
+  if (!user) {
+    return { error: "You're not signed in. Please log in again." };
   }
 
-  const { data: ok, error } = await supabase.rpc("verify_profile_pin", {
-    p_profile_id: cashierId,
-    p_pin: pin,
-  });
+  const { data: ok, error } = await supabase.rpc("verify_profile_pin", { p_pin: pin });
 
   if (error) {
-    console.error("signInCashier: rpc failed", error);
+    console.error("verifyOwnPin: rpc failed", error);
     // P0001 here is a message written for the user — locked out, no PIN
     // set, or not active — and is worth showing verbatim.
     if (error.code === "P0001" && error.message) {
@@ -73,12 +64,66 @@ export async function signInCashier(_prevState: FormState, formData: FormData): 
     return { error: "That PIN isn't right.", fieldErrors: { pin: "Incorrect PIN." } };
   }
 
-  await startTillSession(profile.id, [profile.first_name, profile.last_name].filter(Boolean).join(" "));
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("first_name, last_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("verifyOwnPin: own-profile lookup failed", profileError);
+  }
+
+  const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "You";
+
+  await startTillSession(user.id, name);
 
   revalidatePath("/till");
   redirect("/till");
 }
 
+/**
+ * Hands the till to a colleague. Deliberately their PASSWORD, not a PIN —
+ * this actually re-authenticates the browser as them (the same
+ * `signInWithPassword` call the login page uses), so the till's identity
+ * always matches a real Supabase login rather than a name someone picked
+ * from a list (0039). Ending the till session first means the incoming
+ * account can never inherit whatever unlock the outgoing one had.
+ */
+export async function switchTillUser(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  if (!email) {
+    return { error: "That account has no email on file, so it can't sign in here." };
+  }
+  if (!password) {
+    return { error: "Enter their password.", fieldErrors: { password: "Required." } };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    // Same generic message as the real login page, for the same reason —
+    // do not reveal whether the password (or the account) was the
+    // problem. Logged server-side so this is diagnosable during testing.
+    console.error("switchTillUser: signInWithPassword failed", {
+      status: error.status,
+      name: error.name,
+      message: error.message,
+    });
+    return { error: "Incorrect email or password.", fieldErrors: { password: "Incorrect." } };
+  }
+
+  await endTillSession();
+
+  revalidatePath("/till");
+  redirect("/till");
+}
+
+/** Locks the till. Whoever's still signed in can unlock it again with their own PIN, or switch to someone else. */
 export async function signOutCashier(): Promise<void> {
   await endTillSession();
   revalidatePath("/till");
@@ -139,10 +184,9 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
     return { error: "Something went wrong. Please try again." };
   }
 
-  // The cashier comes from the signed till cookie, never from the form —
-  // otherwise a sale could be attributed to anyone.
-  const till = await readTillSession();
-
+  // The cashier is never taken from the form: create_sale() (0039) always
+  // attributes the sale to whoever's actual Supabase session is calling
+  // it, so there is nothing to read from the till cookie for this anymore.
   const {
     branchId,
     customerId,
@@ -199,7 +243,7 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
 
   const { data: saleId, error } = await supabase.rpc("create_sale", {
     p_branch_id: branchId,
-    p_cashier_id: till?.cashierId ?? null,
+    p_cashier_id: null,
     p_customer_id: customerId || null,
     p_payment_method: paymentMethod,
     p_amount_tendered: paymentMethod === "cash" ? amountTendered : 0,

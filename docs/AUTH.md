@@ -12,8 +12,9 @@
 | Password reset request | `app/(auth)/reset-password/actions.ts` |
 | Password update (from reset email link) | `app/(auth)/update-password/page.tsx` |
 | Session refresh on every request | `proxy.ts` → `lib/supabase/middleware.ts` |
-| Cashier PIN hashing/verification (library, not yet wired to a POS UI) | `lib/auth/pin.ts` |
-| Cashier PIN storage (server-side, permission-checked) | `set_cashier_pin()`, `supabase/migrations/0011_business_registration.sql` |
+| Cashier PIN storage, self-set or admin-set with `users.manage` | `set_profile_pin()`, `supabase/migrations/0018_pin_security_and_till_login.sql` |
+| Till PIN unlock — checks only the signed-in account's own PIN | `app/(app)/till/actions.ts` (`verifyOwnPin`), `verify_profile_pin(p_pin)` (`supabase/migrations/0039_till_pin_self_only.sql`) |
+| Shared-till "switch user" — a real password sign-in, not a PIN check on someone else | `app/(app)/till/actions.ts` (`switchTillUser`) |
 
 ## Registration flow, in detail
 
@@ -81,9 +82,21 @@ scale (the same built-in sender the registration-confirmation email already reli
 at real volume, configure a custom SMTP provider in the Supabase dashboard (Authentication → Email) — no code change
 needed here either way, since this app never talks to an email provider directly.
 
-## Cashier PIN (Section 6)
+## Till PIN & shared-till switching (Section 6)
 
-The Postgres side (`set_cashier_pin()`, `pin_hash`/`pin_failed_attempts`/`pin_locked_until` columns) and the hashing library (`lib/auth/pin.ts`, bcrypt) are in place. **Not yet built**: the Route Handler that verifies a submitted PIN against the hash, applies the lockout policy (`PIN_LOCKOUT_THRESHOLD` / `PIN_LOCKOUT_DURATION_MINUTES`), and mints a cashier-scoped session — that lands with the POS phase (Section 6, `docs/ARCHITECTURE.md` §5), since it only makes sense once there's a POS screen for it to unlock into.
+The till (`/till`) is not a separate login — the browser is already signed in as a real Supabase Auth account, and the PIN just confirms it's genuinely that person standing at the counter before letting them sell. This has changed shape once:
+
+- **Before `0039_till_pin_self_only.sql`**: `verify_profile_pin(p_profile_id, p_pin)` took a target profile and only checked that it belonged to the caller's own business — not that it *was* the caller. The till's "Who's at the till? Pick your name" screen let anyone type a colleague's PIN and have the sale attributed to that colleague, on the theory that the device itself stayed signed in as whoever all day. `docs/RBAC.md` documented the resulting risk (a sale's `cashier_id` could diverge from `created_by`) as a known, deliberate limitation.
+- **From 0039 on**: `verify_profile_pin(p_pin)` takes only the PIN and always checks it against `auth.uid()` — there is no parameter left to name anyone else, so this can never again be used to "become" a colleague. `create_sale()`/`create_refund()` got the matching fix: `cashier_id` is always set to `auth.uid()` server-side, and a client-supplied `p_cashier_id` that doesn't match the caller is a hard `42501` rejection rather than something silently honoured.
+
+The current flow, all in `app/(app)/till/actions.ts` and `app/(app)/till/pin-pad.tsx`:
+
+1. `verifyOwnPin()` calls `verify_profile_pin(p_pin)` for whoever `auth.getUser()` says is signed in. A correct PIN calls `startTillSession()` (`lib/auth/till-session.ts`) — a signed HMAC-SHA256 cookie, 12-hour lifetime (a shift, not a login) — and the till's selling screen renders. This cookie is never treated as authorization on its own: every write still goes through the caller's real Supabase session and RLS; it only gates which UI renders.
+2. `readTillSession(currentUserId)` refuses to honour a cookie whose `cashierId` doesn't match the currently signed-in account, so an unlock from one login can never carry over to a different one — belt-and-suspenders alongside `switchTillUser()` explicitly clearing it.
+3. Handing the till to a colleague is **"Switch user"**, not a PIN entry: `switchTillUser()` calls `supabase.auth.signInWithPassword({ email, password })` — the exact mechanism `app/(auth)/login/actions.ts` uses — so the colleague is genuinely signed in as themselves, ends the previous till session, and lands back at `/till` to unlock with their own PIN.
+4. Lockout (`pin_failed_attempts`/`pin_locked_until`, 5 wrong attempts → 15 minutes) is enforced inside `verify_profile_pin()` itself, same as before 0039, just scoped to the caller.
+
+`set_profile_pin()` (self-set, or admin-set on a colleague with `users.manage`) is unaffected by any of this — it provisions a PIN, it doesn't use one to authenticate as someone else.
 
 ## MFA, phone auth, Google OAuth
 

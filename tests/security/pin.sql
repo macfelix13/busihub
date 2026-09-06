@@ -1,11 +1,17 @@
-﻿-- Busihub — security test for cashier PINs (migration 0018).
+-- Busihub — security test for cashier PINs (migrations 0018, 0039).
 --
--- These cover two holes that were real and reachable before 0018, both
+-- These cover holes that were real and reachable at various points, each
 -- found by querying a live database as a Cashier rather than by reading
 -- the schema:
---   1. any colleague could SELECT another profile's pin_hash;
---   2. a user could clear their own PIN lockout counters.
--- Tests 1 and 4 fail against the pre-0018 schema.
+--   1. any colleague could SELECT another profile's pin_hash (0018);
+--   2. a user could clear their own PIN lockout counters (0018);
+--   3. any authenticated user could verify ANY colleague's PIN, business-
+--      wide, and so attribute a till sale to someone who never rang it up
+--      (closed by 0039 — verify_profile_pin(p_pin) is now single-argument
+--      and only ever checks the CALLER's own hash; there is no longer a
+--      parameter to name anyone else with).
+-- Tests 1 and 4 fail against the pre-0018 schema; test 3 fails against the
+-- pre-0039 schema.
 --
 -- Run against a throwaway Postgres loaded with
 -- tests/db-harness/00_stub_supabase.sql + supabase/migrations/*.sql +
@@ -101,7 +107,8 @@ begin
     raise exception 'TEST FAILED: the layout''s profile query stopped working' using errcode = 'ZZ999';
   end if;
 
-  -- The till picker: who has a PIN, without seeing any hash.
+  -- Who has a PIN, without seeing any hash (used in admin/reporting views
+  -- — the till itself, since 0039, only ever looks at the caller's own row).
   select count(*) into v_count from profiles where pin_set_at is not null;
   if v_count < 2 then
     raise exception 'TEST FAILED: expected 2 profiles with a PIN, saw %', v_count using errcode = 'ZZ999';
@@ -115,25 +122,28 @@ begin
   raise notice 'PASS: names, and "has a PIN", remain readable — only the hash is hidden';
 end $$;
 
--- ── 3. Verification works, and is wrong when it should be ────────────────
+-- ── 3. Verification is strictly self-only (0039) ─────────────────────────
 
 do $$
 begin
-  if not verify_profile_pin('00000000-0000-0000-0000-000000000099', '1357') then
+  if not verify_profile_pin('1357') then
     raise exception 'TEST FAILED: the correct PIN did not verify' using errcode = 'ZZ999';
   end if;
-  if verify_profile_pin('00000000-0000-0000-0000-000000000099', '9999') then
+  if verify_profile_pin('9999') then
     raise exception 'TEST FAILED: a wrong PIN verified' using errcode = 'ZZ999';
   end if;
   raise notice 'PASS: correct PIN verifies, wrong PIN does not';
 
-  -- A cashier can verify a colleague's PIN — that IS the till flow (the
-  -- device is signed in as somebody; the PIN says who is at the counter).
-  -- Knowing the PIN is the secret, and it is never exposed.
-  if not verify_profile_pin('00000000-0000-0000-0000-000000000001', '4821') then
-    raise exception 'TEST FAILED: could not verify a colleague''s PIN at the till' using errcode = 'ZZ999';
+  -- 0039: verify_profile_pin() takes only the PIN itself now — there is no
+  -- parameter left to name a colleague with. The strongest test available
+  -- here is that knowing a COLLEAGUE's real PIN ('4821' is the Owner's)
+  -- does not verify while signed in as the Cashier: it is checked only
+  -- against the caller's own hash, so a PIN that is correct for someone
+  -- else is simply wrong for this account.
+  if verify_profile_pin('4821') then
+    raise exception 'TEST FAILED: a colleague''s PIN verified against my own account' using errcode = 'ZZ999';
   end if;
-  raise notice 'PASS: a colleague''s PIN can be verified at a shared till';
+  raise notice 'PASS: a colleague''s PIN cannot be used to verify as them — there is no "verify as anyone else" call left to make';
 end $$;
 
 -- ── 4. The lockout cannot be cleared by the person it locks out ──────────
@@ -147,7 +157,7 @@ begin
   -- attempt it happens on depends on what earlier tests left behind).
   for i in 1..6 loop
     begin
-      perform verify_profile_pin('00000000-0000-0000-0000-000000000099', '0000');
+      perform verify_profile_pin('0000');
     exception when sqlstate 'P0001' then
       null; -- already locked
     end;
@@ -184,7 +194,7 @@ begin
 
   -- And while locked, even the RIGHT PIN is refused.
   begin
-    perform verify_profile_pin('00000000-0000-0000-0000-000000000099', '1357');
+    perform verify_profile_pin('1357');
     raise exception 'TEST FAILED: a locked account accepted the correct PIN' using errcode = 'ZZ999';
   exception when sqlstate 'P0001' then
     raise notice 'PASS: while locked, even the correct PIN is refused';
@@ -205,7 +215,7 @@ begin
   -- Their own is fine, and it clears the lockout as a side effect —
   -- which is how a manager resets a locked-out cashier.
   perform set_profile_pin('00000000-0000-0000-0000-000000000099', '2468');
-  if not verify_profile_pin('00000000-0000-0000-0000-000000000099', '2468') then
+  if not verify_profile_pin('2468') then
     raise exception 'TEST FAILED: newly set PIN does not verify' using errcode = 'ZZ999';
   end if;
   raise notice 'PASS: a user can set their own PIN, and doing so clears the lockout';
@@ -230,7 +240,14 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
--- ── 7. Cross-tenant: another business's PIN is not verifiable ────────────
+-- ── 7. Cross-tenant: verify_profile_pin() cannot even name a target ──────
+-- Before 0039 this took (p_profile_id, p_pin) and merely checked that the
+-- target's business matched the caller's — one bug away from leaking.
+-- 0039 removed the parameter entirely, so that attack shape no longer has
+-- a call to make. What is left to test: a user in a freshly registered
+-- business, who has never set a PIN, cannot be routed to (or accidentally
+-- match) anyone else's hash — the Cashier's real PIN in a DIFFERENT
+-- business ('2468') is simply not a call this account can make.
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at)
 values ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000045',
@@ -244,10 +261,10 @@ select register_business('PIN Test Shop E', 'Nana', 'Yaw');
 do $$
 begin
   begin
-    perform verify_profile_pin('00000000-0000-0000-0000-000000000099', '2468');
-    raise exception 'TEST FAILED: verified another business''s PIN' using errcode = 'ZZ999';
-  exception when sqlstate 'P0002' then
-    raise notice 'PASS: another business''s PIN is not verifiable (reported as not found)';
+    perform verify_profile_pin('2468');
+    raise exception 'TEST FAILED: verified with no PIN set on this account' using errcode = 'ZZ999';
+  exception when sqlstate 'P0001' then
+    raise notice 'PASS: verify_profile_pin() only ever looks at the caller''s own row — there is no cross-tenant call to make anymore';
   end;
 
   begin

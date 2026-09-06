@@ -7,6 +7,7 @@
 | Business registration (signUp + `register_business()`) | `app/(auth)/register/actions.ts` |
 | Login (+ finishes pending registration if email confirmation delayed it) | `app/(auth)/login/actions.ts` |
 | Staff invite (Auth Admin `inviteUserByEmail()` + `invite_staff_member()`) | `app/(app)/settings/staff/actions.ts`, `supabase/migrations/0036_staff_management.sql` |
+| Staff invite acceptance (sets the invited person's password) | `app/(auth)/accept-invite/page.tsx` |
 | Logout | `lib/auth/sign-out.ts` |
 | Password reset request | `app/(auth)/reset-password/actions.ts` |
 | Password update (from reset email link) | `app/(auth)/update-password/page.tsx` |
@@ -40,8 +41,20 @@ person clicks the link.
    afterward, through the caller's own RLS-scoped session — it re-derives the caller's `business_id` from their own
    profile (never accepts one as an argument) and re-checks `users.manage` itself, then creates the new profile and
    `user_branch_roles` row atomically, and audit-logs `user.invited`.
-4. The invited person clicks the email link, sets a password, and signs in as themself from then on — an ordinary
-   login, no different from the Owner's.
+4. The invited person clicks the email link, lands on `/accept-invite`, sets a password, and signs in as themself
+   from then on — an ordinary login, no different from the Owner's.
+
+**Why the invite link needs its own confirm page, not `app/auth/confirm/route.ts`**: that route only handles the
+PKCE `?code=` query param used by `signUp()` and `resetPasswordForEmail()`, which works because those flows are
+*initiated by the invitee's own browser* using a client that generated a matching `code_verifier` for the exchange.
+`inviteUserByEmail()` is called from the server by whoever is doing the inviting — there's no browser-side
+`code_verifier` anywhere for a `?code=` to pair with, so Supabase falls back to the older implicit-flow style for
+this one case: the session lands directly in the redirect URL's `#fragment` (`#access_token=...&refresh_token=...`)
+instead of a query param. Fragments never reach the server (the browser strips them before the request is even
+sent), so `/accept-invite` (`app/(auth)/accept-invite/page.tsx`) is a client component that reads
+`window.location.hash` itself, calls `supabase.auth.setSession()` with the tokens it finds, and only then shows the
+"choose a password" form. An expired or already-used invite link redirects here with `#error=access_denied&...`
+instead of tokens, which the page shows as a plain "ask for a new invite" message rather than a raw error.
 
 **Escalation guard**: `seed_default_roles_for_business()` (0011) gives Manager `users.manage` but not
 `business.manage`. Without a check, a Manager could invite a colleague and directly hand them the Owner role —

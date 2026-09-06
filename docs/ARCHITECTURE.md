@@ -466,6 +466,44 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Fix: staff invite links landed on the login page instead of
+  letting the invited person set a password. `inviteStaff()`
+  (`app/(app)/settings/staff/actions.ts`) was sending the invitee to
+  `app/auth/confirm/route.ts`, but that route only understands the PKCE
+  `?code=` query param used by `signUp()`/`resetPasswordForEmail()` —
+  flows the invitee's own browser initiates, generating a matching
+  `code_verifier` for the exchange. `inviteUserByEmail()` is triggered
+  server-side by whoever sends the invite, so there's no browser-side
+  `code_verifier` for a `?code=` to pair with; Supabase instead appends the
+  session as a URL `#fragment` (`#access_token=...`), which never reaches
+  the server at all. Fixed by giving the invite its own destination,
+  `app/(auth)/accept-invite/page.tsx` — a client component that reads the
+  fragment itself, establishes the session client-side, and only then
+  shows the "choose a password" form. Full explanation in `docs/AUTH.md`.
+  This was found by actually testing the invite email end-to-end against
+  the live Vercel/Supabase deployment (which also surfaced two unrelated,
+  now-fixed dashboard misconfigurations along the way: `NEXT_PUBLIC_APP_URL`
+  missing in Vercel, and Supabase's Auth URL Configuration still pointing
+  at a stale domain) — not something a local test suite alone would have
+  caught, since it's specific to how Supabase's hosted Auth server
+  constructs the redirect for an admin-triggered invite.
+
+- 2026-09-06 — Correction: the support email fallback (`lib/env.ts`,
+  `.env.example`) was `support@busihub.app`, entered believing it was
+  already a real, working address. It wasn't — `busihub.app` was never
+  registered, so that address could never have received mail, meaning
+  the "Contact Busihub support" text on the suspended-account screen
+  pointed nowhere. Also surfaced while wiring up email for the staff-
+  invite feature below: Supabase's built-in email sender is capped at 2
+  messages/hour, which the invite flow hit almost immediately in testing.
+  Both are fixed the same way — a real, reachable address
+  (`macfelix13@gmail.com`) as the fallback, and Supabase's SMTP now
+  points at Gmail (`smtp.gmail.com`, an app password, configured in the
+  Supabase dashboard — no code involved). Revisit both once a real
+  `busihub.app` mailbox and a verified sending domain exist; nothing here
+  forecloses that, it's a one-line env var change plus a Supabase
+  settings change.
+
 - 2026-09-06 — Staff management (invite, roles, deactivate) and a business
   audit log — the first UI for RBAC permission keys (`users.manage`,
   `roles.manage`, `audit.view`) that have existed since 0005/0010 but had

@@ -79,7 +79,14 @@ export async function inviteStaff(_prevState: InviteFormState, formData: FormDat
 
   const admin = createServiceRoleClient();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${supabaseAppUrl()}/auth/confirm?next=/dashboard`,
+    // NOT /auth/confirm — that route only understands the PKCE `?code=`
+    // flow used by signUp()/resetPasswordForEmail(), which works because
+    // those are initiated by the invitee's own browser. An admin-triggered
+    // invite has no browser-side code_verifier to pair with, so Supabase
+    // redirects here with the session in a URL #fragment instead — see
+    // app/(auth)/accept-invite/page.tsx for why that needs its own,
+    // client-side handler.
+    redirectTo: `${supabaseAppUrl()}/accept-invite`,
     data: { first_name: firstName, last_name: lastName },
   });
 

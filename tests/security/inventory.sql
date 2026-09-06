@@ -1,4 +1,4 @@
-﻿-- Busihub — security/behaviour test for inventory (migration 0015),
+-- Busihub — security/behaviour test for inventory (migration 0015),
 -- exercised directly against Postgres + RLS rather than through the
 -- application, so a bug in a Server Action can never be the reason these
 -- guarantees appear to hold.
@@ -33,7 +33,7 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Test Rice 5kg', null, 'Grains', 'each', 'standard',
+  'Test Rice 5kg', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "RICE-5KG", "barcode": "", "variant_options": {}, "cost_price": 40, "selling_price": 55}]'::jsonb
 );

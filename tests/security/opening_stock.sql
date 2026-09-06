@@ -1,4 +1,4 @@
-﻿-- Busihub — behaviour/security test for opening stock (migration 0026).
+-- Busihub — behaviour/security test for opening stock (migration 0026).
 --
 -- Adding a product can now put stock on the shelf in the same breath.
 -- That is a convenience, and conveniences around stock are exactly where
@@ -42,7 +42,7 @@ do $$
 declare v_product uuid; v_variant uuid; v_level numeric; v_move record;
 begin
   select create_product(
-    (select biz_a from os_ids), 'Opening Stock Rice', null, 'Grains', 'each', 'standard',
+    (select biz_a from os_ids), 'Opening Stock Rice', null, null, 'each', 'standard',
     '{}'::text[],
     jsonb_build_array(jsonb_build_object(
       'sku', 'OSRICE-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -88,7 +88,7 @@ begin
   -- The eight-argument call: the seed, the older tests, and any code
   -- written before 0026. It must still work and must not invent stock.
   select create_product(
-    (select biz_a from os_ids), 'No Opening Stock Sugar', null, 'Grains', 'each', 'standard',
+    (select biz_a from os_ids), 'No Opening Stock Sugar', null, null, 'each', 'standard',
     '{}'::text[],
     jsonb_build_array(jsonb_build_object(
       'sku', 'OSSUG-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -119,7 +119,7 @@ do $$
 declare v_variant uuid; v_count int;
 begin
   perform create_product(
-    (select biz_a from os_ids), 'Explicit Null Stock', null, 'Grains', 'each', 'standard',
+    (select biz_a from os_ids), 'Explicit Null Stock', null, null, 'each', 'standard',
     '{}'::text[],
     jsonb_build_array(jsonb_build_object(
       'sku', 'OSNULL-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -132,7 +132,7 @@ begin
   end if;
 
   perform create_product(
-    (select biz_a from os_ids), 'Zero Stock', null, 'Grains', 'each', 'standard',
+    (select biz_a from os_ids), 'Zero Stock', null, null, 'each', 'standard',
     '{}'::text[],
     jsonb_build_array(jsonb_build_object(
       'sku', 'OSZERO-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -157,7 +157,7 @@ begin
 
   begin
     perform create_product(
-      (select biz_a from os_ids), 'Homeless Stock', null, 'Grains', 'each', 'standard',
+      (select biz_a from os_ids), 'Homeless Stock', null, null, 'each', 'standard',
       '{}'::text[],
       jsonb_build_array(jsonb_build_object(
         'sku', 'OSHOME-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -183,7 +183,7 @@ do $$
 begin
   begin
     perform create_product(
-      (select biz_a from os_ids), 'Negative Stock', null, 'Grains', 'each', 'standard',
+      (select biz_a from os_ids), 'Negative Stock', null, null, 'each', 'standard',
       '{}'::text[],
       jsonb_build_array(jsonb_build_object(
         'sku', 'OSNEG-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -207,7 +207,7 @@ begin
 
   begin
     perform create_product(
-      (select biz_a from os_ids), 'Cross Tenant Stock', null, 'Grains', 'each', 'standard',
+      (select biz_a from os_ids), 'Cross Tenant Stock', null, null, 'each', 'standard',
       '{}'::text[],
       jsonb_build_array(jsonb_build_object(
         'sku', 'OSXT-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -268,7 +268,7 @@ begin
   select count(*) into v_products from products;
   begin
     perform create_product(
-      (select biz_a from os_ids), 'Cashier Stock', null, 'Grains', 'each', 'standard',
+      (select biz_a from os_ids), 'Cashier Stock', null, null, 'each', 'standard',
       '{}'::text[],
       jsonb_build_array(jsonb_build_object(
         'sku', 'OSCASH-1', 'barcode', '', 'variant_options', '{}'::jsonb,

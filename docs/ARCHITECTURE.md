@@ -466,6 +466,104 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Full Services management page, kept "in line with the
+  Products page" per the user's own instruction (one catalog, one set of
+  patterns) rather than a parallel system, plus three pieces of scope the
+  user explicitly chose to add now rather than defer: real categories,
+  service duration, and a "revenue by renderer" report.
+
+  Before writing code, four genuine forks in the request were surfaced via
+  clarifying questions rather than guessed at (per this project's standing
+  rule): (1) whether a service's renderer needs a special tag/permission —
+  kept as-is, any active staff member chosen at sale; (2) whether
+  categories should become a real per-business table instead of products'
+  free-text `category` column — yes, shared by products and services
+  alike; (3) whether a basic "revenue by renderer" report should be built
+  now — yes; (4) whether a confirmation dialog before deleting/deactivating
+  should be added — yes, to both Products and Services.
+
+  `supabase/migrations/0041_services_management.sql`: a new `categories`
+  table modelled closely on `expense_categories` (0031) — per-business,
+  archived not deleted, seeded with a starter set (Hair, Nails, Beauty,
+  Grooming, Treatment, Other) both for every existing business and via an
+  `AFTER INSERT ON businesses` trigger for new ones — but gated by
+  `products.create`/`products.edit` rather than a new permission set, for
+  the same "never backfilled a permission" reasoning `docs/RBAC.md`
+  documents for services themselves. `products.category` (free text) is
+  **fully replaced**, not kept alongside a new `category_id` — every
+  business's existing free-text values were turned into real category rows
+  first (deduped case-insensitively per business, so "Hair"/"hair"/"HAIR"
+  become one row, and matched against the just-seeded defaults so a shop
+  that already typed "Hair" gets the seeded "Hair" back rather than a
+  duplicate) before the old column was dropped. Verified directly against
+  a real, non-empty Postgres database seeded with exactly that kind of
+  messy data (case variants, whitespace padding, a null category) — not
+  just against an empty from-scratch migration. `products.duration_minutes`
+  was added with the same treatment `opening_stock` gets for a service in
+  0040: validated when given, forced to `null` for `type='product'`
+  regardless of what is sent. `create_product()` gets a new overload
+  (dropping the old exact 10-argument signature first, per the
+  established "drop, don't just add a default" rule) taking
+  `p_category_id uuid` instead of free text and a new
+  `p_duration_minutes`, validating the category belongs to the caller's
+  own business exactly as branch ids already are. A new
+  `service_provider_performance()` function (mirroring `staff_performance()`
+  from 0030, SECURITY INVOKER like every report) answers a genuinely
+  different question than that function: it attributes each **service
+  line's** revenue to `sale_items.rendered_by` (who did the work), not a
+  whole sale to `sales.cashier_id` (who rang it up) — one sale can have a
+  different cashier than renderer, and several renderers across its lines
+  (the barber-A/barber-B example from 0040's own header), which
+  `staff_performance()` cannot represent. Every existing test file's
+  `create_product()` calls (27 call sites across 11 files) were updated
+  for the new signature as part of this change — a parameter type change
+  breaks every existing caller by design, and the test suite is a caller
+  too. `tests/security/categories.sql` (new) and new assertions appended
+  to `tests/security/services.sql` cover RLS/permission gating, seeding,
+  uniqueness, cross-tenant isolation, and `service_provider_performance()`
+  (including a two-renderer-on-one-sale case, and a refund netting
+  correctly against only the renderer whose line came back). The full
+  CI-ordered security suite (18 files now) passes with zero regressions
+  against a from-scratch database.
+
+  Application layer: a new shared `components/ui/confirm-dialog.tsx` — the
+  first modal/dialog component in this codebase (there was no prior
+  reusable precedent, only a bespoke two-step reveal in
+  `expenses/void-form.tsx`) — wired into `products/status-toggle-button.tsx`
+  as a strictly **optional** `confirm` prop, defaulting to off, so the
+  other nine call sites of that shared component (sales, staff, admin
+  businesses, suppliers, purchase orders, awaiting-payment, payment
+  settings, customers) are completely unaffected, per the user's own
+  scoped approval ("Products and Services") and the master spec's rule
+  against touching unrelated functionality. A new Categories management
+  page (list with active/archived tabs and an icon picker drawn only from
+  a curated `lib/ui/category-icons.ts` allowlist of confirmed-real
+  lucide-react exports — never an arbitrary client-supplied icon name) is
+  reached from a new "Categories" leaf in the existing Products nav group,
+  reusing `canViewProducts`. The products list gained a real category
+  filter (by id, against the new table), a price-range filter (switching
+  the `product_variants` embed to `!inner` only while a price filter is
+  active, so a plain listing is unaffected), a service duration display,
+  a live item count, a "Clear filters" control, and a proper empty state
+  with an "Add Service"/"Add Product" call to action reading exactly as
+  specified ("No services yet. Add your first service to start offering
+  services through the POS."). The product/service create and edit forms
+  now use a category `<Select>` populated from the real table instead of a
+  free-text box, and show a duration field only for a service. The
+  existing `/reports/sales` page — not a new route — gained a "Who
+  rendered what" section mirroring its own existing "Who sold what" table,
+  reusing `REPORTS_VIEW`/`ReportShell`/`loadReportContext()` exactly as
+  they already stood, per the explicit instruction to extend existing
+  reporting architecture rather than duplicate it.
+
+  **What was not built, stated plainly rather than silently under-
+  delivered**: the spec's "search/filter by assigned staff" is not
+  implemented — Q1's own answer (any active staff, chosen at sale, no
+  persisted assignment) means there is no staff field on a product/service
+  to search or filter by in the first place; building one would have
+  contradicted the very answer that was just given. If per-service staff
+  assignment is wanted later, that is a new, separate design conversation.
+
 - 2026-09-06 — Added services (braiding, sewing, barbering...) to the POS,
   functional exactly like products, with each sale line tied to whoever
   actually did the work. Requested directly: "sales or service rendered

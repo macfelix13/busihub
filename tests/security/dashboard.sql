@@ -41,7 +41,7 @@ select register_business('Dashboard Test Shop D', 'Kwabena', 'Mensah');
 -- top_products reports both.
 select create_product(
   (select id from businesses where slug = 'dashboard-test-shop-d'),
-  'Dash Widget', null, 'Household', 'each', 'zero_rated',
+  'Dash Widget', null, null, 'each', 'zero_rated',
   '{}'::text[],
   '[{"sku": "DASH-W", "barcode": "", "variant_options": {}, "cost_price": 10, "selling_price": 30, "opening_stock": 100}]'::jsonb,
   (select b.id from branches b
@@ -49,7 +49,7 @@ select create_product(
 );
 select create_product(
   (select id from businesses where slug = 'dashboard-test-shop-d'),
-  'Dash Gadget', null, 'Household', 'each', 'zero_rated',
+  'Dash Gadget', null, null, 'each', 'zero_rated',
   '{}'::text[],
   '[{"sku": "DASH-G", "barcode": "", "variant_options": {}, "cost_price": 40, "selling_price": 50, "opening_stock": 100}]'::jsonb,
   (select b.id from branches b
@@ -57,7 +57,7 @@ select create_product(
 );
 select create_product(
   (select id from businesses where slug = 'dashboard-test-shop-d'),
-  'Dash Sachet', null, 'Food', 'each', 'zero_rated',
+  'Dash Sachet', null, null, 'each', 'zero_rated',
   '{}'::text[],
   '[{"sku": "DASH-S", "barcode": "", "variant_options": {}, "cost_price": 1, "selling_price": 2, "opening_stock": 5}]'::jsonb,
   (select b.id from branches b

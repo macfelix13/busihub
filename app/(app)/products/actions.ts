@@ -41,13 +41,14 @@ function createProductFormValues(formData: FormData) {
   return {
     name: formData.get("name"),
     description: formData.get("description"),
-    category: formData.get("category"),
+    categoryId: formData.get("categoryId"),
     unitOfMeasure: formData.get("unitOfMeasure"),
     taxCategory: formData.get("taxCategory"),
     type: formData.get("type") || "product",
     variantOptionNames: jsonField<string[]>(formData, "variantOptionNamesJson", []),
     variants: jsonField<unknown[]>(formData, "variantsJson", []),
     branchId: formData.get("branchId"),
+    durationMinutes: formData.get("durationMinutes"),
   };
 }
 
@@ -93,14 +94,14 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, category, unitOfMeasure, taxCategory, type, variantOptionNames, variants, branchId } =
+  const { name, description, categoryId, unitOfMeasure, taxCategory, type, variantOptionNames, variants, branchId, durationMinutes } =
     parsed.data;
 
   const { error } = await supabase.rpc("create_product", {
     p_business_id: businessId,
     p_name: name,
     p_description: description || null,
-    p_category: category || null,
+    p_category_id: categoryId || null,
     p_unit_of_measure: unitOfMeasure,
     p_tax_category: taxCategory,
     p_variant_option_names: variantOptionNames,
@@ -119,6 +120,9 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     })),
     p_branch_id: branchId || null,
     p_type: type,
+    // Meaningless for a product — create_product (0041) forces this to
+    // null server-side for type='product' regardless of what is sent.
+    p_duration_minutes: durationMinutes ?? null,
   });
 
   if (error) {
@@ -127,13 +131,14 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     if (dup) {
       return { error: dup.text, fieldErrors: { [dup.field]: dup.text } };
     }
-    // "Choose which branch the opening stock is at", "Opening stock
-    // cannot be negative" — written for the person filling in the form.
+    // "Choose which branch the opening stock is at", "Duration must be a
+    // positive number of minutes" — written for the person filling in
+    // the form.
     if (error.code === "P0001" && error.message) {
       return { error: error.message };
     }
     if (error.code === "P0002") {
-      return { error: "That branch could not be found." };
+      return { error: "That branch or category could not be found." };
     }
     // Opening stock goes through the inventory ledger, so it needs
     // inventory.receive. Someone who may add products but not receive
@@ -155,9 +160,10 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
   const parsed = productDetailsSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    category: formData.get("category"),
+    categoryId: formData.get("categoryId"),
     unitOfMeasure: formData.get("unitOfMeasure"),
     taxCategory: formData.get("taxCategory"),
+    durationMinutes: formData.get("durationMinutes"),
   });
 
   if (!parsed.success) {
@@ -175,16 +181,53 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, category, unitOfMeasure, taxCategory } = parsed.data;
+  const { name, description, categoryId, unitOfMeasure, taxCategory, durationMinutes } = parsed.data;
+
+  // Never trust a client-supplied id to mean what it claims (Section on
+  // tenant isolation) — a category from another business, or one that
+  // does not exist, is refused rather than silently accepted. RLS already
+  // scopes this select to the caller's own business, so "not found" and
+  // "belongs to someone else" read the same here, exactly as everywhere
+  // else in this project.
+  if (categoryId) {
+    const { data: category, error: categoryError } = await supabase
+      .from("categories")
+      .select("id")
+      .eq("id", categoryId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (categoryError) {
+      console.error("updateProductDetails: category lookup failed", categoryError);
+      return { error: "Something went wrong. Please try again." };
+    }
+    if (!category) {
+      return { error: "That category could not be found.", fieldErrors: { categoryId: "Choose a category from the list." } };
+    }
+  }
+
+  // Need the product's own type to decide whether duration_minutes is
+  // meaningful — it is forced null for a product regardless of what was
+  // sent, the same treatment create_product() gives it at creation time.
+  const { data: existing, error: existingError } = await supabase
+    .from("products")
+    .select("type")
+    .eq("id", productId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (existingError || !existing) {
+    console.error("updateProductDetails: product lookup failed", existingError);
+    return { error: "Couldn't find this product." };
+  }
 
   const { error } = await supabase
     .from("products")
     .update({
       name,
       description: description || null,
-      category: category || null,
+      category_id: categoryId || null,
       unit_of_measure: unitOfMeasure,
       tax_category: taxCategory,
+      duration_minutes: existing.type === "service" ? durationMinutes ?? null : null,
     })
     // business_id filter is belt-and-suspenders beyond RLS (Section 49) —
     // a wrong/forged productId for another tenant affects 0 rows.

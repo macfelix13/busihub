@@ -28,6 +28,11 @@ export interface ProductFormBranch {
   name: string;
 }
 
+export interface ProductFormCategory {
+  id: string;
+  name: string;
+}
+
 export type ProductFormType = "product" | "service";
 
 function emptyVariant(optionNames: string[]): VariantRow {
@@ -44,10 +49,12 @@ function emptyVariant(optionNames: string[]): VariantRow {
 /** Create-product form: base details + an optional variant-axis definition + one row per starting SKU. Every product needs at least one variant even if "This product comes in variants" stays unchecked — that single row becomes the product's sole (is_default) variant server-side. */
 export function ProductForm({
   branches,
+  categories,
   canReceiveStock,
   initialType = "product",
 }: {
   branches: ProductFormBranch[];
+  categories: ProductFormCategory[];
   canReceiveStock: boolean;
   initialType?: ProductFormType;
 }) {
@@ -58,6 +65,8 @@ export function ProductForm({
   // be edited later (see migration 0040's header).
   const [type, setType] = useState<ProductFormType>(initialType);
   const isService = type === "service";
+  const CATEGORY_OPTIONS = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
+  const [durationMinutes, setDurationMinutes] = useState("");
 
   const [hasVariants, setHasVariants] = useState(false);
   const [optionNamesText, setOptionNamesText] = useState("");
@@ -139,10 +148,23 @@ export function ProductForm({
         <Field label="Product name" name="name" required error={state.fieldErrors?.name} />
         <Textarea label="Description (optional)" name="description" error={state.fieldErrors?.description} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Category (optional)" name="category" error={state.fieldErrors?.category} />
+          <Select label="Category" name="categoryId" defaultValue="" error={state.fieldErrors?.categoryId} options={CATEGORY_OPTIONS} />
           <Select label="Unit of measure" name="unitOfMeasure" defaultValue="each" error={state.fieldErrors?.unitOfMeasure} options={UNIT_OPTIONS} />
           <Select label="Tax category" name="taxCategory" defaultValue="standard" error={state.fieldErrors?.taxCategory} options={TAX_OPTIONS} />
         </div>
+        {isService ? (
+          <div className="max-w-xs">
+            <Field
+              label="Duration (minutes, optional)"
+              type="number"
+              step="1"
+              min={1}
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              error={state.fieldErrors?.durationMinutes}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="border-t border-neutral-200 pt-5 dark:border-neutral-800">
@@ -286,6 +308,9 @@ export function ProductForm({
       )}
 
       <input type="hidden" name="type" value={type} />
+      {/* Only meaningful for a service — sent blank for a product, and
+          create_product() forces it to null regardless either way. */}
+      <input type="hidden" name="durationMinutes" value={isService ? durationMinutes : ""} />
       <input type="hidden" name="variantOptionNamesJson" value={JSON.stringify(effectiveOptionNames)} />
       <input
         type="hidden"

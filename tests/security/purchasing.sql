@@ -1,4 +1,4 @@
-﻿-- Busihub — security/behaviour test for suppliers & purchasing
+-- Busihub — security/behaviour test for suppliers & purchasing
 -- (migration 0016), exercised directly against Postgres + RLS rather than
 -- through the application.
 --
@@ -36,7 +36,7 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Test Sugar 1kg', null, 'Grocery', 'kg', 'standard',
+  'Test Sugar 1kg', null, null, 'kg', 'standard',
   '{}'::text[],
   '[{"sku": "SUGAR-1KG", "barcode": "", "variant_options": {}, "cost_price": 8, "selling_price": 12}]'::jsonb
 );

@@ -82,7 +82,7 @@ set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000201';
 
 -- Rice: opening stock 3, under the default threshold of 5 (low, not out).
 select create_product(
-  (select biz_n from n_ids), 'Notif Rice', null, 'Food', 'bag', 'zero_rated',
+  (select biz_n from n_ids), 'Notif Rice', null, null, 'bag', 'zero_rated',
   '{}'::text[],
   '[{"sku": "NOTIF-RICE", "barcode": "", "variant_options": {}, "cost_price": 20, "selling_price": 35, "opening_stock": 3}]'::jsonb,
   (select branch_n from n_ids)
@@ -94,7 +94,7 @@ select create_product(
 -- selling or adjusting a real stock level down to zero, not by starting
 -- there.
 select create_product(
-  (select biz_n from n_ids), 'Notif Salt', null, 'Food', 'bag', 'zero_rated',
+  (select biz_n from n_ids), 'Notif Salt', null, null, 'bag', 'zero_rated',
   '{}'::text[],
   '[{"sku": "NOTIF-SALT", "barcode": "", "variant_options": {}, "cost_price": 5, "selling_price": 8, "opening_stock": 1}]'::jsonb,
   (select branch_n from n_ids)
@@ -102,7 +102,7 @@ select create_product(
 -- A third product with healthy stock — the negative control: it must
 -- never appear in the feed at all.
 select create_product(
-  (select biz_n from n_ids), 'Notif Sugar', null, 'Food', 'bag', 'zero_rated',
+  (select biz_n from n_ids), 'Notif Sugar', null, null, 'bag', 'zero_rated',
   '{}'::text[],
   '[{"sku": "NOTIF-SUGAR", "barcode": "", "variant_options": {}, "cost_price": 8, "selling_price": 15, "opening_stock": 50}]'::jsonb,
   (select branch_n from n_ids)

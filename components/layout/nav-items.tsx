@@ -5,6 +5,7 @@ import {
   Package,
   PackagePlus,
   Scissors,
+  Tags,
   Boxes,
   PackageCheck,
   SlidersHorizontal,
@@ -103,6 +104,9 @@ export const NAV_TREE: NavEntry[] = [
     // separate services.* set, per that migration's header.
     leaf("Services", "/products?type=service", Scissors, "canViewProducts"),
     leaf("Add Service", "/products/new?type=service", Scissors, "canCreateProducts"),
+    // Categories are shared by products and services alike (migration
+    // 0041) — reusing products.view, same reasoning as Services above.
+    leaf("Categories", "/products/categories", Tags, "canViewProducts"),
   ]),
   group("Inventory", Boxes, [
     leaf("Stock Levels", "/inventory", Boxes, "canViewInventory"),

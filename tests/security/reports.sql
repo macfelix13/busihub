@@ -43,7 +43,7 @@ select register_business('Report Test Shop R', 'Esi', 'Owusu');
 -- confuses cost with price cannot accidentally produce the right answer.
 select create_product(
   (select id from businesses where slug = 'report-test-shop-r'),
-  'Report Rice', null, 'Food', 'bag', 'zero_rated',
+  'Report Rice', null, null, 'bag', 'zero_rated',
   '{}'::text[],
   '[{"sku": "REP-RICE", "barcode": "", "variant_options": {}, "cost_price": 30, "selling_price": 100, "opening_stock": 50}]'::jsonb,
   (select b.id from branches b
@@ -51,7 +51,7 @@ select create_product(
 );
 select create_product(
   (select id from businesses where slug = 'report-test-shop-r'),
-  'Report Salt', null, 'Food', 'each', 'zero_rated',
+  'Report Salt', null, null, 'each', 'zero_rated',
   '{}'::text[],
   '[{"sku": "REP-SALT", "barcode": "", "variant_options": {}, "cost_price": 2, "selling_price": 5, "opening_stock": 100}]'::jsonb,
   (select b.id from branches b

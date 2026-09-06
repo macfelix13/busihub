@@ -34,12 +34,30 @@ const TAX_CATEGORY_VALUES = TAX_CATEGORIES.map((c) => c.value) as [string, ...st
 
 const optionalTrimmed = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 
+// Blank ("Uncategorized") is a real, supported state — matching the old
+// free-text category column's behaviour exactly (0041). A non-blank value
+// must be a real uuid; anything else (a stale form, a tampered request)
+// is refused here rather than reaching create_product()/the update path
+// as a malformed id.
+const categoryIdSchema = z.union([z.literal(""), z.string().uuid("Choose a category from the list")]).optional();
+
+// How long a service takes, in minutes. Blank/absent is fine (and is what
+// every product sends, since the field isn't even shown for one) —
+// create_product()/updateProductDetails() force this to null for
+// type='product' regardless of what is sent, the same treatment opening
+// stock gets for a service. See migration 0041's file header.
+const durationMinutesSchema = z.preprocess(
+  (v) => (v === null || v === undefined || (typeof v === "string" && v.trim().length === 0) ? undefined : v),
+  z.coerce.number().int("Enter a whole number of minutes").positive("Must be greater than zero").optional()
+);
+
 export const productDetailsSchema = z.object({
   name: z.string().trim().min(1, "Product name is required").max(200),
   description: optionalTrimmed(2000),
-  category: optionalTrimmed(100),
+  categoryId: categoryIdSchema,
   unitOfMeasure: z.enum(UNIT_VALUES),
   taxCategory: z.enum(TAX_CATEGORY_VALUES),
+  durationMinutes: durationMinutesSchema,
 });
 
 export type ProductDetailsInput = z.infer<typeof productDetailsSchema>;
@@ -180,6 +198,8 @@ export const createProductSchema = productDetailsSchema
     variants: z.array(variantRowSchema).min(1, "At least one variant is required").max(200),
     /** Where any opening stock lands. Only required if some is given. */
     branchId: z.union([z.literal(""), z.string().uuid()]).optional(),
+    /** Services only — see durationMinutesSchema above. */
+    durationMinutes: durationMinutesSchema,
   })
   .superRefine((data, ctx) => {
     validateVariantOptionKeys(data.variants, data.variantOptionNames, ctx, (i) => ["variants", i, "variantOptions"]);

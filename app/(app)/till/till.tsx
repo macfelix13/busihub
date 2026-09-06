@@ -24,6 +24,8 @@ export interface TillProduct {
   /** 'service' (braiding, sewing, barbering...) never carries stock and
    *  needs a renderer on its sale line — see migration 0040. */
   type: "product" | "service";
+  /** Cosmetic only (migration 0041) — does not affect pricing or checkout. */
+  durationMinutes: number | null;
 }
 
 export interface TillCustomer {
@@ -250,7 +252,9 @@ export function Till({
                               {formatQuantity(p.onHand)} {p.unit} left
                             </span>
                           ) : (
-                            <span className="ml-2 text-sm text-neutral-500">Service</span>
+                            <span className="ml-2 text-sm text-neutral-500">
+                              Service{p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
+                            </span>
                           )}
                         </span>
                         <span className="tabular-nums">{formatMoney(toMinorUnits(p.price), currencyCode)}</span>
@@ -279,6 +283,7 @@ export function Till({
                           <p className="truncate font-medium">{p.label}</p>
                           <p className="text-sm text-neutral-500">
                             {formatMoney(toMinorUnits(p.price), currencyCode)} each
+                            {isService && p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
                             {short ? (
                               <span className="ml-2 text-red-600 dark:text-red-400">
                                 only {formatQuantity(p.onHand)} in stock

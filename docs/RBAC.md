@@ -63,6 +63,15 @@ enforced with a `42501` hard error on mismatch) because it decides RLS visibilit
 i.e., ever adding an auth check to who can be named as a renderer — would be a step backward from the design the
 user explicitly chose.
 
+### Categories reuse products.* too (0041)
+
+The `categories` table added in `supabase/migrations/0041_services_management.sql` — shared by products and
+services alike, replacing products' old free-text `category` column — follows the exact same reasoning: gated by
+`products.create` (add a category) and `products.edit` (rename/re-describe/re-icon a category, and archive/restore
+one), not a new `categories.*` set. Same trade-off, same reason: no backfill migration needed for any
+already-registered business. See that migration's own file header for the full account, including how the old
+free-text values were carried forward into real category rows before the column was dropped.
+
 ## Staff management
 
 Built in `supabase/migrations/0036_staff_management.sql` — see `docs/AUTH.md`'s "Staff invite flow, in detail" for

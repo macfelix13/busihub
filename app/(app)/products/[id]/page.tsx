@@ -36,7 +36,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, category, unit_of_measure, tax_category, has_variants, variant_option_names, status, type, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
+      "id, name, description, category_id, categories(name, icon), unit_of_measure, tax_category, has_variants, variant_option_names, status, type, duration_minutes, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -111,7 +111,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             ) : null}
           </div>
           <p className="text-neutral-500">
-            {product.category || "Uncategorized"} · {product.unit_of_measure}
+            {(product.categories as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
+            {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
           </p>
           {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{product.description}</p> : null}
         </div>
@@ -124,9 +125,21 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           {canArchive ? (
             <StatusToggleButton
               action={setProductStatus.bind(null, product.id, product.status === "active" ? "archived" : "active")}
-              label={product.status === "active" ? "Archive product" : "Restore product"}
+              label={product.status === "active" ? (product.type === "service" ? "Deactivate service" : "Archive product") : product.type === "service" ? "Reactivate service" : "Restore product"}
               pendingLabel="Saving…"
               variant={product.status === "active" ? "danger" : "secondary"}
+              confirm={
+                product.status === "active"
+                  ? {
+                      title: product.type === "service" ? "Deactivate this service?" : "Archive this product?",
+                      description:
+                        product.type === "service"
+                          ? "It will no longer be offered for new sales at the till. Past sales that used it are unaffected, and you can reactivate it later."
+                          : "It will no longer be available for new sales. Past sales are unaffected, and you can restore it later.",
+                      confirmLabel: product.type === "service" ? "Deactivate" : "Archive",
+                    }
+                  : undefined
+              }
             />
           ) : null}
         </div>
@@ -207,6 +220,15 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                             label={variant.status === "active" ? "Archive" : "Restore"}
                             pendingLabel="Saving…"
                             variant="ghost"
+                            confirm={
+                              variant.status === "active"
+                                ? {
+                                    title: "Archive this variant?",
+                                    description: "It will no longer be available for new sales. You can restore it later.",
+                                    confirmLabel: "Archive",
+                                  }
+                                : undefined
+                            }
                           />
                         ) : null}
                       </div>

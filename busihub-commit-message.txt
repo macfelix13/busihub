@@ -1,0 +1,30 @@
+Add services to the POS, tied to who rendered them
+
+Services (braiding, sewing, barbering...) now work exactly like products
+in the till, with each sale line tied to the staff member who did the
+work, so revenue-by-staff records are captured (e.g. barber A does the
+hair dying, barber B does the dreadlocks, on the same checkout).
+
+A service is a products row with type='service' (migration 0040) rather
+than a parallel schema, so it gets the existing catalog CRUD, till search,
+tax handling and receipts for free. sale_items gains a rendered_by column,
+required and server-validated (must be an active profile in the caller's
+own business) for a service line, ignored for a product line regardless
+of client input. This is business metadata, not an auth boundary like
+cashier_id (0039) - naming a colleague grants no privilege, so there's no
+PIN/password check on them.
+
+Services reuse the existing products.* permissions rather than a new
+services.* set, since seed_default_roles_for_business() only ever runs
+once at registration and this project has never backfilled a permission
+onto existing tenants' roles - see docs/RBAC.md for the full reasoning.
+
+create_sale()/create_refund() skip the stock ledger entirely for a
+service line by simply never writing an inventory_movements row for it.
+
+Verified against a real Postgres instance: the full CI-ordered security
+suite (17 files, including the new tests/security/services.sql) passes
+with zero regressions against a from-scratch database.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

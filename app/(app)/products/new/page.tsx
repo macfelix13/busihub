@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
-import { ProductForm, type ProductFormBranch } from "../product-form";
+import { ProductForm, type ProductFormBranch, type ProductFormCategory } from "../product-form";
 
 export const metadata = { title: "Add product" };
 
@@ -16,19 +16,21 @@ export default async function NewProductPage({
   const initialType = type === "service" ? "service" : "product";
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
-  const [canCreate, canReceiveStock, { data: branchRows, error: branchesError }] = await Promise.all([
-    hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
-    // Opening stock goes through the inventory ledger, so it needs
-    // inventory.receive. Someone without it is not shown boxes they
-    // cannot use — create_product would refuse them anyway.
-    hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
-    supabase
-      .from("branches")
-      .select("id, name, is_main")
-      .eq("status", "active")
-      .order("is_main", { ascending: false })
-      .order("name", { ascending: true }),
-  ]);
+  const [canCreate, canReceiveStock, { data: branchRows, error: branchesError }, { data: categoryRows, error: categoriesError }] =
+    await Promise.all([
+      hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
+      // Opening stock goes through the inventory ledger, so it needs
+      // inventory.receive. Someone without it is not shown boxes they
+      // cannot use — create_product would refuse them anyway.
+      hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
+      supabase
+        .from("branches")
+        .select("id, name, is_main")
+        .eq("status", "active")
+        .order("is_main", { ascending: false })
+        .order("name", { ascending: true }),
+      supabase.from("categories").select("id, name").eq("status", "active").order("name"),
+    ]);
 
   // Cosmetic — createProduct() re-checks this server-side regardless.
   if (!canCreate) {
@@ -38,8 +40,12 @@ export default async function NewProductPage({
   if (branchesError) {
     console.error("NewProductPage: branches query failed", branchesError);
   }
+  if (categoriesError) {
+    console.error("NewProductPage: categories query failed", categoriesError);
+  }
 
   const branches = (branchRows ?? []) as unknown as ProductFormBranch[];
+  const categories = (categoryRows ?? []) as unknown as ProductFormCategory[];
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +59,7 @@ export default async function NewProductPage({
       </div>
       <ProductForm
         branches={branches}
+        categories={categories}
         canReceiveStock={canReceiveStock && branches.length > 0}
         initialType={initialType}
       />

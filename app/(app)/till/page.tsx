@@ -15,7 +15,7 @@ interface RawVariant {
   barcode: string | null;
   variant_options: Record<string, string> | null;
   selling_price: number | string;
-  products: { name: string; unit_of_measure: string; type: "product" | "service" } | null;
+  products: { name: string; unit_of_measure: string; type: "product" | "service"; duration_minutes: number | null } | null;
 }
 
 export default async function TillPage({
@@ -122,7 +122,9 @@ export default async function TillPage({
       .order("name"),
     supabase
       .from("product_variants")
-      .select("id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type)")
+      .select(
+        "id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type, duration_minutes)"
+      )
       .eq("status", "active")
       .eq("products.status", "active"),
     supabase.from("customers").select("id, name, phone").eq("status", "active").order("name"),
@@ -186,6 +188,7 @@ export default async function TillPage({
         onHand: onHand.get(v.id) ?? 0,
         unit: v.products?.unit_of_measure ?? "each",
         type: v.products?.type ?? "product",
+        durationMinutes: v.products?.duration_minutes ?? null,
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label));

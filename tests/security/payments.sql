@@ -1,4 +1,4 @@
-﻿-- Busihub — behaviour/security test for payments (migration 0022).
+-- Busihub — behaviour/security test for payments (migration 0022).
 --
 -- The thing worth testing here is not "does a payment get recorded". It
 -- is the gap in time that mobile money introduces: between the cart being
@@ -19,7 +19,7 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Payment Test Sugar', null, 'Grains', 'each', 'standard',
+  'Payment Test Sugar', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "PSUG-1", "barcode": "", "variant_options": {}, "cost_price": 20, "selling_price": 40}]'::jsonb
 );

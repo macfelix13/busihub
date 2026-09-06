@@ -21,7 +21,7 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Refund Test Rice', null, 'Grains', 'each', 'standard',
+  'Refund Test Rice', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "RRICE-1", "barcode": "", "variant_options": {}, "cost_price": 30, "selling_price": 60}]'::jsonb
 );
@@ -518,7 +518,7 @@ set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 
 select create_product(
   (select biz_a from r_ids),
-  'Refund Test Free Sachet', null, 'Promo', 'each', 'standard',
+  'Refund Test Free Sachet', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "RFREE-1", "barcode": "", "variant_options": {}, "cost_price": 0, "selling_price": 0}]'::jsonb
 );

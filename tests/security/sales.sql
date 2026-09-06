@@ -31,13 +31,13 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Sale Test Soap', null, 'Household', 'each', 'standard',
+  'Sale Test Soap', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "SOAP-1", "barcode": "5901234123457", "variant_options": {}, "cost_price": 6, "selling_price": 100}]'::jsonb
 );
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Sale Test Bread', null, 'Food', 'each', 'zero_rated',
+  'Sale Test Bread', null, null, 'each', 'zero_rated',
   '{}'::text[],
   '[{"sku": "BREAD-1", "barcode": "", "variant_options": {}, "cost_price": 3, "selling_price": 50}]'::jsonb
 );

@@ -94,6 +94,9 @@ jobs:
       - name: Run services tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/services.sql
 
+      - name: Run categories tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/categories.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

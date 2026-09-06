@@ -33,7 +33,7 @@ set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select create_product(
   (select id from businesses where slug = 'busihub-demo-store'),
-  'Visibility Test Item', null, 'Household', 'each', 'standard',
+  'Visibility Test Item', null, null, 'each', 'standard',
   '{}'::text[],
   '[{"sku": "COVIS-1", "barcode": "", "variant_options": {}, "cost_price": 4, "selling_price": 40}]'::jsonb
 );

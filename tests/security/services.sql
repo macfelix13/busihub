@@ -1,4 +1,6 @@
--- Busihub — behaviour/security test for services (migration 0040).
+-- Busihub — behaviour/security test for services (migration 0040), plus
+-- service_provider_performance() (migration 0041 — see that file's
+-- header for why it cannot be composed from staff_performance()).
 --
 -- A service is a product with type = 'service': same catalog, same till
 -- search, same tax handling, same create_sale()/create_refund() — the
@@ -83,7 +85,7 @@ begin
   -- stops a tampered request from trying) and must be silently ignored:
   -- no branch is required, and it does not need inventory.receive either.
   select create_product(
-    (select biz from svc_ids), 'Braiding', null, 'Hair', 'each', 'standard',
+    (select biz from svc_ids), 'Braiding', null, null, 'each', 'standard',
     '{}'::text[],
     jsonb_build_array(jsonb_build_object(
       'sku', 'BRAID-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -117,7 +119,7 @@ do $$
 declare v_product_id uuid; v_n int;
 begin
   select create_product(
-    (select biz from svc_ids), 'Dreadlocks', null, 'Hair', 'each', 'standard',
+    (select biz from svc_ids), 'Dreadlocks', null, null, 'each', 'standard',
     array['Length'],
     jsonb_build_array(
       jsonb_build_object('sku', 'DREAD-S', 'barcode', '', 'variant_options', jsonb_build_object('Length', 'Short'),
@@ -137,7 +139,7 @@ end $$;
 
 -- A plain product too, for the mixed-cart test below.
 select create_product(
-  (select biz from svc_ids), 'Shampoo', null, 'Retail', 'each', 'standard',
+  (select biz from svc_ids), 'Shampoo', null, null, 'each', 'standard',
   '{}'::text[],
   jsonb_build_array(jsonb_build_object(
     'sku', 'SHAMP-1', 'barcode', '', 'variant_options', '{}'::jsonb,
@@ -329,6 +331,89 @@ begin
   end if;
 
   raise notice 'PASS: refunding a service is never treated as restocking, even when the client asks for it';
+end $$;
+
+-- ── 7. service_provider_performance(): revenue by renderer, not by cashier ─
+--
+-- Across sections 4-6 above, barber 701 rendered three service lines in
+-- this business: braiding (80, kept), the dreadlocks_short line inside
+-- the mixed sale (120, kept — the shampoo line's rendered_by was ignored
+-- since it's a product), and a second braiding (80, fully refunded).
+-- Expected: 3 lines, 280 gross, 80 refunded, 200 net. Barber 702 (never
+-- named as a renderer, and inactive besides) must not appear at all.
+
+do $$
+declare v_row record; v_rows int;
+begin
+  select count(*) into v_rows from service_provider_performance(null, null, null, 50)
+  where provider_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
+  if v_rows <> 1 then
+    raise exception 'TEST FAILED: expected exactly one renderer with figures, got %', v_rows using errcode = 'ZZ999';
+  end if;
+
+  select * into v_row from service_provider_performance(null, null, null, 50)
+  where provider_id = '00000000-0000-0000-0000-000000000701';
+
+  if v_row.service_count <> 3 or v_row.gross_total <> 280.00 or v_row.refunded_total <> 80.00
+     or v_row.net_total <> 200.00 then
+    raise exception 'TEST FAILED: renderer row read % lines / % gross / % back / % net',
+      v_row.service_count, v_row.gross_total, v_row.refunded_total, v_row.net_total using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: service revenue is attributed per renderer, across multiple sales, with refunds netted separately';
+end $$;
+
+-- A checkout with two renderers on one sale (the exact barber-A/barber-B
+-- example from 0040's own header) must split correctly per line, not
+-- collapse onto whichever renderer happened to be on the first line —
+-- proving this is genuinely a per-LINE report, unlike cashier-based
+-- staff_performance().
+do $$
+declare v_sale uuid; v_a record; v_b record;
+begin
+  select create_sale(
+    (select branch from svc_ids), null, null, 'cash', 200,
+    jsonb_build_array(
+      jsonb_build_object('variant_id', (select braiding from svc_variants), 'quantity', 1,
+        'rendered_by', '00000000-0000-0000-0000-000000000701'),
+      jsonb_build_object('variant_id', (select dreadlocks_short from svc_variants), 'quantity', 1,
+        'rendered_by', '00000000-0000-0000-0000-000000000701')
+    )
+  ) into v_sale;
+
+  -- Both lines above were rendered by 701 (this business has only one
+  -- other real active profile besides the owner), so re-check the
+  -- running total picked both up rather than merging them into one line.
+  select * into v_a from service_provider_performance(null, null, null, 50)
+  where provider_id = '00000000-0000-0000-0000-000000000701';
+
+  if v_a.service_count <> 5 or v_a.gross_total <> 480.00 then
+    raise exception 'TEST FAILED: a two-line service sale was not fully counted (% lines / % gross)',
+      v_a.service_count, v_a.gross_total using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: every service line on a sale is counted, not just one per sale';
+end $$;
+
+-- Tenant isolation: a second business's session must see none of this.
+-- The seeded demo store's owner (000...0001) already exists in auth.users
+-- (supabase/seed.sql) — no fixture insert needed, and one attempted here
+-- while still `set role authenticated` from above would fail anyway
+-- (that role has no insert grant on auth.users, by design).
+do $$
+declare v_rows int;
+begin
+  perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+
+  select count(*) into v_rows from service_provider_performance(null, null, null, 100)
+  where provider_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
+
+  if v_rows <> 0 then
+    raise exception 'TEST FAILED: another business''s renderer figures were visible (% rows)', v_rows
+      using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: a second business sees none of this business''s service-provider figures';
 end $$;
 
 reset role;

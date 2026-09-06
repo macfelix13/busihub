@@ -466,6 +466,47 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — A Cashier now sees only their own sales, refunds and
+  payments; Managers/Owners (anyone with `reports.view`) still see
+  everything. Requested directly: a Cashier holding `sales.process` could
+  previously read every sale ever rung up business-wide, not just their
+  own till — `sales_select`/`sale_items_select`/`refunds_select`/
+  `refund_items_select`/`sale_payments_select` granted full visibility to
+  `sales.process` OR `reports.view`, an unconditional "or" with no
+  per-row restriction on the `sales.process` side. Fixed entirely at the
+  RLS layer (`0037_cashier_own_sales_visibility.sql`) by scoping that
+  branch of each policy to the caller's own `cashier_id` — the
+  PIN-verified identity at the till, not necessarily whoever is logged
+  into the browser on a shared device. Full rationale, and the known,
+  deliberate limitations that come with matching strictly on `cashier_id`
+  (the stricter of two options considered, chosen explicitly), are in
+  `docs/RBAC.md`.
+
+  **Found and fixed by actually running the full security test suite
+  against a real Postgres instance before shipping** (per this project's
+  standing rule against faking completion): narrowing those SELECT
+  policies also narrowed what `create_sale()`/`create_refund()` could see
+  when computing the next `R-NNNNNN`/`RF-NNNNNN` sequence number — both
+  run as the calling cashier, invoker rights, so their own numbering
+  query was newly subject to the same restriction. A second cashier's
+  next sale would compute a receipt number a colleague had already used
+  and fail outright on the unique constraint — reproduced immediately by
+  the test suite, not a theoretical risk. Fixed in the same change
+  (`0038_fix_numbering_after_cashier_rls.sql`) with two narrow
+  `SECURITY DEFINER` helpers, `next_receipt_number()`/
+  `next_refund_number()`, that hand back nothing but the next number —
+  computed across every sale/refund in the business regardless of the
+  caller's own RLS-scoped view — in the same spirit as the existing
+  `set_profile_pin()`/`verify_profile_pin()` helpers (0018). This does
+  not reopen `sales_select`/`refunds_select` for anything else. Also
+  updated `tests/security/notifications.sql`'s stuck-payment assertions,
+  which had (correctly, once traced through) started failing for the
+  same underlying reason: the stuck-payment alert is computed by reading
+  `sales` directly under the caller's own RLS, so a Cashier now sees it
+  only for their own pending sale, not a colleague's — the test asserted
+  the old, business-wide expectation and needed updating to match the
+  now-intended behavior.
+
 - 2026-09-06 — Fix: staff invite links landed on the login page instead of
   letting the invited person set a password. `inviteStaff()`
   (`app/(app)/settings/staff/actions.ts`) was sending the invitee to

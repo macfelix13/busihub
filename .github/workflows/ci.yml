@@ -88,6 +88,9 @@ jobs:
       - name: Run staff management tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/staff_management.sql
 
+      - name: Run cashier own-sales-visibility tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/cashier_own_sales_visibility.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

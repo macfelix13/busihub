@@ -175,23 +175,53 @@ select create_sale(
 reset role;
 reset request.jwt.claim.sub;
 
--- Backdate one momo sale past the 15-minute floor, and stamp receipt
--- numbers so later sections can refer to sales by name rather than by
--- "the most recent one".
+-- A second stuck momo sale, this one rung up (and PIN-verified) by the
+-- Cashier fixture itself rather than the Owner. sales_select/stuck_payment
+-- (0037/0038) scope a sales.process-only holder's visibility of `sales`
+-- to their own cashier_id, so section 8 below needs a stuck sale that
+-- actually belongs to the Cashier being tested, alongside the Owner's
+-- (which that Cashier now correctly cannot see), to prove both halves of
+-- that rule rather than just one.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000203';
+select create_sale(
+  (select branch_n from n_ids), '00000000-0000-0000-0000-000000000203', null, 'momo', 0,
+  jsonb_build_array(jsonb_build_object('variant_id', (select sugar from n_variants), 'quantity', 1)),
+  jsonb_build_array(jsonb_build_object('method', 'momo', 'amount', 15, 'momo_number', '0244123456', 'momo_network', 'mtn'))
+);
+reset role;
+reset request.jwt.claim.sub;
+
+-- Backdate the stuck momo sales past the 15-minute floor, and stamp
+-- receipt numbers so later sections can refer to sales by name rather
+-- than by "the most recent one".
 create table n_sales as
 select
   a.id as stuck_sale, a.receipt_number as stuck_receipt,
   b.id as fresh_sale,
   c.id as void_sale_id, c.receipt_number as void_receipt,
-  d.id as refund_sale_id, d.receipt_number as refund_receipt
+  d.id as refund_sale_id, d.receipt_number as refund_receipt,
+  e.id as own_stuck_sale
 from
-  (select id, receipt_number from sales where business_id = (select biz_n from n_ids) and payment_method = 'momo' order by created_at asc limit 1) a,
-  (select id from sales where business_id = (select biz_n from n_ids) and payment_method = 'momo' order by created_at desc limit 1) b,
+  (select id, receipt_number from sales where business_id = (select biz_n from n_ids) and payment_method = 'momo' and cashier_id = '00000000-0000-0000-0000-000000000201' order by created_at asc limit 1) a,
+  (select id from sales where business_id = (select biz_n from n_ids) and payment_method = 'momo' and cashier_id = '00000000-0000-0000-0000-000000000201' order by created_at desc limit 1) b,
   (select id, receipt_number from sales where business_id = (select biz_n from n_ids) and payment_method = 'cash' order by created_at asc limit 1) c,
-  (select id, receipt_number from sales where business_id = (select biz_n from n_ids) and payment_method = 'cash' order by created_at desc limit 1) d;
+  (select id, receipt_number from sales where business_id = (select biz_n from n_ids) and payment_method = 'cash' order by created_at desc limit 1) d,
+  (select id from sales where business_id = (select biz_n from n_ids) and payment_method = 'momo' and cashier_id = '00000000-0000-0000-0000-000000000203' limit 1) e;
 grant select on n_sales to authenticated;
 
-update sales set created_at = now() - interval '20 minutes' where id = (select stuck_sale from n_sales);
+do $$
+declare r record;
+begin
+  select * into r from n_sales;
+  if r.stuck_sale is null or r.fresh_sale is null or r.void_sale_id is null
+     or r.refund_sale_id is null or r.own_stuck_sale is null then
+    raise exception 'TEST FIXTURE BROKEN: n_sales has a null (a join above matched no row)' using errcode = 'ZZ999';
+  end if;
+end $$;
+
+update sales set created_at = now() - interval '20 minutes'
+where id in ((select stuck_sale from n_sales), (select own_stuck_sale from n_sales));
 
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000201';
@@ -387,12 +417,23 @@ reset role;
 reset request.jwt.claim.sub;
 
 -- ── 8. Visibility follows existing permissions, not a new one ───────────
+--
+-- low_stock and credit_limit are not sale-shaped, so a Cashier
+-- (inventory.view + customers.view + sales.process, no reports.view)
+-- sees them exactly as before. stuck_payment is different: it is
+-- computed by reading `sales` directly (notification_feed_base(), 0034),
+-- so it is subject to whatever sales_select currently allows the caller
+-- to see — and 0037/0038 scoped a sales.process-only holder to their OWN
+-- cashier_id. This Cashier should therefore see the stuck momo sale THEY
+-- rang up, but not the Owner's — the opposite of what this test asserted
+-- before that migration, back when any sales.process holder saw every
+-- sale in the business.
 
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000203'; -- the Cashier
 
 do $$
-declare v_low int; v_credit int; v_stuck int; v_void int; v_refund int;
+declare v_low int; v_credit int; v_stuck int; v_own_stuck int; v_void int; v_refund int;
 begin
   select count(*) into v_low from notification_feed(null, 200)
     where dismissal_key = 'low_stock:' || (select rice from n_variants) || ':' || (select branch_n from n_ids);
@@ -400,14 +441,24 @@ begin
     where dismissal_key = 'credit_limit:' || (select maxed from n_customers);
   select count(*) into v_stuck from notification_feed(null, 200)
     where dismissal_key = 'stuck_payment:' || (select stuck_sale from n_sales);
+  select count(*) into v_own_stuck from notification_feed(null, 200)
+    where dismissal_key = 'stuck_payment:' || (select own_stuck_sale from n_sales);
   select count(*) into v_void from notification_feed(null, 200)
     where type = 'sale_voided' and reference_id = (select void_sale_id from n_sales);
   select count(*) into v_refund from notification_feed(null, 200)
     where type = 'refund_created' and reference_id = (select refund_sale_id from n_sales);
 
-  if v_low <> 1 or v_credit <> 1 or v_stuck <> 1 then
-    raise exception 'TEST FAILED: a Cashier holds inventory.view/customers.view/sales.process and should see low_stock (%), credit_limit (%), stuck_payment (%)',
-      v_low, v_credit, v_stuck using errcode = 'ZZ999';
+  if v_low <> 1 or v_credit <> 1 then
+    raise exception 'TEST FAILED: a Cashier holds inventory.view/customers.view and should see low_stock (%), credit_limit (%)',
+      v_low, v_credit using errcode = 'ZZ999';
+  end if;
+  if v_stuck <> 0 then
+    raise exception 'TEST FAILED: a Cashier without reports.view should not see a stuck-payment alert for a sale that is not their own, saw %', v_stuck
+      using errcode = 'ZZ999';
+  end if;
+  if v_own_stuck <> 1 then
+    raise exception 'TEST FAILED: a Cashier should still see a stuck-payment alert for their OWN pending sale, saw %', v_own_stuck
+      using errcode = 'ZZ999';
   end if;
   if v_void <> 0 or v_refund <> 0 then
     raise exception 'TEST FAILED: a Cashier holds neither reports.view nor sales.void/sales.refund and should see NEITHER event type (void %, refund %)',

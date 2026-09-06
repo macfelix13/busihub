@@ -56,6 +56,25 @@ Exercised in `tests/security/staff_management.sql`.
 `roles.manage` permission and the underlying schema support it — see "Model" above — but the Staff pages only let an
 Owner/Manager assign the six built-in roles to a colleague, not define new ones).
 
+## A Cashier's own sales, refunds and payments only
+
+`supabase/migrations/0037_cashier_own_sales_visibility.sql` (with a numbering fix in `0038_fix_numbering_after_cashier_rls.sql`) narrows what `sales.process` alone can read. Before 0037, `sales_select`/`sale_items_select`/`refunds_select`/`refund_items_select`/`sale_payments_select` granted full, business-wide read access to anyone holding `sales.process` OR `reports.view` — meaning a plain Cashier (who holds `sales.process` but not `reports.view`) could read every sale, refund and payment ever rung up by every colleague, not just their own till.
+
+The fix, entirely at the RLS layer (never trust a page's query alone to hide rows — see `docs/SECURITY.md`):
+
+- **`reports.view` holders (Manager, Owner, Accountant, Auditor by default) are unaffected** — they still see the whole business, unrestricted.
+- **A `sales.process`-only holder (the default Cashier role) now sees only rows tied to their own `cashier_id`** — the PIN-verified identity at the till (`lib/auth/till-session.ts`), not necessarily whoever is logged into the browser (`created_by`/`auth.uid()`) on a shared device. `sale_items`/`refund_items`/`sale_payments` (which have no `cashier_id` of their own) are scoped by joining back to the sale/refund that owns them.
+- Reachable directly by the browser client with the caller's own valid session — not just gated by a page's query — so this cannot be bypassed by querying Supabase directly.
+
+**Known, deliberate limitations, matching the user's explicit choice of `cashier_id`-only matching over `created_by`:**
+
+- If the browser is logged in as one person while a *different* person PIN-verifies for a given sale, only the PIN-verified person (not the logged-in one) can read that sale back afterward unless the logged-in one also holds `reports.view`. Normally fine — the account left logged into a shared till is typically a Manager/Owner, who is unrestricted either way.
+- A hypothetical custom role combining `sales.refund` with `sales.process` but *without* `reports.view` can no longer refund a colleague's sale: `create_refund()` reads both the original sale and its `sale_items` under the caller's own RLS, so both reads fail for a sale that isn't the caller's own. Neither built-in role is affected — Manager already holds both `sales.refund` and `reports.view`.
+- The receipt/refund history page a customer's receipt links to (`app/(app)/sales/[id]/receipt/page.tsx`) relies on the same RLS, so a Cashier can only reprint/view a receipt for a sale that was their own (or with `reports.view`).
+- `next_receipt_number()`/`next_refund_number()` (0038) are narrow `SECURITY DEFINER` helpers that compute the next sequence number across *every* sale/refund regardless of the caller's own visibility — required so two cashiers on the same shift don't collide on the same receipt number, but otherwise return a bare number, never row data, so they don't reopen the visibility 0037 narrowed.
+
+If the shared-till mismatch ever becomes a real problem, the documented fix is to add `or created_by = auth.uid()` to each affected policy — deliberately not done up front, since it would widen visibility beyond what was asked for.
+
 ## Approval workflow (Section 30)
 
 Designed (`docs/ARCHITECTURE.md` §6) as a single generic `approval_requests` table that discounts-over-cap, refunds, voids, and price changes all plug into — not yet implemented as a migration; lands with the POS/refunds phases that need it, since building it in isolation now would mean guessing its shape rather than deriving it from a real caller.

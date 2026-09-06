@@ -29,7 +29,7 @@ export default async function NewProductPage({
         .eq("status", "active")
         .order("is_main", { ascending: false })
         .order("name", { ascending: true }),
-      supabase.from("categories").select("id, name").eq("status", "active").order("name"),
+      supabase.from("categories").select("id, name, icon").eq("status", "active").order("name"),
     ]);
 
   // Cosmetic — createProduct() re-checks this server-side regardless.

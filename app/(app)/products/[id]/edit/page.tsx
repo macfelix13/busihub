@@ -12,21 +12,33 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
-  const canEdit = await hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_EDIT);
+  const [canEdit, canCreateCategory] = await Promise.all([
+    hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_EDIT),
+    // Reusing an existing category from this form only needs products.edit
+    // (checked above); typing a brand-new one additionally needs
+    // products.create — see resolveCategoryId's own comment in actions.ts.
+    // Cosmetic here too: updateProductDetails() re-checks this itself.
+    hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
+  ]);
 
   // Cosmetic — updateProductDetails() re-checks this server-side regardless.
   if (!canEdit) {
     redirect(`/products/${id}`);
   }
 
-  // RLS-scoped: a product id from another tenant simply won't be found here.
+  // RLS-scoped: a product id from another tenant simply won't be found
+  // here. categories(name) is embedded (not just category_id) so the
+  // combobox can prefill the CURRENT category's name even if that
+  // category has since been archived — an embed follows the row
+  // regardless of its status, unlike the separate "active categories for
+  // the suggestion list" query below.
   const [{ data: product, error }, { data: categoryRows, error: categoriesError }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, description, category_id, unit_of_measure, tax_category, type, duration_minutes")
+      .select("id, name, description, category_id, categories(name), unit_of_measure, tax_category, type, duration_minutes")
       .eq("id", id)
       .maybeSingle(),
-    supabase.from("categories").select("id, name").eq("status", "active").order("name"),
+    supabase.from("categories").select("id, name, icon").eq("status", "active").order("name"),
   ]);
 
   if (error) {
@@ -52,11 +64,12 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       <ProductDetailsForm
         action={boundUpdateProductDetails}
         categories={categories}
+        canCreateCategory={canCreateCategory}
         productType={product.type as "product" | "service"}
         defaultValues={{
           name: product.name,
           description: product.description ?? "",
-          categoryId: product.category_id ?? "",
+          categoryName: (product.categories as unknown as { name: string } | null)?.name ?? "",
           unitOfMeasure: product.unit_of_measure,
           taxCategory: product.tax_category as "standard" | "zero_rated" | "exempt",
           durationMinutes: product.duration_minutes ?? undefined,

@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button, SubmitButton } from "@/components/ui/button";
+import { CategoryCombobox } from "@/components/ui/category-combobox";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES } from "@/lib/validation/products";
 import { createProduct, type FormState } from "./actions";
 
@@ -31,6 +32,7 @@ export interface ProductFormBranch {
 export interface ProductFormCategory {
   id: string;
   name: string;
+  icon?: string | null;
 }
 
 export type ProductFormType = "product" | "service";
@@ -65,7 +67,6 @@ export function ProductForm({
   // be edited later (see migration 0040's header).
   const [type, setType] = useState<ProductFormType>(initialType);
   const isService = type === "service";
-  const CATEGORY_OPTIONS = [{ value: "", label: "Uncategorized" }, ...categories.map((c) => ({ value: c.id, label: c.name }))];
   const [durationMinutes, setDurationMinutes] = useState("");
 
   const [hasVariants, setHasVariants] = useState(false);
@@ -148,7 +149,7 @@ export function ProductForm({
         <Field label="Product name" name="name" required error={state.fieldErrors?.name} />
         <Textarea label="Description (optional)" name="description" error={state.fieldErrors?.description} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Select label="Category" name="categoryId" defaultValue="" error={state.fieldErrors?.categoryId} options={CATEGORY_OPTIONS} />
+          <CategoryCombobox name="categoryName" categories={categories} error={state.fieldErrors?.categoryName} />
           <Select label="Unit of measure" name="unitOfMeasure" defaultValue="each" error={state.fieldErrors?.unitOfMeasure} options={UNIT_OPTIONS} />
           <Select label="Tax category" name="taxCategory" defaultValue="standard" error={state.fieldErrors?.taxCategory} options={TAX_OPTIONS} />
         </div>

@@ -72,6 +72,17 @@ one), not a new `categories.*` set. Same trade-off, same reason: no backfill mig
 already-registered business. See that migration's own file header for the full account, including how the old
 free-text values were carried forward into real category rows before the column was dropped.
 
+**Typing a new category straight from the product/service form (0042)**: the dedicated Categories page (above) isn't
+the only place a category can be created any more. `app/(app)/products/actions.ts`'s `resolveCategoryId()` lets the
+product/service create and edit forms accept a typed category NAME instead of a locked dropdown value — an existing
+name (matched case-insensitively) is reused, and a name that matches nothing is created on save. The same permission
+split still applies even though it's a different code path: reusing or reactivating an existing category only needs
+whatever permission the surrounding form already required (`products.create` to add a product, `products.edit` to
+edit one), but minting a genuinely NEW category additionally needs `products.create`, checked fresh inside
+`resolveCategoryId()` itself — a custom role with `products.edit` but not `products.create` can re-point a product at
+any existing category from this form, but typing a name that doesn't exist yet is refused with a field error rather
+than silently creating one.
+
 ## Staff management
 
 Built in `supabase/migrations/0036_staff_management.sql` — see `docs/AUTH.md`'s "Staff invite flow, in detail" for

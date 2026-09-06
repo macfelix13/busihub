@@ -41,7 +41,7 @@ function createProductFormValues(formData: FormData) {
   return {
     name: formData.get("name"),
     description: formData.get("description"),
-    categoryId: formData.get("categoryId"),
+    categoryName: formData.get("categoryName"),
     unitOfMeasure: formData.get("unitOfMeasure"),
     taxCategory: formData.get("taxCategory"),
     type: formData.get("type") || "product",
@@ -50,6 +50,98 @@ function createProductFormValues(formData: FormData) {
     branchId: formData.get("branchId"),
     durationMinutes: formData.get("durationMinutes"),
   };
+}
+
+/**
+ * Turns a typed category name into a real category_id — reusing an
+ * existing category (matched case-insensitively in application code, not
+ * an ILIKE pattern, so a name containing "%" or "_" can't cause a false
+ * match) or creating a new one when nothing matches. Blank means
+ * "Uncategorized", unchanged from before. Matched against the caller's
+ * OWN business only (never trust a client-supplied name to mean a
+ * cross-tenant row, same as every other lookup in this file).
+ *
+ * Reusing/reactivating an existing category only ever needs the
+ * permission the calling action already required (products.create or
+ * products.edit). Creating a genuinely NEW category additionally needs
+ * products.create, checked here explicitly — docs/RBAC.md's "Categories
+ * reuse products.*" rule means someone with only products.edit can
+ * re-point a product at any existing category, but cannot mint a new one
+ * just by typing it into this form.
+ */
+async function resolveCategoryId(
+  supabase: SupabaseServerClient,
+  businessId: string,
+  canCreateCategory: boolean,
+  rawName: FormDataEntryValue | string | null | undefined
+): Promise<{ categoryId: string | null } | { fieldError: string }> {
+  const name = typeof rawName === "string" ? rawName.trim() : "";
+  if (!name) return { categoryId: null };
+  const key = name.toLowerCase();
+
+  // A business has at most a few dozen categories — matched here in
+  // application code rather than pushed into a `.ilike()` filter, which
+  // would treat "%"/"_" in a typed name as SQL wildcards instead of the
+  // plain characters a user meant.
+  const { data: existingRows, error: lookupError } = await supabase
+    .from("categories")
+    .select("id, name, status, created_at")
+    .eq("business_id", businessId);
+
+  if (lookupError) {
+    console.error("resolveCategoryId: lookup failed", lookupError);
+    return { fieldError: "Something went wrong looking up that category. Please try again." };
+  }
+
+  const existing = (existingRows ?? [])
+    .filter((c) => c.name.trim().toLowerCase() === key)
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))[0];
+
+  if (existing) {
+    if (existing.status === "archived") {
+      // Typing an archived category's name brings it back rather than
+      // colliding with categories' unique(business_id, name) constraint
+      // by trying to insert a second row under the same name.
+      const { error: reactivateError } = await supabase
+        .from("categories")
+        .update({ status: "active" })
+        .eq("id", existing.id)
+        .eq("business_id", businessId);
+      if (reactivateError) {
+        console.error("resolveCategoryId: reactivate failed", reactivateError);
+        return { fieldError: "Something went wrong restoring that category. Please try again." };
+      }
+    }
+    return { categoryId: existing.id };
+  }
+
+  if (!canCreateCategory) {
+    return {
+      fieldError: `No category named "${name}" exists yet, and you don't have permission to add one — choose an existing category, or ask an admin to add it.`,
+    };
+  }
+
+  const { data: created, error: insertError } = await supabase
+    .from("categories")
+    .insert({ business_id: businessId, name })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    // A concurrent request created the exact same name between the
+    // lookup above and this insert — reuse it rather than failing the
+    // whole save over a race that isn't really an error to the person
+    // filling in the form.
+    if (insertError.code === "23505") {
+      const { data: racedRows } = await supabase.from("categories").select("id, name").eq("business_id", businessId);
+      const raced = (racedRows ?? []).find((c) => c.name.trim().toLowerCase() === key);
+      if (raced) return { categoryId: raced.id };
+    }
+    console.error("resolveCategoryId: insert failed", insertError);
+    return { fieldError: "Couldn't add that category. Please try again." };
+  }
+
+  return { categoryId: created.id };
 }
 
 /**
@@ -94,14 +186,22 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, categoryId, unitOfMeasure, taxCategory, type, variantOptionNames, variants, branchId, durationMinutes } =
+  const { name, description, categoryName, unitOfMeasure, taxCategory, type, variantOptionNames, variants, branchId, durationMinutes } =
     parsed.data;
+
+  // Always true here: creating a product at all already required
+  // products.create above, which is the exact permission needed to add a
+  // brand-new category too — see resolveCategoryId's own comment.
+  const categoryResult = await resolveCategoryId(supabase, businessId, true, categoryName);
+  if ("fieldError" in categoryResult) {
+    return { error: categoryResult.fieldError, fieldErrors: { categoryName: categoryResult.fieldError } };
+  }
 
   const { error } = await supabase.rpc("create_product", {
     p_business_id: businessId,
     p_name: name,
     p_description: description || null,
-    p_category_id: categoryId || null,
+    p_category_id: categoryResult.categoryId,
     p_unit_of_measure: unitOfMeasure,
     p_tax_category: taxCategory,
     p_variant_option_names: variantOptionNames,
@@ -160,7 +260,7 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
   const parsed = productDetailsSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    categoryId: formData.get("categoryId"),
+    categoryName: formData.get("categoryName"),
     unitOfMeasure: formData.get("unitOfMeasure"),
     taxCategory: formData.get("taxCategory"),
     durationMinutes: formData.get("durationMinutes"),
@@ -181,28 +281,18 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, categoryId, unitOfMeasure, taxCategory, durationMinutes } = parsed.data;
+  const { name, description, categoryName, unitOfMeasure, taxCategory, durationMinutes } = parsed.data;
 
-  // Never trust a client-supplied id to mean what it claims (Section on
-  // tenant isolation) — a category from another business, or one that
-  // does not exist, is refused rather than silently accepted. RLS already
-  // scopes this select to the caller's own business, so "not found" and
-  // "belongs to someone else" read the same here, exactly as everywhere
-  // else in this project.
-  if (categoryId) {
-    const { data: category, error: categoryError } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("id", categoryId)
-      .eq("business_id", businessId)
-      .maybeSingle();
-    if (categoryError) {
-      console.error("updateProductDetails: category lookup failed", categoryError);
-      return { error: "Something went wrong. Please try again." };
-    }
-    if (!category) {
-      return { error: "That category could not be found.", fieldErrors: { categoryId: "Choose a category from the list." } };
-    }
+  // Reusing/reactivating an existing category only needs the
+  // products.edit already required above; minting a brand-new one from
+  // this same box additionally needs products.create — checked fresh
+  // here rather than assumed, since editing a product's other details
+  // and adding a whole new category are different permissions in this
+  // project (docs/RBAC.md's "Categories reuse products.*").
+  const canCreateCategory = await hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE);
+  const categoryResult = await resolveCategoryId(supabase, businessId, canCreateCategory, categoryName);
+  if ("fieldError" in categoryResult) {
+    return { error: categoryResult.fieldError, fieldErrors: { categoryName: categoryResult.fieldError } };
   }
 
   // Need the product's own type to decide whether duration_minutes is
@@ -224,7 +314,7 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
     .update({
       name,
       description: description || null,
-      category_id: categoryId || null,
+      category_id: categoryResult.categoryId,
       unit_of_measure: unitOfMeasure,
       tax_category: taxCategory,
       duration_minutes: existing.type === "service" ? durationMinutes ?? null : null,

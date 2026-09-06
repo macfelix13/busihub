@@ -34,12 +34,14 @@ const TAX_CATEGORY_VALUES = TAX_CATEGORIES.map((c) => c.value) as [string, ...st
 
 const optionalTrimmed = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 
-// Blank ("Uncategorized") is a real, supported state — matching the old
-// free-text category column's behaviour exactly (0041). A non-blank value
-// must be a real uuid; anything else (a stale form, a tampered request)
-// is refused here rather than reaching create_product()/the update path
-// as a malformed id.
-const categoryIdSchema = z.union([z.literal(""), z.string().uuid("Choose a category from the list")]).optional();
+// Blank ("Uncategorized") is a real, supported state — unchanged from
+// before (0041). Non-blank is now a plain category NAME, not a uuid: the
+// product/service form lets someone type an existing category to reuse it
+// or a brand-new one to create it (0042), so the id itself is resolved
+// server-side (app/(app)/products/actions.ts's resolveCategoryId) rather
+// than chosen from a locked list here. 100 chars matches
+// lib/validation/categories.ts's own cap on a category's name.
+const categoryNameSchema = optionalTrimmed(100);
 
 // How long a service takes, in minutes. Blank/absent is fine (and is what
 // every product sends, since the field isn't even shown for one) —
@@ -54,7 +56,7 @@ const durationMinutesSchema = z.preprocess(
 export const productDetailsSchema = z.object({
   name: z.string().trim().min(1, "Product name is required").max(200),
   description: optionalTrimmed(2000),
-  categoryId: categoryIdSchema,
+  categoryName: categoryNameSchema,
   unitOfMeasure: z.enum(UNIT_VALUES),
   taxCategory: z.enum(TAX_CATEGORY_VALUES),
   durationMinutes: durationMinutesSchema,

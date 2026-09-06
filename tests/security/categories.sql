@@ -145,10 +145,24 @@ begin
     raise exception 'TEST FAILED: a newly registered business got no categories' using errcode = 'ZZ999';
   end if;
 
+  -- Sixteen as of 0042 (up from the original six in 0041) — see that
+  -- migration's header for why the list grew and stayed duplicate-free.
   select array_agg(name order by name) into v_names
   from categories where business_id = (select biz_c from cat_ids) and is_system;
-  if v_names <> array['Beauty', 'Grooming', 'Hair', 'Nails', 'Other', 'Treatment'] then
+  if v_names <> array[
+    'Beauty', 'Beverages', 'Electronics & Gadgets', 'Fashion & Clothing', 'Footwear & Accessories',
+    'Groceries & Food', 'Grooming', 'Hair', 'Health & Wellness', 'Household & Cleaning', 'Nails',
+    'Other', 'Skincare', 'Spa & Massage', 'Stationery & Office', 'Treatment'
+  ] then
     raise exception 'TEST FAILED: unexpected starting category set: %', v_names using errcode = 'ZZ999';
+  end if;
+
+  -- No two starter categories collide in name, case-insensitively — the
+  -- exact property the type-to-create form field (0042) depends on
+  -- seed_default_categories() itself never violating.
+  if (select count(distinct lower(name)) from categories where business_id = (select biz_c from cat_ids) and is_system)
+     <> (select count(*) from categories where business_id = (select biz_c from cat_ids) and is_system) then
+    raise exception 'TEST FAILED: two starter categories share a name case-insensitively' using errcode = 'ZZ999';
   end if;
 
   -- Per business, not a shared table. Two shops renaming "Other" must

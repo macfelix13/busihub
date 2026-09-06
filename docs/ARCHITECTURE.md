@@ -466,6 +466,46 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Two follow-ups to the categories table shipped a day
+  earlier (0041), both requested directly: (1) "categories... should be
+  optional and ability to write your own category" — categories were
+  already optional (a product/service can stay "Uncategorized"); the real
+  gap was requiring a trip to Products > Categories before a brand-new
+  category could be used. Closed at the application layer only (migration
+  0042 touches nothing about how categories are structured, only what a
+  new business starts with — see next point): the product/service
+  create/edit forms' category field is now a type-to-create combobox
+  (`components/ui/category-combobox.tsx`) instead of a locked dropdown.
+  What's typed is resolved server-side by a new `resolveCategoryId()`
+  helper in `app/(app)/products/actions.ts` — an existing category is
+  matched case-insensitively and reused (or reactivated, if archived), so
+  "hair" and "Hair" can never become two rows; a name matching nothing is
+  created on save, still gated by `products.create` exactly like the
+  dedicated Categories page already was, checked freshly inside the
+  helper (not assumed) since editing a product only requires
+  `products.edit`. (2) "should be more [starter categories], and make
+  sure samples are not duplicates" — the six starters from 0041
+  (Hair/Nails/Beauty/Grooming/Treatment/Other) undersold a table meant to
+  serve retail shops as much as salons. Migration 0042 expands
+  `seed_default_categories()` to sixteen (adding Beverages, Electronics &
+  Gadgets, Fashion & Clothing, Footwear & Accessories, Groceries & Food,
+  Health & Wellness, Household & Cleaning, Skincare, Spa & Massage,
+  Stationery & Office to the original six, chosen to avoid near-duplicate
+  overlap with what already existed — e.g. no separate "Barbering" next to
+  "Grooming") and re-runs the seed for every already-registered business
+  using the same idempotent `on conflict (business_id, name) do nothing`
+  pattern 0041 itself used, so a business that already renamed or archived
+  one of the original six is untouched — only the ten new names are added.
+  `tests/security/categories.sql` was updated to expect the new sixteen
+  and gained a dedicated assertion that no two starter categories collide
+  case-insensitively. The type-to-create form behavior is application-layer
+  logic without an equivalent SQL-level uniqueness constraint (categories'
+  `unique(business_id, name)` has always been case-sensitive, matching
+  every other naming column in this project), so it was verified by manual
+  code review of `resolveCategoryId()` rather than a new automated test —
+  disclosed here rather than glossed over, per this project's standing
+  rule against faking completion.
+
 - 2026-09-06 — Full Services management page, kept "in line with the
   Products page" per the user's own instruction (one catalog, one set of
   patterns) rather than a parallel system, plus three pieces of scope the

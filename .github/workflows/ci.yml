@@ -91,6 +91,9 @@ jobs:
       - name: Run cashier own-sales-visibility tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/cashier_own_sales_visibility.sql
 
+      - name: Run services tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/services.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

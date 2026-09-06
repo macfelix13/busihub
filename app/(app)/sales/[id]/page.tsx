@@ -38,6 +38,11 @@ interface ItemRow {
   quantity: number | string;
   unit_price: number | string;
   line_total: number | string;
+  // Who rendered this line, if it was a service (migration 0040) — a
+  // business fact recorded on the line, not who is signed in. sale_items
+  // has no other FK to profiles, so this embed needs no disambiguating
+  // constraint name, unlike sales.cashier above.
+  rendered_by: { first_name: string | null; last_name: string | null } | null;
 }
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,7 +88,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       .maybeSingle(),
     supabase
       .from("sale_items")
-      .select("id, description, sku, quantity, unit_price, line_total")
+      .select("id, description, sku, quantity, unit_price, line_total, rendered_by:profiles(first_name, last_name)")
       .eq("sale_id", id),
     supabase
       .from("sale_payments")
@@ -235,6 +240,11 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                   <td className="px-4 py-3">
                     <span className="font-medium">{item.description}</span>
                     {item.sku ? <span className="ml-2 text-neutral-500">{item.sku}</span> : null}
+                    {item.rendered_by ? (
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        Rendered by {[item.rendered_by.first_name, item.rendered_by.last_name].filter(Boolean).join(" ") || "—"}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{formatQuantity(item.quantity)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">

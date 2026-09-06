@@ -247,7 +247,15 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
     p_customer_id: customerId || null,
     p_payment_method: paymentMethod,
     p_amount_tendered: paymentMethod === "cash" ? amountTendered : 0,
-    p_items: lines.map((line) => ({ variant_id: line.variantId, quantity: line.quantity })),
+    p_items: lines.map((line) => ({
+      variant_id: line.variantId,
+      quantity: line.quantity,
+      // Ignored server-side for a product line; required and validated
+      // (must be an active profile in the caller's own business) for a
+      // service line — see create_sale() in migration 0040. Its error
+      // ("Choose who rendered...") is a P0001 already handled below.
+      rendered_by: line.renderedBy || null,
+    })),
     p_payments: payments,
   });
 

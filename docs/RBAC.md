@@ -34,6 +34,35 @@ See `seed_default_roles_for_business()` for the authoritative list. Summary:
 4. Add or extend an RLS policy on the affected table if it doesn't already check `app_has_permission()`.
 5. Add a security test alongside `tests/security/tenant_isolation_and_rbac.sql` exercising the negative case (a role that shouldn't have the permission is blocked).
 
+## Services reuse products.* — no new permission set
+
+`supabase/migrations/0040_services.sql` adds services (braiding, sewing, barbering...) as products with
+`type = 'service'` — same table, same variants, same catalog. Managing a service (create/edit/archive/change price)
+is gated by the exact same `products.view`/`products.create`/`products.edit`/`products.archive`/`products.change_price`
+permissions a product already uses — **there is no `services.*` permission set**, and none is planned.
+
+This was a deliberate choice, not an oversight: `seed_default_roles_for_business()` (0011) only ever runs once, at
+business registration, and this project has never yet added a new permission to the catalog after the initial
+`0010_seed_platform_catalog.sql` seed. Introducing a `services.*` set would have meant every already-registered
+business's Owner/Manager/etc. roles silently lacking it until a separate backfill migration touched every tenant's
+`role_permissions` rows — a kind of migration this codebase has no precedent for and no tooling built around. Reusing
+`products.*` means every existing business's staff permissions extend to services with zero backfill required.
+
+One consequence worth naming: a custom role that was given `products.view`/`products.create` etc. *without* wanting
+staff to also manage services has no way to separate the two — granting one still grants the other, by construction.
+That's the accepted trade-off for not having to run a permission backfill on every tenant; if it becomes a real
+problem, splitting `services.*` out later is a normal (if now-first-of-its-kind) backfill migration, not a redesign.
+
+`sale_items.rendered_by` — who actually did the work on a service line — is **not** part of this permission story at
+all. It is business metadata, not an authorization boundary, and it is intentionally unlike `cashier_id` (see below):
+`create_sale()` requires and validates that a named renderer is an *active member of the caller's own business*
+(tenant isolation only), never that they hold any particular permission — per this feature's own design decision,
+any active staff member can be named, since naming someone grants no privilege and unlocks no data. Contrast this
+with `cashier_id`, which **is** an authorization-adjacent value (0039 requires it to be the caller themselves,
+enforced with a `42501` hard error on mismatch) because it decides RLS visibility of the sale. Confusing the two —
+i.e., ever adding an auth check to who can be named as a renderer — would be a step backward from the design the
+user explicitly chose.
+
 ## Staff management
 
 Built in `supabase/migrations/0036_staff_management.sql` — see `docs/AUTH.md`'s "Staff invite flow, in detail" for

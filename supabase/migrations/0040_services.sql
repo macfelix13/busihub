@@ -1,0 +1,818 @@
+-- Busihub — 0040: services, sold and tracked just like products.
+--
+-- Requested directly: a business selling both physical goods (retail hair
+-- products) and labour (braiding, sewing, barbering) wants the labour on
+-- the same till, priced and taxed the same way, but tied to whichever
+-- staff member actually did the work — not the cashier who happened to be
+-- signed in — so a barbershop can tell "barber A did the hair dye, barber
+-- B did the dreadlocks" apart, even on one shared checkout.
+--
+-- THE SHAPE OF THE CHANGE, AND WHY
+--
+-- A service is a new `type` on the EXISTING products/product_variants
+-- tables, not a parallel set of tables. That was a genuine fork — the
+-- alternative was a dedicated services/service_variants pair — and it was
+-- discussed with the user before writing anything: reusing products means
+-- a service gets everything a product already has for free (variants, so
+-- "Braiding — short hair" and "Braiding — long hair" can be different
+-- prices under one service; the till's existing search/cart; the same
+-- tax handling; the same receipt), and the only thing that has to change
+-- is create_sale()/create_refund() skipping the stock machinery for a
+-- service line — there is no shelf to take it off or put it back on.
+--
+-- `rendered_by` lives on sale_items (not on sales) because a checkout can
+-- legitimately cover more than one person's work — the barber-A/barber-B
+-- example is one sale, two lines, two different renderers. It is required
+-- on every service line and rejected outright on every product line,
+-- enforced here (not just in the till UI) so it can't be left blank or
+-- forged by a request that skips the app entirely. Unlike cashier_id
+-- (0039), this is NOT an authentication boundary — it doesn't grant
+-- anyone anything — so there is no PIN or password check on the person
+-- being named: whoever is processing the sale just picks from a list of
+-- active staff, the same way a paper docket would have a technician's
+-- name written on it. What IS still enforced server-side: the named
+-- profile must actually be an active member of the caller's own business
+-- (never trust a client-supplied id to mean what it claims — Section on
+-- tenant isolation).
+--
+-- PERMISSIONS — reusing products.* rather than a new services.* set
+--
+-- Also discussed with the user rather than assumed: Busihub has never
+-- added a new permission after the initial seed (0010/0011) — every
+-- already-registered business's roles were assigned once, at signup, and
+-- nothing since has needed to change that. A new services.* permission
+-- set would need every existing business's Owner/Manager/etc. roles
+-- individually backfilled, or they would suddenly find they can't manage
+-- services at all. Reusing products.view/create/edit/archive/change_price
+-- for services too needs no backfill whatsoever — whoever can manage the
+-- product catalog today can manage services the moment this ships, for
+-- every business already on the platform, not just new ones. The RLS
+-- policies on products/product_variants are entirely unchanged by this
+-- migration for exactly that reason: they already say nothing about
+-- `type`.
+--
+-- WHAT THIS DOES NOT DO (raised with the user, deferred deliberately)
+--
+--   * No new "service provider" tag/permission — any active staff member
+--     in the business can be named as the renderer of a service line, the
+--     same pool the old till colleague picker already drew from. A
+--     business that wants to restrict this to specific staff can ask for
+--     it later; building it now would be guessing at a shape nobody has
+--     asked for yet.
+--   * No dedicated "revenue by staff member" report — the data is
+--     captured (sale_items.rendered_by, visible on the sale detail page)
+--     so it can be reported on later; a purpose-built report is a
+--     separate, sizeable piece of work.
+
+-- ── products.type ─────────────────────────────────────────────────────────
+
+alter table products
+  add column type text not null default 'product' check (type in ('product', 'service'));
+
+create index products_business_type_idx on products (business_id, type);
+
+comment on column products.type is
+  'product = a physical, stocked item (product_variants rows get stock_levels tracking). service = labour sold the same way (variants, pricing, tax) but never stocked — create_sale()/create_refund() skip the inventory ledger entirely for a service line, and require sale_items.rendered_by instead. See 0040 header.';
+
+-- ── sale_items.rendered_by ───────────────────────────────────────────────
+
+alter table sale_items
+  add column rendered_by uuid references profiles(id) on delete set null;
+
+comment on column sale_items.rendered_by is
+  'Who actually did the work, for a service line — NOT an authentication boundary like sales.cashier_id (0039); this is a business fact, not a login. Required and validated (active profile in the same business) by create_sale() for a service line; always null for a product line regardless of what a caller sends. See 0040 header.';
+
+-- ── create_product(): p_type, and opening stock never applies to a service ─
+--
+-- DROPPED, not just redefined with a new default parameter — same trap
+-- 0026 already documented: a 10th positional argument makes this a
+-- DIFFERENT overload from the live 9-argument one, and every existing
+-- 9-argument caller (the app, the test suite) would keep resolving to the
+-- old body, which knows nothing about services.
+drop function if exists create_product(uuid, text, text, text, text, text, text[], jsonb, uuid);
+
+create or replace function create_product(
+  p_business_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_unit_of_measure text,
+  p_tax_category text,
+  p_variant_option_names text[],
+  p_variants jsonb,             -- [{sku, barcode, variant_options, cost_price, selling_price, opening_stock}]
+  p_branch_id uuid default null, -- where the opening stock lands (products only)
+  p_type text default 'product'
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_product_id uuid;
+  v_variant    jsonb;
+  v_variant_id uuid;
+  v_has_variants boolean;
+  v_opening    numeric(14, 3);
+  v_any_stock  boolean := false;
+begin
+  if p_type not in ('product', 'service') then
+    raise exception 'Unknown product type' using errcode = '22023';
+  end if;
+
+  if p_variants is null or jsonb_array_length(p_variants) < 1 then
+    raise exception 'At least one variant is required' using errcode = 'P0001';
+  end if;
+
+  -- A service has nothing to put on a shelf — opening stock is simply
+  -- meaningless for it, so it is never even looked at (not an error to
+  -- send it; there is no legitimate UI path that would, and ignoring it
+  -- costs nothing since it grants no privilege either way).
+  if p_type = 'product' then
+    for v_variant in select * from jsonb_array_elements(p_variants)
+    loop
+      if coalesce(jsonb_typeof(v_variant -> 'opening_stock'), 'null') <> 'null'
+         and coalesce((v_variant ->> 'opening_stock')::numeric, 0) <> 0 then
+        v_any_stock := true;
+      end if;
+    end loop;
+  end if;
+
+  if v_any_stock then
+    if p_branch_id is null then
+      raise exception 'Choose which branch the opening stock is at' using errcode = 'P0001';
+    end if;
+    if not exists (select 1 from branches where id = p_branch_id and business_id = p_business_id) then
+      raise exception 'Invalid branch_id: branch not found' using errcode = 'P0002';
+    end if;
+  end if;
+
+  v_has_variants := coalesce(array_length(p_variant_option_names, 1), 0) > 0;
+
+  insert into products (
+    business_id, name, description, category, unit_of_measure, tax_category,
+    has_variants, variant_option_names, type, created_by
+  )
+  values (
+    p_business_id, p_name, nullif(p_description, ''), nullif(p_category, ''),
+    p_unit_of_measure, p_tax_category, v_has_variants, p_variant_option_names, p_type, auth.uid()
+  )
+  returning id into v_product_id;
+
+  for v_variant in select * from jsonb_array_elements(p_variants)
+  loop
+    insert into product_variants (
+      product_id, sku, barcode, variant_options, cost_price, selling_price, is_default
+    )
+    values (
+      v_product_id,
+      nullif(v_variant ->> 'sku', ''),
+      nullif(v_variant ->> 'barcode', ''),
+      coalesce(v_variant -> 'variant_options', '{}'::jsonb),
+      coalesce((v_variant ->> 'cost_price')::numeric, 0),
+      (v_variant ->> 'selling_price')::numeric,
+      not v_has_variants
+    )
+    returning id into v_variant_id;
+
+    if p_type = 'product' then
+      v_opening := case
+        when coalesce(jsonb_typeof(v_variant -> 'opening_stock'), 'null') = 'null' then 0
+        else coalesce((v_variant ->> 'opening_stock')::numeric, 0)
+      end;
+
+      if v_opening < 0 then
+        raise exception 'Opening stock cannot be negative' using errcode = 'P0001';
+      end if;
+
+      if v_opening > 0 then
+        insert into inventory_movements (
+          business_id, branch_id, variant_id, quantity_delta, reason,
+          reference_type, reference_id, note
+        )
+        values (
+          '00000000-0000-0000-0000-000000000000', -- replaced by the trigger
+          p_branch_id, v_variant_id, v_opening, 'receive',
+          'product', v_product_id, 'Opening stock'
+        );
+      end if;
+    end if;
+  end loop;
+
+  return v_product_id;
+end;
+$$;
+
+grant execute on function create_product(uuid, text, text, text, text, text, text[], jsonb, uuid, text) to authenticated;
+
+comment on function create_product(uuid, text, text, text, text, text, text[], jsonb, uuid, text) is
+  'Creates a product or a service (p_type) with its variants. For a product with opening stock, also writes the receive movement(s) that put it on the shelf, all in one transaction. Opening stock is silently ignored for a service — there is nothing to stock. See 0040 header.';
+
+-- ── create_sale(): rendered_by required (and self-scoped) for a service line,
+--    no stock check/movement for a service line ───────────────────────────
+--
+-- Reproduced in full from 0039's live body; changes are marked below.
+create or replace function create_sale(
+  p_branch_id uuid,
+  p_cashier_id uuid,
+  p_customer_id uuid,
+  p_payment_method text,
+  p_amount_tendered numeric,
+  p_items jsonb,                  -- [{variant_id, quantity, rendered_by}]
+  p_payments jsonb default null   -- [{method, amount, momo_number, momo_network}]
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_business_id   uuid;
+  v_sale_id       uuid;
+  v_item          jsonb;
+  v_pay           jsonb;
+  v_variant       record;
+  v_qty           numeric(14, 3);
+  v_reference     text;
+  v_settings      jsonb;
+  v_vat_enabled   boolean;
+  v_inclusive     boolean;
+  v_vat           numeric;
+  v_levies        numeric;
+  v_gross         numeric(14, 2);
+  v_base          numeric;
+  v_line_tax      numeric(14, 2);
+  v_line_subtotal numeric(14, 2);
+  v_subtotal      numeric(14, 2) := 0;
+  v_tax_total     numeric(14, 2) := 0;
+  v_total         numeric(14, 2) := 0;
+  v_change        numeric(14, 2) := 0;
+  v_lines         jsonb := '[]'::jsonb;
+  v_tenders       jsonb;
+  v_method        text;
+  v_amount        numeric(14, 2);
+  v_cash          numeric(14, 2) := 0;
+  v_momo          numeric(14, 2) := 0;
+  v_credit        numeric(14, 2) := 0;
+  v_methods       text[] := '{}';
+  v_credit_is_total boolean := false;
+  v_momo_is_remainder boolean := false;
+  v_summary       text;
+  v_status        text;
+  v_payment_id    uuid;
+  -- New in 0040: who rendered a service line, and whether this line is
+  -- one at all.
+  v_rendered_by   uuid;
+begin
+  if p_items is null or jsonb_array_length(p_items) < 1 then
+    raise exception 'A sale needs at least one item' using errcode = 'P0001';
+  end if;
+
+  -- The cashier is always whoever is actually signed in — never a value
+  -- the client chooses (0039). p_cashier_id stays in the signature only
+  -- so nothing needs a new overload; a caller may still pass their own
+  -- id for clarity, but anything else is refused outright rather than
+  -- silently ignored or silently honoured.
+  if p_cashier_id is not null and p_cashier_id <> auth.uid() then
+    raise exception 'A sale can only be attributed to the account that is signed in' using errcode = '42501';
+  end if;
+
+  -- Backwards compatible: a caller that passes no payments (everything
+  -- written before this migration, and every existing test) gets exactly
+  -- the old single-tender behaviour, derived from the two arguments it
+  -- did pass.
+  if p_payments is null then
+    if p_payment_method not in ('cash', 'credit') then
+      raise exception 'Unknown payment method' using errcode = '22023';
+    end if;
+    -- Note what the old form does NOT carry: an amount for a credit sale.
+    -- It passed amount_tendered = 0 there, meaning "the whole total",
+    -- which is not known until the lines are priced. The amount is left
+    -- out and filled in below rather than validated as a zero payment.
+    v_tenders := case
+      when p_payment_method = 'credit'
+        then jsonb_build_array(jsonb_build_object('method', 'credit'))
+      else jsonb_build_array(jsonb_build_object(
+        'method', 'cash', 'amount', coalesce(p_amount_tendered, 0)))
+    end;
+  else
+    v_tenders := p_payments;
+  end if;
+
+  if jsonb_array_length(v_tenders) < 1 then
+    raise exception 'A sale needs at least one payment' using errcode = 'P0001';
+  end if;
+
+  select business_id into v_business_id from branches where id = p_branch_id;
+  if v_business_id is null then
+    raise exception 'Invalid branch_id: branch not found' using errcode = 'P0002';
+  end if;
+
+  if p_customer_id is not null then
+    if not exists (select 1 from customers where id = p_customer_id and business_id = v_business_id) then
+      raise exception 'Invalid customer_id: customer not found' using errcode = 'P0002';
+    end if;
+  end if;
+
+  -- ── the tenders, before anything is written ───────────────────────────
+  for v_pay in select * from jsonb_array_elements(v_tenders)
+  loop
+    v_method := v_pay ->> 'method';
+    if v_method not in ('cash', 'momo', 'credit') then
+      raise exception 'Unknown payment method' using errcode = '22023';
+    end if;
+    if v_method = any (v_methods) then
+      raise exception 'The same payment method was given twice' using errcode = 'P0001';
+    end if;
+    v_methods := v_methods || v_method;
+
+    if v_method = 'cash' then
+      -- Cash is the one tender that may be short at this point: it is
+      -- allowed to be zero here and checked against the total below,
+      -- because the old two-argument form passes the tendered amount.
+      v_cash := coalesce((v_pay ->> 'amount')::numeric, 0);
+      if v_cash < 0 then
+        raise exception 'Cash tendered cannot be negative' using errcode = 'P0001';
+      end if;
+    elsif v_method = 'credit' and coalesce(jsonb_typeof(v_pay -> 'amount'), 'null') = 'null' then
+      -- "The whole total", filled in once the lines are priced.
+      v_credit_is_total := true;
+
+    elsif v_method = 'momo' and coalesce(jsonb_typeof(v_pay -> 'amount'), 'null') = 'null' then
+      -- "Whatever the cash did not cover", filled in once the lines are
+      -- priced. This is how the till asks for a mobile money charge: it
+      -- never names the amount, because it does not know the authoritative
+      -- total and must not be able to prompt a customer's phone for a
+      -- figure of its own choosing.
+      v_momo_is_remainder := true;
+      if coalesce(v_pay ->> 'momo_number', '') = '' then
+        raise exception 'A mobile money payment needs a phone number' using errcode = 'P0001';
+      end if;
+      if coalesce(v_pay ->> 'momo_network', '') not in ('mtn', 'vod', 'atl') then
+        raise exception 'Choose the customer''s mobile money network' using errcode = 'P0001';
+      end if;
+    else
+      v_amount := (v_pay ->> 'amount')::numeric;
+      if v_amount is null or v_amount <= 0 then
+        raise exception 'Every payment needs an amount greater than zero' using errcode = 'P0001';
+      end if;
+      if v_method = 'momo' then
+        v_momo := v_amount;
+        if coalesce(v_pay ->> 'momo_number', '') = '' then
+          raise exception 'A mobile money payment needs a phone number' using errcode = 'P0001';
+        end if;
+        if coalesce(v_pay ->> 'momo_network', '') not in ('mtn', 'vod', 'atl') then
+          raise exception 'Choose the customer''s mobile money network' using errcode = 'P0001';
+        end if;
+      else
+        v_credit := v_amount;
+      end if;
+    end if;
+  end loop;
+
+  -- On account is not a tender you can top up at the counter. Part-paying
+  -- an account sale is a payment AGAINST the account (0017), recorded
+  -- separately — mixing them here would mean re-checking a credit limit
+  -- long after the customer has left.
+  if (v_credit > 0 or v_credit_is_total) and array_length(v_methods, 1) > 1 then
+    raise exception 'An account sale cannot be part-paid at the till' using errcode = 'P0001';
+  end if;
+
+  if (v_credit > 0 or v_credit_is_total) and p_customer_id is null then
+    raise exception 'A credit sale needs a customer' using errcode = 'P0001';
+  end if;
+
+  -- 0020 wrote the account entry as the caller, so the account ledger's
+  -- own insert policy demanded customers.view. finalize_sale writes it as
+  -- its owner now, which would quietly have dropped that requirement, so
+  -- it is asserted here instead of being lost in the refactor.
+  if (v_credit > 0 or v_credit_is_total)
+     and not (app_has_permission(v_business_id, 'customers.view') or app_is_super_admin()) then
+    raise exception 'Missing permission: customers.view' using errcode = '42501';
+  end if;
+
+  select tax_settings into v_settings from business_settings where business_id = v_business_id;
+  v_vat_enabled := coalesce((v_settings ->> 'vat_enabled')::boolean, false);
+  v_inclusive   := coalesce((v_settings ->> 'vat_inclusive')::boolean, true);
+  v_vat         := coalesce((v_settings ->> 'vat_rate')::numeric, 0);
+  v_levies      := coalesce((v_settings ->> 'nhil_levy_rate')::numeric, 0)
+                 + coalesce((v_settings ->> 'getfund_levy_rate')::numeric, 0)
+                 + coalesce((v_settings ->> 'covid_levy_rate')::numeric, 0);
+
+  -- FIRST PASS: price every line and total the sale, writing nothing.
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_qty := (v_item ->> 'quantity')::numeric;
+    if v_qty is null or v_qty <= 0 then
+      raise exception 'Every line needs a quantity greater than zero' using errcode = 'P0001';
+    end if;
+
+    -- New in 0040: also read the product's type, so a service line can
+    -- skip the stock machinery entirely further down.
+    select v.id, v.sku, v.selling_price, v.cost_price, v.status, p.name, p.tax_category, p.type as product_type
+    into v_variant
+    from product_variants v
+    join products p on p.id = v.product_id
+    where v.id = (v_item ->> 'variant_id')::uuid
+      and v.business_id = v_business_id;
+
+    if v_variant.id is null then
+      raise exception 'Invalid variant_id: product not found' using errcode = 'P0002';
+    end if;
+    if v_variant.status <> 'active' then
+      raise exception 'That product is archived and cannot be sold' using errcode = 'P0001';
+    end if;
+
+    -- New in 0040: who did the work. Required and validated for a
+    -- service; ignored entirely for a product — there is no legitimate
+    -- "renderer" of a bag of rice, and a bogus value here grants nothing,
+    -- so it is simply dropped rather than treated as an error.
+    v_rendered_by := nullif(v_item ->> 'rendered_by', '')::uuid;
+
+    if v_variant.product_type = 'service' then
+      if v_rendered_by is null then
+        raise exception 'Choose who rendered "%"', v_variant.name using errcode = 'P0001';
+      end if;
+      if not exists (
+        select 1 from profiles
+        where id = v_rendered_by and business_id = v_business_id and status = 'active'
+      ) then
+        raise exception 'That person is not an active member of this business' using errcode = 'P0002';
+      end if;
+    else
+      v_rendered_by := null;
+    end if;
+
+    v_gross := round(v_variant.selling_price * v_qty, 2);
+
+    if not v_vat_enabled or v_variant.tax_category in ('zero_rated', 'exempt') then
+      v_line_tax := 0;
+      v_line_subtotal := v_gross;
+    elsif v_inclusive then
+      v_base := v_gross / ((1 + v_levies) * (1 + v_vat));
+      v_line_subtotal := round(v_base, 2);
+      v_line_tax := v_gross - v_line_subtotal;
+    else
+      v_line_subtotal := v_gross;
+      v_line_tax := round((v_gross * v_levies) + ((v_gross * (1 + v_levies)) * v_vat), 2);
+      v_gross := v_line_subtotal + v_line_tax;
+    end if;
+
+    v_lines := v_lines || jsonb_build_object(
+      'variant_id', v_variant.id,
+      'description', v_variant.name,
+      'sku', v_variant.sku,
+      'quantity', v_qty,
+      'unit_price', v_variant.selling_price,
+      -- What this unit COST us, captured now. Cost prices change; a
+      -- profit figure derived from today's cost applied to last month's
+      -- sale is not a rounder number, it is a wrong one.
+      'unit_cost', coalesce(v_variant.cost_price, 0),
+      'tax_category', v_variant.tax_category,
+      'line_subtotal', v_line_subtotal,
+      'line_tax', v_line_tax,
+      'line_total', v_gross,
+      'is_service', (v_variant.product_type = 'service'),
+      'rendered_by', v_rendered_by
+    );
+
+    v_subtotal  := v_subtotal + v_line_subtotal;
+    v_tax_total := v_tax_total + v_line_tax;
+    v_total     := v_total + v_gross;
+  end loop;
+
+  -- An account sale is for the whole total by definition; now that the
+  -- lines are priced, we know what that is.
+  if v_credit_is_total then
+    v_credit := v_total;
+  end if;
+
+  if v_momo_is_remainder then
+    v_momo := v_total - v_cash;
+    if v_momo <= 0 then
+      raise exception 'The cash already covers this sale — there is nothing to charge to mobile money'
+        using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- ── does the money add up? ────────────────────────────────────────────
+  if v_momo + v_credit > v_total then
+    raise exception 'The payments come to more than the sale' using errcode = 'P0001';
+  end if;
+
+  if v_credit > 0 and v_credit <> v_total then
+    raise exception 'An account sale must be for the whole amount' using errcode = 'P0001';
+  end if;
+
+  if v_cash + v_momo + v_credit < v_total then
+    raise exception 'Not enough tendered for a total of %', v_total using errcode = 'P0001';
+  end if;
+
+  if v_cash > 0 then
+    v_change := v_cash - (v_total - v_momo - v_credit);
+  end if;
+
+  -- A momo charge has not happened yet — it is a prompt on a phone that
+  -- the customer has three minutes to approve.
+  v_status := case when v_momo > 0 then 'awaiting_payment' else 'completed' end;
+
+  v_summary := case
+    when array_length(v_methods, 1) > 1 then 'split'
+    when v_credit > 0 then 'credit'
+    when v_momo > 0 then 'momo'
+    else 'cash'
+  end;
+
+  -- Receipt number, serialised per business so two tills cannot both
+  -- claim R-000042.
+  perform pg_advisory_xact_lock(hashtextextended('receipt:' || v_business_id::text, 0));
+
+  v_reference := next_receipt_number(v_business_id);
+
+  insert into sales (
+    business_id, branch_id, receipt_number, customer_id, status, payment_method,
+    subtotal, tax_total, total, amount_tendered, change_given, cashier_id, created_by
+  )
+  values (
+    v_business_id, p_branch_id, v_reference, p_customer_id,
+    'awaiting_payment', v_summary,
+    v_subtotal, v_tax_total, v_total, v_cash, v_change,
+    -- Always the signed-in account (0039) — never p_cashier_id.
+    auth.uid(), auth.uid()
+  )
+  returning id into v_sale_id;
+
+  -- SECOND PASS: the lines. A product line also takes stock out; a
+  -- service line (new in 0040) never touches the inventory ledger at
+  -- all — there is nothing to take off a shelf.
+  for v_item in select * from jsonb_array_elements(v_lines)
+  loop
+    insert into sale_items (
+      sale_id, business_id, variant_id, description, sku, quantity,
+      unit_price, unit_cost, cost_is_estimated, tax_category,
+      line_subtotal, line_tax, line_total, rendered_by
+    )
+    values (
+      v_sale_id, v_business_id, (v_item ->> 'variant_id')::uuid,
+      v_item ->> 'description', v_item ->> 'sku', (v_item ->> 'quantity')::numeric,
+      (v_item ->> 'unit_price')::numeric, (v_item ->> 'unit_cost')::numeric,
+      false, -- recorded at the moment of sale, not guessed afterwards
+      v_item ->> 'tax_category',
+      (v_item ->> 'line_subtotal')::numeric, (v_item ->> 'line_tax')::numeric,
+      (v_item ->> 'line_total')::numeric,
+      nullif(v_item ->> 'rendered_by', '')::uuid
+    );
+
+    if not (v_item ->> 'is_service')::boolean then
+      insert into inventory_movements (
+        business_id, branch_id, variant_id, quantity_delta, reason,
+        reference_type, reference_id, note
+      )
+      values (
+        '00000000-0000-0000-0000-000000000000', -- replaced by the BEFORE trigger
+        p_branch_id, (v_item ->> 'variant_id')::uuid, -(v_item ->> 'quantity')::numeric, 'sale',
+        'sale', v_sale_id, 'Sold on ' || v_reference
+      );
+    end if;
+  end loop;
+
+  -- THIRD PASS: the tenders themselves.
+  for v_pay in select * from jsonb_array_elements(v_tenders)
+  loop
+    v_method := v_pay ->> 'method';
+    v_amount := case
+      when v_method = 'cash' then v_cash
+      when v_method = 'credit' then v_credit
+      when v_method = 'momo' then v_momo
+      else (v_pay ->> 'amount')::numeric
+    end;
+
+    continue when v_amount is null or v_amount <= 0;
+
+    v_payment_id := gen_random_uuid();
+
+    insert into sale_payments (
+      id, business_id, sale_id, branch_id, method, amount, status,
+      provider, provider_reference, momo_number, momo_network, settled_at, created_by
+    )
+    values (
+      v_payment_id, v_business_id, v_sale_id, p_branch_id, v_method, v_amount,
+      case when v_method = 'momo' then 'pending' else 'success' end,
+      case when v_method = 'momo' then 'paystack' else null end,
+      case when v_method = 'momo' then v_payment_id::text else null end,
+      v_pay ->> 'momo_number', v_pay ->> 'momo_network',
+      case when v_method = 'momo' then null else now() end,
+      auth.uid()
+    );
+  end loop;
+
+  -- Nothing to wait for: complete it now, through the same function the
+  -- webhook will use.
+  if v_status = 'completed' then
+    perform finalize_sale(v_sale_id);
+  end if;
+
+  return v_sale_id;
+end;
+$$;
+
+grant execute on function create_sale(uuid, uuid, uuid, text, numeric, jsonb, jsonb) to authenticated;
+
+comment on function create_sale(uuid, uuid, uuid, text, numeric, jsonb, jsonb) is
+  'Rings up a sale in one transaction: the sale and its lines, the stock movements for product lines (never for a service line), and one row per tender. Prices, tax rates and costs are read from the database, never accepted from the caller. cashier_id is always the signed-in account (0039) — p_cashier_id may only be null or your own id. Each item may carry rendered_by, required and validated (an active profile in this business) for a service line, ignored for a product line (0040).';
+
+-- ── create_refund(): a service line is never restocked ───────────────────
+--
+-- Reproduced in full from 0039's live body; changes are marked below.
+create or replace function create_refund(
+  p_sale_id uuid,
+  p_cashier_id uuid,
+  p_method text,
+  p_reason text,
+  p_items jsonb -- [{sale_item_id, quantity, restock}]
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_sale        sales%rowtype;
+  v_item        jsonb;
+  v_line        sale_items%rowtype;
+  v_qty         numeric(14, 3);
+  v_already     numeric(14, 3);
+  v_restock     boolean;
+  v_refund_id   uuid;
+  v_reference   text;
+  v_line_total  numeric(14, 2);
+  v_line_tax    numeric(14, 2);
+  v_line_sub    numeric(14, 2);
+  v_subtotal    numeric(14, 2) := 0;
+  v_tax_total   numeric(14, 2) := 0;
+  v_total       numeric(14, 2) := 0;
+  v_lines       jsonb := '[]'::jsonb;
+  -- New in 0040: whether the sale line being returned was a service —
+  -- there is nothing to put back on a shelf for one, no matter what the
+  -- caller's restock flag says.
+  v_is_service  boolean;
+begin
+  if p_items is null or jsonb_array_length(p_items) < 1 then
+    raise exception 'Choose what is being returned' using errcode = 'P0001';
+  end if;
+
+  if p_method not in ('cash', 'credit') then
+    raise exception 'Unknown refund method' using errcode = '22023';
+  end if;
+
+  -- The cashier is always whoever is actually signed in — never a value
+  -- the client chooses (0039). Same reasoning as create_sale().
+  if p_cashier_id is not null and p_cashier_id <> auth.uid() then
+    raise exception 'A refund can only be attributed to the account that is signed in' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('sale_correction:' || p_sale_id::text, 0));
+
+  select * into v_sale from sales where id = p_sale_id;
+
+  if v_sale.id is null then
+    raise exception 'Sale not found' using errcode = 'P0002';
+  end if;
+  if v_sale.status <> 'completed' then
+    raise exception '%', case v_sale.status
+      when 'voided' then 'This sale was voided; there is nothing to refund'
+      when 'awaiting_payment' then 'This sale has not been paid for yet, so there is nothing to give back'
+      when 'cancelled' then 'This sale was cancelled before it was paid for'
+      else 'This sale cannot be refunded'
+    end using errcode = 'P0001';
+  end if;
+
+  if p_method = 'credit' and v_sale.customer_id is null then
+    raise exception 'This was a walk-in sale, so it can only be refunded in cash' using errcode = 'P0001';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_qty := (v_item ->> 'quantity')::numeric;
+    if v_qty is null or v_qty <= 0 then
+      continue;
+    end if;
+
+    select * into v_line from sale_items
+    where id = (v_item ->> 'sale_item_id')::uuid and sale_id = p_sale_id;
+
+    if v_line.id is null then
+      raise exception 'That line is not part of this sale' using errcode = 'P0002';
+    end if;
+
+    select (p.type = 'service') into v_is_service
+    from product_variants pv join products p on p.id = pv.product_id
+    where pv.id = v_line.variant_id;
+
+    v_already := sale_item_refunded_quantity(v_line.id);
+    if v_qty + v_already > v_line.quantity then
+      raise exception 'Only % of "%" is left to refund', v_line.quantity - v_already, v_line.description
+        using errcode = 'P0001';
+    end if;
+
+    v_line_total := round(v_line.line_total * v_qty / v_line.quantity, 2);
+    v_line_tax   := round(v_line.line_tax * v_qty / v_line.quantity, 2);
+    v_line_sub   := v_line_total - v_line_tax;
+
+    v_restock := coalesce((v_item ->> 'restock')::boolean, true);
+    if coalesce(v_is_service, false) then
+      v_restock := false;
+    end if;
+
+    v_lines := v_lines || jsonb_build_object(
+      'sale_item_id', v_line.id,
+      'variant_id', v_line.variant_id,
+      'quantity', v_qty,
+      'unit_price', v_line.unit_price,
+      'unit_cost', coalesce(v_line.unit_cost, 0),
+      'line_subtotal', v_line_sub,
+      'line_tax', v_line_tax,
+      'line_total', v_line_total,
+      'restock', v_restock
+    );
+
+    v_subtotal  := v_subtotal + v_line_sub;
+    v_tax_total := v_tax_total + v_line_tax;
+    v_total     := v_total + v_line_total;
+  end loop;
+
+  if jsonb_array_length(v_lines) = 0 then
+    raise exception 'Choose what is being returned' using errcode = 'P0001';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('refund:' || v_sale.business_id::text, 0));
+
+  v_reference := next_refund_number(v_sale.business_id);
+
+  insert into refunds (
+    business_id, sale_id, refund_number, method, reason,
+    subtotal, tax_total, total, cashier_id, created_by
+  )
+  values (
+    v_sale.business_id, p_sale_id, v_reference, p_method, nullif(p_reason, ''),
+    v_subtotal, v_tax_total, v_total,
+    -- Always the signed-in account (0039) — never p_cashier_id.
+    auth.uid(), auth.uid()
+  )
+  returning id into v_refund_id;
+
+  for v_item in select * from jsonb_array_elements(v_lines)
+  loop
+    insert into refund_items (
+      refund_id, business_id, sale_item_id, variant_id, quantity,
+      unit_price, unit_cost, line_subtotal, line_tax, line_total, restocked
+    )
+    values (
+      v_refund_id, v_sale.business_id, (v_item ->> 'sale_item_id')::uuid,
+      (v_item ->> 'variant_id')::uuid, (v_item ->> 'quantity')::numeric,
+      (v_item ->> 'unit_price')::numeric, (v_item ->> 'unit_cost')::numeric,
+      (v_item ->> 'line_subtotal')::numeric,
+      (v_item ->> 'line_tax')::numeric, (v_item ->> 'line_total')::numeric,
+      (v_item ->> 'restock')::boolean
+    );
+
+    if (v_item ->> 'restock')::boolean then
+      insert into inventory_movements (
+        business_id, branch_id, variant_id, quantity_delta, reason,
+        reference_type, reference_id, note
+      )
+      values (
+        '00000000-0000-0000-0000-000000000000', -- replaced by the BEFORE trigger
+        v_sale.branch_id, (v_item ->> 'variant_id')::uuid, (v_item ->> 'quantity')::numeric,
+        'sale_refund', 'refund', v_refund_id,
+        'Returned on ' || v_reference
+      );
+    end if;
+  end loop;
+
+  if p_method = 'credit' and v_total > 0 then
+    insert into customer_account_entries (
+      business_id, customer_id, branch_id, amount, entry_type, reference_type, reference_id, note
+    )
+    values (
+      '00000000-0000-0000-0000-000000000000', -- replaced by the BEFORE trigger
+      v_sale.customer_id, v_sale.branch_id, -v_total, 'refund', 'refund', v_refund_id,
+      'Refund ' || v_reference
+    );
+  end if;
+
+  insert into notifications (business_id, branch_id, type, severity, reference_type, reference_id, actor_user_id, data)
+  values (
+    v_sale.business_id, v_sale.branch_id, 'refund_created', 'warning', 'sale', p_sale_id, (select auth.uid()),
+    jsonb_build_object(
+      'receipt_number', v_sale.receipt_number,
+      'refund_number', v_reference,
+      'total', v_total,
+      'reason', nullif(p_reason, ''),
+      -- Always the signed-in account now (0039), same as the row itself.
+      'cashier_id', auth.uid()
+    )
+  );
+
+  return v_refund_id;
+end;
+$$;
+
+grant execute on function create_refund(uuid, uuid, text, text, jsonb) to authenticated;
+
+comment on function create_refund(uuid, uuid, text, text, jsonb) is
+  'Prices and records a return against a completed sale. Never re-derives a price: every figure is carried from the sale line it is returning. cashier_id is always the signed-in account (0039) — p_cashier_id may only be null or your own id. A service line is never restocked, regardless of the caller''s restock flag (0040) — there is nothing to put back on a shelf.';

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useRef, useState } from "react";
 import { useFormState } from "react-dom";
@@ -21,6 +21,9 @@ export interface TillProduct {
   price: number;
   onHand: number;
   unit: string;
+  /** 'service' (braiding, sewing, barbering...) never carries stock and
+   *  needs a renderer on its sale line — see migration 0040. */
+  type: "product" | "service";
 }
 
 export interface TillCustomer {
@@ -29,9 +32,21 @@ export interface TillCustomer {
   phone: string | null;
 }
 
+/** Any active staff member qualifies (no special tag/permission — see
+ *  migration 0040's header) — this is who rendered the service, not who
+ *  is allowed to sell it. */
+export interface TillStaff {
+  id: string;
+  name: string;
+}
+
 interface CartLine {
+  /** Client-only identity for this line — see addToCart(). Never sent to the server. */
+  key: string;
   variantId: string;
   quantity: number;
+  /** Only meaningful for a service line. Required by the database before checkout completes. */
+  renderedBy?: string;
 }
 
 type PaymentMethod = "cash" | "credit" | "momo" | "split";
@@ -42,6 +57,8 @@ interface TillProps {
   cashierName: string;
   products: TillProduct[];
   customers: TillCustomer[];
+  /** Active staff, for the "Who rendered this?" picker on a service line. */
+  staff: TillStaff[];
   currencyCode: string;
   /** From pos_settings — decides whether the till warns or refuses when stock runs out. */
   allowNegativeStock: boolean;
@@ -55,6 +72,7 @@ export function Till({
   cashierName,
   products,
   customers,
+  staff,
   currencyCode,
   allowNegativeStock,
   momoEnabled,
@@ -86,7 +104,15 @@ export function Till({
   }, [products, query]);
 
   function addToCart(variantId: string) {
+    const product = byId.get(variantId);
     setCart((lines) => {
+      // A service line is never merged: "barber A did the braiding,
+      // barber B did the dreadlocks" needs two separate lines of
+      // possibly the same service, each with its own renderer — so
+      // every service line is always brand new.
+      if (product?.type === "service") {
+        return [...lines, { key: crypto.randomUUID(), variantId, quantity: 1, renderedBy: "" }];
+      }
       const existing = lines.find((l) => l.variantId === variantId);
       // Scanning the same item twice bumps the quantity rather than
       // adding a second line — which is also what the checkout schema
@@ -94,7 +120,7 @@ export function Till({
       if (existing) {
         return lines.map((l) => (l.variantId === variantId ? { ...l, quantity: l.quantity + 1 } : l));
       }
-      return [...lines, { variantId, quantity: 1 }];
+      return [...lines, { key: crypto.randomUUID(), variantId, quantity: 1 }];
     });
     setQuery("");
     searchRef.current?.focus();
@@ -126,12 +152,14 @@ export function Till({
     }
   }
 
-  function setQuantity(variantId: string, quantity: number) {
+  function setQuantity(key: string, quantity: number) {
     setCart((lines) =>
-      quantity <= 0
-        ? lines.filter((l) => l.variantId !== variantId)
-        : lines.map((l) => (l.variantId === variantId ? { ...l, quantity } : l))
+      quantity <= 0 ? lines.filter((l) => l.key !== key) : lines.map((l) => (l.key === key ? { ...l, quantity } : l))
     );
+  }
+
+  function setRenderedBy(key: string, staffId: string) {
+    setCart((lines) => lines.map((l) => (l.key === key ? { ...l, renderedBy: staffId } : l)));
   }
 
   // A preview only. The database recomputes every figure from the catalog
@@ -151,9 +179,19 @@ export function Till({
   const momoPart =
     paymentMethod === "split" && Number.isFinite(cashPartNumber) ? total - cashPartNumber : total;
 
+  // A service has no shelf to run short on — it never carries stock — so
+  // it never counts toward a stock warning, only a product does.
   const shortLines = cart.filter((line) => {
     const p = byId.get(line.variantId);
-    return p ? line.quantity > p.onHand : false;
+    return p && p.type === "product" ? line.quantity > p.onHand : false;
+  });
+
+  // The database refuses a service line with no rendered_by anyway, but
+  // catching it here means the button is disabled with an inline hint
+  // instead of a rejected sale at the counter.
+  const missingRenderedBy = cart.some((line) => {
+    const p = byId.get(line.variantId);
+    return p?.type === "service" && !line.renderedBy;
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
@@ -207,9 +245,13 @@ export function Till({
                       >
                         <span>
                           <span className="font-medium">{p.label}</span>
-                          <span className="ml-2 text-sm text-neutral-500">
-                            {formatQuantity(p.onHand)} {p.unit} left
-                          </span>
+                          {p.type === "product" ? (
+                            <span className="ml-2 text-sm text-neutral-500">
+                              {formatQuantity(p.onHand)} {p.unit} left
+                            </span>
+                          ) : (
+                            <span className="ml-2 text-sm text-neutral-500">Service</span>
+                          )}
                         </span>
                         <span className="tabular-nums">{formatMoney(toMinorUnits(p.price), currencyCode)}</span>
                       </button>
@@ -228,32 +270,46 @@ export function Till({
                 cart.map((line) => {
                   const p = byId.get(line.variantId);
                   if (!p) return null;
-                  const short = line.quantity > p.onHand;
+                  const isService = p.type === "service";
+                  const short = !isService && line.quantity > p.onHand;
                   return (
-                    <li key={line.variantId} className="flex items-center gap-3 px-4 py-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{p.label}</p>
-                        <p className="text-sm text-neutral-500">
-                          {formatMoney(toMinorUnits(p.price), currencyCode)} each
-                          {short ? (
-                            <span className="ml-2 text-red-600 dark:text-red-400">
-                              only {formatQuantity(p.onHand)} in stock
-                            </span>
-                          ) : null}
-                        </p>
+                    <li key={line.key} className="flex flex-col gap-2 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{p.label}</p>
+                          <p className="text-sm text-neutral-500">
+                            {formatMoney(toMinorUnits(p.price), currencyCode)} each
+                            {short ? (
+                              <span className="ml-2 text-red-600 dark:text-red-400">
+                                only {formatQuantity(p.onHand)} in stock
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" variant="ghost" onClick={() => setQuantity(line.key, line.quantity - 1)}>
+                            −
+                          </Button>
+                          <span className="w-10 text-center tabular-nums">{formatQuantity(line.quantity)}</span>
+                          <Button type="button" variant="ghost" onClick={() => setQuantity(line.key, line.quantity + 1)}>
+                            +
+                          </Button>
+                        </div>
+                        <span className="w-24 text-right font-medium tabular-nums">
+                          {formatMoney(toMinorUnits(p.price * line.quantity), currencyCode)}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button type="button" variant="ghost" onClick={() => setQuantity(p.variantId, line.quantity - 1)}>
-                          −
-                        </Button>
-                        <span className="w-10 text-center tabular-nums">{formatQuantity(line.quantity)}</span>
-                        <Button type="button" variant="ghost" onClick={() => setQuantity(p.variantId, line.quantity + 1)}>
-                          +
-                        </Button>
-                      </div>
-                      <span className="w-24 text-right font-medium tabular-nums">
-                        {formatMoney(toMinorUnits(p.price * line.quantity), currencyCode)}
-                      </span>
+                      {isService ? (
+                        <Select
+                          label="Who rendered this?"
+                          value={line.renderedBy ?? ""}
+                          onChange={(e) => setRenderedBy(line.key, e.target.value)}
+                          options={[
+                            { value: "", label: "Choose a staff member…" },
+                            ...staff.map((s) => ({ value: s.id, label: s.name })),
+                          ]}
+                        />
+                      ) : null}
                     </li>
                   );
                 })
@@ -269,7 +325,17 @@ export function Till({
         {/* ── right: take payment ── */}
         <form action={formAction} className="flex flex-col gap-4" noValidate>
           <input type="hidden" name="branchId" value={branchId} />
-          <input type="hidden" name="cartJson" value={JSON.stringify(cart)} />
+          <input
+            type="hidden"
+            name="cartJson"
+            value={JSON.stringify(
+              cart.map((line) => ({
+                variantId: line.variantId,
+                quantity: line.quantity,
+                renderedBy: line.renderedBy || undefined,
+              }))
+            )}
+          />
 
           <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex items-baseline justify-between">
@@ -409,7 +475,17 @@ export function Till({
             </p>
           ) : null}
 
-          <SubmitButton pendingText="Taking payment…" className="min-h-[52px] text-base" disabled={cart.length === 0}>
+          {missingRenderedBy ? (
+            <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              Choose who rendered each service before taking payment.
+            </p>
+          ) : null}
+
+          <SubmitButton
+            pendingText="Taking payment…"
+            className="min-h-[52px] text-base"
+            disabled={cart.length === 0 || missingRenderedBy}
+          >
             {paymentMethod === "cash"
               ? "Take cash"
               : paymentMethod === "credit"

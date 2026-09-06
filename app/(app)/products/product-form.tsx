@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
@@ -28,6 +28,8 @@ export interface ProductFormBranch {
   name: string;
 }
 
+export type ProductFormType = "product" | "service";
+
 function emptyVariant(optionNames: string[]): VariantRow {
   return {
     sku: "",
@@ -40,9 +42,22 @@ function emptyVariant(optionNames: string[]): VariantRow {
 }
 
 /** Create-product form: base details + an optional variant-axis definition + one row per starting SKU. Every product needs at least one variant even if "This product comes in variants" stays unchecked — that single row becomes the product's sole (is_default) variant server-side. */
-export function ProductForm({ branches, canReceiveStock }: { branches: ProductFormBranch[]; canReceiveStock: boolean }) {
+export function ProductForm({
+  branches,
+  canReceiveStock,
+  initialType = "product",
+}: {
+  branches: ProductFormBranch[];
+  canReceiveStock: boolean;
+  initialType?: ProductFormType;
+}) {
   const [state, formAction] = useFormState(createProduct, initialState);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
+  // Type is fixed at creation — there is no "convert a product into a
+  // service" flow, so this is a one-time choice, not something that can
+  // be edited later (see migration 0040's header).
+  const [type, setType] = useState<ProductFormType>(initialType);
+  const isService = type === "service";
 
   const [hasVariants, setHasVariants] = useState(false);
   const [optionNamesText, setOptionNamesText] = useState("");
@@ -76,7 +91,10 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
 
   // The branch box only appears once there is stock to place, so a shop
   // adding a product that has not arrived yet is never asked where it is.
-  const anyOpeningStock = effectiveVariants.some((row) => Number(row.openingStock) > 0);
+  // A service never carries stock (migration 0040 — create_product
+  // ignores opening_stock entirely for type='service'), so this never
+  // applies to one, regardless of what's in the boxes.
+  const anyOpeningStock = !isService && effectiveVariants.some((row) => Number(row.openingStock) > 0);
   const effectiveOptionNames = hasVariants ? optionNames : [];
 
   return (
@@ -86,6 +104,36 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
           {state.error}
         </p>
       ) : null}
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">What is this?</span>
+        <div className="flex gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+          <button
+            type="button"
+            onClick={() => setType("product")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+              !isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+            }`}
+          >
+            Product
+          </button>
+          <button
+            type="button"
+            onClick={() => setType("service")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+              isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+            }`}
+          >
+            Service
+          </button>
+        </div>
+        {isService ? (
+          <p className="text-sm text-neutral-500">
+            A service (braiding, sewing, barbering...) is sold just like a product, but it never carries stock, and
+            each sale of it will ask who rendered it.
+          </p>
+        ) : null}
+      </div>
 
       <div className="flex flex-col gap-4">
         <Field label="Product name" name="name" required error={state.fieldErrors?.name} />
@@ -181,7 +229,7 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
                     error={state.fieldErrors?.[`variants.${index}.sellingPrice`]}
                   />
                 </div>
-                {canReceiveStock ? (
+                {canReceiveStock && !isService ? (
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
                     <Field
                       label="Stock on hand now"
@@ -218,7 +266,7 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
         </p>
       ) : null}
 
-      {canReceiveStock && anyOpeningStock ? (
+      {canReceiveStock && !isService && anyOpeningStock ? (
         <div className="flex flex-col gap-2">
           <Select
             label="Where is this stock?"
@@ -237,6 +285,7 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
         <input type="hidden" name="branchId" value="" />
       )}
 
+      <input type="hidden" name="type" value={type} />
       <input type="hidden" name="variantOptionNamesJson" value={JSON.stringify(effectiveOptionNames)} />
       <input
         type="hidden"
@@ -248,13 +297,13 @@ export function ProductForm({ branches, canReceiveStock }: { branches: ProductFo
             variantOptions: hasVariants ? row.variantOptions : {},
             costPrice: row.costPrice,
             sellingPrice: row.sellingPrice,
-            openingStock: canReceiveStock ? row.openingStock : "",
+            openingStock: canReceiveStock && !isService ? row.openingStock : "",
           }))
         )}
       />
 
       <SubmitButton pendingText="Creating…" className="self-start px-6">
-        Create product
+        {isService ? "Create service" : "Create product"}
       </SubmitButton>
     </form>
   );

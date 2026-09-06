@@ -36,7 +36,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, category, unit_of_measure, tax_category, has_variants, variant_option_names, status, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
+      "id, name, description, category, unit_of_measure, tax_category, has_variants, variant_option_names, status, type, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -49,6 +49,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
+  // A service never carries stock (migration 0040), so the whole "In
+  // stock" column is meaningless for one — not just empty, but genuinely
+  // not applicable — and is hidden rather than shown as "none".
+  const showStock = canViewStock && product.type === "product";
+
   // sku is optional (0014) — a.sku.localeCompare would throw on null, so
   // variants without one sort after every variant that has one, and
   // amongst themselves by nothing in particular (insertion order).
@@ -59,7 +64,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   // the rows away silently and the column would read "none" for a product
   // that is fully stocked — a wrong answer is worse than no column.
   const variantIds = product.product_variants.map((v: { id: string }) => v.id);
-  const { data: stockRows, error: stockError } = canViewStock && variantIds.length
+  const { data: stockRows, error: stockError } = showStock && variantIds.length
     ? await supabase
         .from("stock_levels")
         .select("variant_id, quantity, branches(name)")
@@ -94,6 +99,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{product.name}</h1>
+            {product.type === "service" ? (
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                Service
+              </span>
+            ) : null}
             {product.status === "archived" ? (
               <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                 Archived
@@ -142,7 +152,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   {product.has_variants ? <th className="px-4 py-3 font-medium">Options</th> : null}
                   <th className="px-4 py-3 font-medium">Cost</th>
                   <th className="px-4 py-3 font-medium">Price</th>
-                  {canViewStock ? <th className="px-4 py-3 font-medium">In stock</th> : null}
+                  {showStock ? <th className="px-4 py-3 font-medium">In stock</th> : null}
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium"></th>
                 </tr>
@@ -157,7 +167,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     ) : null}
                     <td className="px-4 py-3">{formatMoneyMinor(variant.cost_price, currencyCode)}</td>
                     <td className="px-4 py-3">{formatMoneyMinor(variant.selling_price, currencyCode)}</td>
-                    {canViewStock ? (
+                    {showStock ? (
                     <td className="px-4 py-3 tabular-nums">
                       {(stockByVariant.get(variant.id) ?? []).length === 0 ? (
                         <span className="text-neutral-400">none</span>

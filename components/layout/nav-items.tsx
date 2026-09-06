@@ -4,6 +4,7 @@ import {
   History,
   Package,
   PackagePlus,
+  Scissors,
   Boxes,
   PackageCheck,
   SlidersHorizontal,
@@ -96,6 +97,12 @@ export const NAV_TREE: NavEntry[] = [
   group("Products", Package, [
     leaf("All Products", "/products", Package, "canViewProducts"),
     leaf("Add Product", "/products/new", PackagePlus, "canCreateProducts"),
+    // Services (braiding, sewing, barbering...) are products with
+    // type='service' under the hood (migration 0040) — reusing the exact
+    // same products.view/products.create permissions rather than a
+    // separate services.* set, per that migration's header.
+    leaf("Services", "/products?type=service", Scissors, "canViewProducts"),
+    leaf("Add Service", "/products/new?type=service", Scissors, "canCreateProducts"),
   ]),
   group("Inventory", Boxes, [
     leaf("Stock Levels", "/inventory", Boxes, "canViewInventory"),

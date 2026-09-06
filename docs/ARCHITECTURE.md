@@ -466,6 +466,77 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Added services (braiding, sewing, barbering...) to the POS,
+  functional exactly like products, with each sale line tied to whoever
+  actually did the work. Requested directly: "sales or service rendered
+  should be tied to person who rendered so we track records — example
+  barber A renders hair dying and barber B renders dreadlocks."
+
+  Explained the design and asked three clarifying questions before writing
+  any code (per this project's standing rule to discuss major architectural
+  changes first): whether a renderer needs a special tag/permission (any
+  active staff member, chosen), whether managing services should use a new
+  `services.*` permission set or reuse `products.*` (reuse, chosen — see
+  `docs/RBAC.md`'s new "Services reuse products.*" section for why this
+  wasn't a close call: this project has never once backfilled a permission
+  onto existing tenants' roles, since `seed_default_roles_for_business()`
+  only runs at registration), and whether a dedicated staff-performance
+  report was wanted now or later (later — just capture the data, chosen).
+
+  A service is a `products` row with `type = 'service'` (`0040_services.sql`)
+  — same table, same variants, same till search, same tax handling, same
+  receipts — not a parallel schema. `create_product()` (new 10-arg overload,
+  dropping the old 9-arg one first per the pattern documented in 0026's own
+  header) ignores opening stock and never requires a branch for a service,
+  regardless of what a tampered request sends, since a service never
+  carries stock. `sale_items.rendered_by` (new column) records who did the
+  work — required and server-validated by `create_sale()` (must be an
+  active profile in the caller's own business) for a service line, forced
+  to `null` for a product line regardless of client input. This is
+  deliberately **not** an authentication boundary like `cashier_id` (0039):
+  naming a colleague as a renderer grants no privilege and unlocks no data,
+  so there is no PIN/password check on them, only tenant-membership and
+  active-status checks — see `docs/RBAC.md` for the contrast spelled out in
+  full. `create_sale()`/`create_refund()` skip the stock ledger entirely
+  for a service line by simply never inserting an `inventory_movements`
+  row for it — stock validation lives inside `apply_inventory_movement()`'s
+  trigger (0015), not inside `create_sale()` itself, so omitting the insert
+  is sufficient; a refund of a service line is never treated as a restock,
+  even if the client explicitly asks for one.
+
+  Verified against a real Postgres instance before being called done: a
+  bug in the new `create_product()`/`create_sale()` bodies (an invalid
+  `RAISE`-format `%s` instead of PL/pgSQL's bare `%`) was caught before
+  ever running the migration; a second bug in the new
+  `tests/security/services.sql` itself (a `create table` running under
+  `set role authenticated`, which lacks `create` on schema `public`) was
+  caught on first run and fixed to match the same reset-role-before-DDL
+  pattern every other security test file already uses. The full CI-ordered
+  security suite (17 files, adding `services.sql`) passes with zero
+  regressions against a completely from-scratch database (stub + all 40
+  migrations + seed, not an incremental apply).
+
+  Application layer: a Product/Service toggle on the add-product form
+  (type is fixed at creation — there is no convert-in-place flow); a
+  Services/Add Service pair in the Products nav group and a type filter
+  tab on the products list, both reusing `canViewProducts`/
+  `canCreateProducts` rather than new permission keys; the till never
+  merges two service cart lines together (a product still merges by
+  scanning twice — a service always gets a new line, since "barber A did
+  the braiding, barber B did the dreadlocks" needs two lines of possibly
+  the same service with two different renderers) and shows a "Who rendered
+  this?" picker per service line, disabling checkout until every service
+  line has one; the sale detail page shows "Rendered by {name}" under a
+  service line; the refund form replaces the "back on the shelf" checkbox
+  with a static note for a service line, since the database ignores that
+  choice for one anyway. **Scope decision, stated plainly here rather than
+  silently under-delivered**: only the internal sale detail page
+  (`/sales/[id]`) shows `rendered_by` — the printed customer receipt
+  (`/sales/[id]/receipt`) does not, which is narrower than this entry's own
+  early framing of "receipt and sales history/detail view." No dedicated
+  revenue-by-staff report was built, per the user's own "just capture it
+  for now" choice — the data is on the row, ready for one later.
+
 - 2026-09-06 — A Cashier now sees only their own sales, refunds and
   payments; Managers/Owners (anyone with `reports.view`) still see
   everything. Requested directly: a Cashier holding `sales.process` could

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
@@ -22,6 +22,11 @@ export interface RefundableLine {
   unitPrice: number;
   /** What one unit of this line was actually charged, tax included. */
   unitTotal: number;
+  /** A service never carries stock (migration 0040) — create_refund
+   *  forces restock to false for one regardless of what's sent, so the
+   *  checkbox is replaced with a static note rather than offering a
+   *  choice that can't actually take effect. */
+  isService?: boolean;
 }
 
 interface RefundFormProps {
@@ -40,7 +45,7 @@ interface LineState {
 export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundFormProps) {
   const [state, formAction] = useFormState(action, initialState);
   const [rows, setRows] = useState<Record<string, LineState>>(() =>
-    Object.fromEntries(lines.map((l) => [l.saleItemId, { quantity: "", restock: true }]))
+    Object.fromEntries(lines.map((l) => [l.saleItemId, { quantity: "", restock: !l.isService }]))
   );
 
   function patch(saleItemId: string, next: Partial<LineState>) {
@@ -118,16 +123,20 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={row.restock}
-                          disabled={outstanding <= 0}
-                          onChange={(e) => patch(line.saleItemId, { restock: e.target.checked })}
-                          className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
-                        />
-                        <span className="text-neutral-600 dark:text-neutral-300">Back on the shelf</span>
-                      </label>
+                      {line.isService ? (
+                        <span className="text-sm text-neutral-500">— (service)</span>
+                      ) : (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={row.restock}
+                            disabled={outstanding <= 0}
+                            onChange={(e) => patch(line.saleItemId, { restock: e.target.checked })}
+                            className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+                          />
+                          <span className="text-neutral-600 dark:text-neutral-300">Back on the shelf</span>
+                        </label>
+                      )}
                     </td>
                   </tr>
                 );

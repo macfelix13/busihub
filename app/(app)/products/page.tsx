@@ -16,6 +16,7 @@ interface ProductRow {
   category: string | null;
   status: "active" | "archived";
   has_variants: boolean;
+  type: "product" | "service";
   // numeric(14,2) comes back from PostgREST as a string, not a number —
   // see the comment on lib/money/money.ts's toNumber().
   product_variants: { selling_price: number | string }[];
@@ -33,11 +34,12 @@ function priceRangeLabel(variants: { selling_price: number | string }[], currenc
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; category?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; category?: string; type?: string; page?: string }>;
 }) {
-  const { q, status, category, page } = await searchParams;
+  const { q, status, category, type, page } = await searchParams;
   const activeStatus = status === "archived" ? "archived" : "active";
   const activeCategory = category && category.trim().length > 0 ? category.trim() : null;
+  const activeType = type === "product" || type === "service" ? type : "all";
   const pageNumber = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
 
   const supabase = await createServerSupabaseClient();
@@ -69,7 +71,7 @@ export default async function ProductsPage({
   // exact count, not "fetch everything and slice it in JavaScript".
   let query = supabase
     .from("products")
-    .select("id, name, category, status, has_variants, product_variants(selling_price)", {
+    .select("id, name, category, status, has_variants, type, product_variants(selling_price)", {
       count: "exact",
     })
     .eq("status", activeStatus)
@@ -84,6 +86,10 @@ export default async function ProductsPage({
     query = query.eq("category", activeCategory);
   }
 
+  if (activeType !== "all") {
+    query = query.eq("type", activeType);
+  }
+
   const { data: products, error, count } = await query;
 
   if (error) {
@@ -96,7 +102,14 @@ export default async function ProductsPage({
     ...(q ? { q } : {}),
     ...(activeStatus === "archived" ? { status: "archived" } : {}),
     ...(activeCategory ? { category: activeCategory } : {}),
+    ...(activeType !== "all" ? { type: activeType } : {}),
     ...overrides,
+  });
+  const typeQuery = (t: "all" | "product" | "service") => ({
+    ...(q ? { q } : {}),
+    ...(activeStatus === "archived" ? { status: "archived" } : {}),
+    ...(activeCategory ? { category: activeCategory } : {}),
+    ...(t !== "all" ? { type: t } : {}),
   });
 
   return (
@@ -104,39 +117,73 @@ export default async function ProductsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Products</h1>
-          <p className="text-neutral-500">Your catalog of sellable items.</p>
+          <p className="text-neutral-500">Your catalog of sellable items and services.</p>
         </div>
         {canCreate ? (
-          <Link href="/products/new">
-            <Button>Add product</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/products/new">
+              <Button>Add product</Button>
+            </Link>
+            <Link href="/products/new?type=service">
+              <Button variant="secondary">Add service</Button>
+            </Link>
+          </div>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-          <Link
-            href={{ pathname: "/products", query: { ...(q ? { q } : {}), ...(activeCategory ? { category: activeCategory } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Active
-          </Link>
-          <Link
-            href={{
-              pathname: "/products",
-              query: { status: "archived", ...(q ? { q } : {}), ...(activeCategory ? { category: activeCategory } : {}) },
-            }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Archived
-          </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+            <Link
+              href={{ pathname: "/products", query: { ...(q ? { q } : {}), ...(activeCategory ? { category: activeCategory } : {}), ...(activeType !== "all" ? { type: activeType } : {}) } }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+              }`}
+            >
+              Active
+            </Link>
+            <Link
+              href={{
+                pathname: "/products",
+                query: { status: "archived", ...(q ? { q } : {}), ...(activeCategory ? { category: activeCategory } : {}), ...(activeType !== "all" ? { type: activeType } : {}) },
+              }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+              }`}
+            >
+              Archived
+            </Link>
+          </div>
+          <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+            <Link
+              href={{ pathname: "/products", query: typeQuery("all") }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeType === "all" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+              }`}
+            >
+              All
+            </Link>
+            <Link
+              href={{ pathname: "/products", query: typeQuery("product") }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeType === "product" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+              }`}
+            >
+              Products
+            </Link>
+            <Link
+              href={{ pathname: "/products", query: typeQuery("service") }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                activeType === "service" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
+              }`}
+            >
+              Services
+            </Link>
+          </div>
         </div>
         <form className="flex flex-wrap gap-2" action="/products">
           {activeStatus === "archived" ? <input type="hidden" name="status" value="archived" /> : null}
+          {activeType !== "all" ? <input type="hidden" name="type" value={activeType} /> : null}
           <input
             type="search"
             name="q"
@@ -179,6 +226,11 @@ export default async function ProductsPage({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{product.name}</span>
+                        {product.type === "service" ? (
+                          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                            Service
+                          </span>
+                        ) : null}
                         {product.has_variants ? (
                           <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                             {product.product_variants.length} variants
@@ -195,7 +247,13 @@ export default async function ProductsPage({
               ))
             ) : (
               <li className="px-5 py-8 text-center text-sm text-neutral-500">
-                {activeStatus === "archived" ? "No archived products." : "No products yet."}
+                {activeStatus === "archived"
+                  ? "No archived items."
+                  : activeType === "service"
+                    ? "No services yet."
+                    : activeType === "product"
+                      ? "No products yet."
+                      : "No products or services yet."}
               </li>
             )}
           </ul>

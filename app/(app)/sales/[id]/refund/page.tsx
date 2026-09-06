@@ -1,4 +1,4 @@
-﻿import { notFound, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -15,6 +15,9 @@ interface ItemRow {
   quantity: number | string;
   unit_price: number | string;
   line_total: number | string;
+  // Whether this line's product is a service — a service never carries
+  // stock (migration 0040), so "back on the shelf" doesn't apply to it.
+  product_variants: { products: { type: "product" | "service" } | null } | null;
 }
 
 export default async function RefundSalePage({ params }: { params: Promise<{ id: string }> }) {
@@ -53,7 +56,10 @@ export default async function RefundSalePage({ params }: { params: Promise<{ id:
   }
 
   const [{ data: items, error: itemsError }, { data: refundedRows, error: refundedError }] = await Promise.all([
-    supabase.from("sale_items").select("id, description, sku, quantity, unit_price, line_total").eq("sale_id", id),
+    supabase
+      .from("sale_items")
+      .select("id, description, sku, quantity, unit_price, line_total, product_variants(products(type))")
+      .eq("sale_id", id),
     // How much of each line has already gone back, across every previous
     // refund — the same cumulative rule create_refund enforces. The inner
     // join on refunds is what scopes this to *this* sale; without it the
@@ -83,6 +89,7 @@ export default async function RefundSalePage({ params }: { params: Promise<{ id:
       // What one unit actually cost including tax, derived from the line
       // rather than the catalog — the same basis create_refund uses.
       unitTotal: sold > 0 ? lineTotal / sold : 0,
+      isService: item.product_variants?.products?.type === "service",
     };
   });
 

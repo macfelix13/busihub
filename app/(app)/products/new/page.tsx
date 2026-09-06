@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -7,7 +7,13 @@ import { ProductForm, type ProductFormBranch } from "../product-form";
 
 export const metadata = { title: "Add product" };
 
-export default async function NewProductPage() {
+export default async function NewProductPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const { type } = await searchParams;
+  const initialType = type === "service" ? "service" : "product";
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
   const [canCreate, canReceiveStock, { data: branchRows, error: branchesError }] = await Promise.all([
@@ -38,13 +44,18 @@ export default async function NewProductPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Add product</h1>
+        <h1 className="text-2xl font-semibold">{initialType === "service" ? "Add service" : "Add product"}</h1>
         <p className="text-neutral-500">
-          New products start active. If the goods are already on your shelf, put the quantity in and it is recorded
-          as stock received today.
+          {initialType === "service"
+            ? "New services start active. You can switch to “Product” below if you picked the wrong tab."
+            : "New products start active. If the goods are already on your shelf, put the quantity in and it is recorded as stock received today."}
         </p>
       </div>
-      <ProductForm branches={branches} canReceiveStock={canReceiveStock && branches.length > 0} />
+      <ProductForm
+        branches={branches}
+        canReceiveStock={canReceiveStock && branches.length > 0}
+        initialType={initialType}
+      />
     </div>
   );
 }

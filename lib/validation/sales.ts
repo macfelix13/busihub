@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { decimalField } from "./numeric";
 // One definition of the networks, shared with the Paystack settings — two
 // lists would drift, and the one that drifted would be the one that
@@ -37,6 +37,14 @@ const tenderedSchema = z.preprocess(
 export const cartLineSchema = z.object({
   variantId: z.string().uuid("Choose a product"),
   quantity: quantitySchema,
+  // Who actually did the work, for a service line (migration 0040). Blank
+  // for a product line, or when nothing was picked yet — the database is
+  // what actually requires and validates this for a service line
+  // (create_sale refuses a service with no rendered_by, or one naming
+  // someone outside the caller's own business, or an inactive profile);
+  // this is just shaped so a blank value round-trips cleanly rather than
+  // failing .uuid() on "".
+  renderedBy: z.union([z.literal(""), z.string().uuid()]).optional(),
 });
 
 export type CartLineInput = z.infer<typeof cartLineSchema>;
@@ -116,17 +124,24 @@ export const checkoutSchema = z
     }
 
     // Same product twice would be two lines for one item; the till merges
-    // them as you scan, so this only fires on a malformed submission.
+    // them as you scan, so this only fires on a malformed submission. A
+    // service is different on purpose: the till never merges service
+    // lines (see till.tsx), because "barber A did the braiding, barber B
+    // did the dreadlocks" is two lines of possibly the same service with
+    // two different renderers — so the dedup key includes renderedBy,
+    // and only a byte-for-byte duplicate (same variant, same renderer,
+    // or same product line twice) is rejected here.
     const seen = new Set<string>();
     data.items.forEach((line, index) => {
-      if (seen.has(line.variantId)) {
+      const key = `${line.variantId}::${line.renderedBy ?? ""}`;
+      if (seen.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "This item is already on the sale.",
           path: ["items", index, "variantId"],
         });
       }
-      seen.add(line.variantId);
+      seen.add(key);
     });
   });
 

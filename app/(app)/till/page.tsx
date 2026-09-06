@@ -5,7 +5,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { readTillSession } from "@/lib/auth/till-session";
 import { PinPad, type TillCashier, type TillColleague } from "./pin-pad";
-import { Till, type TillProduct, type TillCustomer } from "./till";
+import { Till, type TillProduct, type TillCustomer, type TillStaff } from "./till";
 
 export const metadata = { title: "Till" };
 
@@ -15,7 +15,7 @@ interface RawVariant {
   barcode: string | null;
   variant_options: Record<string, string> | null;
   selling_price: number | string;
-  products: { name: string; unit_of_measure: string } | null;
+  products: { name: string; unit_of_measure: string; type: "product" | "service" } | null;
 }
 
 export default async function TillPage({
@@ -112,6 +112,7 @@ export default async function TillPage({
     { data: customers, error: customersError },
     { data: settings },
     { data: momoEnabled },
+    { data: staffRows, error: staffError },
   ] = await Promise.all([
     supabase
       .from("branches")
@@ -121,7 +122,7 @@ export default async function TillPage({
       .order("name"),
     supabase
       .from("product_variants")
-      .select("id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status)")
+      .select("id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type)")
       .eq("status", "active")
       .eq("products.status", "active"),
     supabase.from("customers").select("id, name, phone").eq("status", "active").order("name"),
@@ -129,11 +130,22 @@ export default async function TillPage({
     // One bit, not the payment settings row: a cashier cannot read that
     // table at all, and does not need to (migration 0024).
     supabase.rpc("business_momo_enabled", { p_business_id: businessId }),
+    // Who can be named as having rendered a service line. Any active
+    // staff member qualifies — no special tag/permission (migration
+    // 0040's header) — so this is every active profile, not a filtered
+    // subset like "colleagues" above (which deliberately excludes the
+    // caller and is used only for the switch-user flow).
+    supabase
+      .from("profiles")
+      .select("id, display_name, first_name, last_name")
+      .eq("status", "active")
+      .order("first_name"),
   ]);
 
   if (branchesError) console.error("TillPage: branches query failed", branchesError);
   if (variantsError) console.error("TillPage: variants query failed", variantsError);
   if (customersError) console.error("TillPage: customers query failed", customersError);
+  if (staffError) console.error("TillPage: staff query failed", staffError);
 
   const activeBranch = branches?.find((b) => b.id === branch) ?? branches?.[0] ?? null;
 
@@ -173,6 +185,7 @@ export default async function TillPage({
         price: Number(v.selling_price),
         onHand: onHand.get(v.id) ?? 0,
         unit: v.products?.unit_of_measure ?? "each",
+        type: v.products?.type ?? "product",
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -181,6 +194,14 @@ export default async function TillPage({
     id: c.id,
     name: c.name,
     phone: c.phone,
+  }));
+
+  const staffList: TillStaff[] = (staffRows ?? []).map((s) => ({
+    id: s.id,
+    name:
+      (s as { display_name: string | null }).display_name ||
+      [s.first_name, s.last_name].filter(Boolean).join(" ") ||
+      "Unnamed",
   }));
 
   const allowNegativeStock = Boolean(
@@ -194,6 +215,7 @@ export default async function TillPage({
       cashierName={till.name}
       products={products}
       customers={tillCustomers}
+      staff={staffList}
       currencyCode={currencyCode}
       allowNegativeStock={allowNegativeStock}
       momoEnabled={Boolean(momoEnabled)}

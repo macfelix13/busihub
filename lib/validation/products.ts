@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { decimalField } from "./numeric";
 
 /**
@@ -161,9 +161,21 @@ function validateNoDuplicates(variants: VariantRowInput[], ctx: z.RefinementCtx,
   });
 }
 
+/**
+ * A service (braiding, sewing, barbering...) is a product with
+ * type = 'service' — same catalog row shape, same variants, same
+ * permissions (products.*, per the decision recorded in migration
+ * 0040's header) — it just never carries stock and its sale lines
+ * require a rendered_by. Defaults to "product" so every pre-existing
+ * caller/form that doesn't know about this field keeps working exactly
+ * as before.
+ */
+export const productTypeSchema = z.enum(["product", "service"]);
+
 /** Full create-product form: product details + variant axis names + >=1 starting variant. */
 export const createProductSchema = productDetailsSchema
   .extend({
+    type: productTypeSchema.default("product"),
     variantOptionNames: z.array(z.string().trim().min(1).max(40)).max(3).default([]),
     variants: z.array(variantRowSchema).min(1, "At least one variant is required").max(200),
     /** Where any opening stock lands. Only required if some is given. */
@@ -175,8 +187,10 @@ export const createProductSchema = productDetailsSchema
 
     // create_product refuses this too. Catching it here means the message
     // names the branch box rather than arriving as a rejected product
-    // with a form full of typing to redo.
-    if (data.variants.some((v) => v.openingStock > 0) && !data.branchId) {
+    // with a form full of typing to redo. A service never carries stock —
+    // create_product ignores opening_stock entirely for type='service' —
+    // so this check doesn't apply to one, even if a stray value is present.
+    if (data.type !== "service" && data.variants.some((v) => v.openingStock > 0) && !data.branchId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Choose which branch this stock is at.",

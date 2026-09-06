@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -44,6 +44,7 @@ function createProductFormValues(formData: FormData) {
     category: formData.get("category"),
     unitOfMeasure: formData.get("unitOfMeasure"),
     taxCategory: formData.get("taxCategory"),
+    type: formData.get("type") || "product",
     variantOptionNames: jsonField<string[]>(formData, "variantOptionNamesJson", []),
     variants: jsonField<unknown[]>(formData, "variantsJson", []),
     branchId: formData.get("branchId"),
@@ -92,7 +93,7 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { name, description, category, unitOfMeasure, taxCategory, variantOptionNames, variants, branchId } =
+  const { name, description, category, unitOfMeasure, taxCategory, type, variantOptionNames, variants, branchId } =
     parsed.data;
 
   const { error } = await supabase.rpc("create_product", {
@@ -111,10 +112,13 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
       selling_price: v.sellingPrice,
       // Opening stock becomes a real `receive` movement inside
       // create_product, in the same transaction as the product itself
-      // (migration 0026) — never a written stock level.
+      // (migration 0026) — never a written stock level. For a service,
+      // create_product (0040) ignores this entirely, regardless of what
+      // is sent, since a service never carries stock.
       opening_stock: v.openingStock,
     })),
     p_branch_id: branchId || null,
+    p_type: type,
   });
 
   if (error) {

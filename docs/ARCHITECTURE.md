@@ -466,6 +466,30 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Follow-up to the till-availability toggle shipped earlier
+  the same day: "some available products and services (6 or more) should
+  always be seen in the till page" — the toggle itself (below) only
+  controlled which items were *eligible* to appear; the till's own UI
+  still required typing something into the search box before any product
+  or service showed up at all, so a brand-new cashier facing an empty
+  screen had no way to discover what was sellable without already knowing
+  a name or SKU. This is a client-only change — `app/(app)/till/page.tsx`
+  was already fetching every `available_at_till` item up front for the
+  search-matching logic, so no new query, migration, or permission check
+  was needed.
+
+  `app/(app)/till/till.tsx` now renders a tappable grid of every available
+  product/service by default (sorted the same way the search results
+  already were), inside a scrollable panel so a large catalog doesn't push
+  the payment panel off-screen; typing in the search box still replaces it
+  with the existing filtered list, unchanged. An empty grid (a business
+  with nothing currently set to show at the till) explains why in plain
+  language and points at the toggle rather than rendering a blank panel.
+  No test changes — nothing here is security- or permission-relevant, and
+  there is no existing component-level test harness for `till.tsx` to
+  extend; verified by manual code review only, which is disclosed here
+  rather than left unstated.
+
 - 2026-09-06 — "Some products and services should be available in the
   till" — before this, the till showed every active product/service
   automatically; there was no way to keep something in the full catalog

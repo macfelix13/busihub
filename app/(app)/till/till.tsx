@@ -266,7 +266,40 @@ export function Till({
                 )}
               </ul>
             </div>
-          ) : null}
+          ) : products.length > 0 ? (
+            // Browsable by default — not just reachable by typing. Every
+            // product/service here already passed the server's own
+            // available_at_till + active filter (migration 0043), so
+            // nothing extra to gate here; tapping a tile is identical to
+            // picking a search match below.
+            <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {products.map((p) => (
+                  <button
+                    key={p.variantId}
+                    type="button"
+                    onClick={() => addToCart(p.variantId)}
+                    className="flex flex-col items-start gap-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-left hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
+                  >
+                    <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
+                    <span className="text-xs text-neutral-500">
+                      {p.type === "product"
+                        ? `${formatQuantity(p.onHand)} ${p.unit} left`
+                        : `Service${p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}`}
+                    </span>
+                    <span className="tabular-nums text-sm font-medium">
+                      {formatMoney(toMinorUnits(p.price), currencyCode)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-neutral-800">
+              Nothing is set to show at the till yet. Turn on &ldquo;Show at till&rdquo; from a product or
+              service&apos;s page.
+            </p>
+          )}
 
           <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">

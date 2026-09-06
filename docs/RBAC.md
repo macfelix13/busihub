@@ -34,6 +34,28 @@ See `seed_default_roles_for_business()` for the authoritative list. Summary:
 4. Add or extend an RLS policy on the affected table if it doesn't already check `app_has_permission()`.
 5. Add a security test alongside `tests/security/tenant_isolation_and_rbac.sql` exercising the negative case (a role that shouldn't have the permission is blocked).
 
+## Staff management
+
+Built in `supabase/migrations/0036_staff_management.sql` — see `docs/AUTH.md`'s "Staff invite flow, in detail" for
+the full walkthrough. Three `SECURITY DEFINER` functions, each re-deriving the caller's own `business_id` from their
+own profile rather than accepting one as an argument, so there is no way to act on a business other than the
+caller's own no matter what a tampered request claims:
+
+- `invite_staff_member()` — called by `app/(app)/settings/staff/actions.ts` right after Supabase Auth Admin's
+  `inviteUserByEmail()` creates the account. Creates the profile and the branch/role assignment.
+- `update_staff_role()` — replaces (or, given a null role, removes) a colleague's role at one branch.
+- `set_staff_status()` — activates/deactivates a colleague's account; enforced at `app/(app)/layout.tsx`.
+
+All three require `users.manage`, all three refuse to let a caller act on their own row, and granting (or moving
+someone into) the Owner role additionally requires `business.manage` — otherwise a Manager (who holds `users.manage`
+but not `business.manage`) could invite a new colleague and directly outrank themselves. `update_staff_role()` and
+`set_staff_status()` also refuse a change that would leave the business with zero active Owner-role holders.
+Exercised in `tests/security/staff_management.sql`.
+
+**Deliberately out of scope for this phase**: creating or editing custom roles/permissions through the UI (the
+`roles.manage` permission and the underlying schema support it — see "Model" above — but the Staff pages only let an
+Owner/Manager assign the six built-in roles to a colleague, not define new ones).
+
 ## Approval workflow (Section 30)
 
 Designed (`docs/ARCHITECTURE.md` §6) as a single generic `approval_requests` table that discounts-over-cap, refunds, voids, and price changes all plug into — not yet implemented as a migration; lands with the POS/refunds phases that need it, since building it in isolation now would mean guessing its shape rather than deriving it from a real caller.

@@ -1,9 +1,15 @@
-﻿Add real, configurable support contact to suspended/closed page
+﻿Add staff management (invite/roles/deactivate) and business audit log
 
-Show support@busihub.app and +233543945668 (WhatsApp) as mailto/wa.me
-links on the account-suspended and account-closed screens, read from
-env vars with real fallback values so they can be changed later via
-Vercel without a code change.
+Owner/manager can invite colleagues by email, assign one of the six
+built-in roles, change roles later, and deactivate/reactivate accounts
+-- the users.manage/roles.manage/audit.view permissions have existed
+since the earliest schema but had no UI until now. Adds an escalation
+guard (granting Owner requires business.manage, not just users.manage)
+and a lockout guard (can't act on your own row, can't leave the
+business with zero active Owners), both covered by a new
+tests/security/staff_management.sql. Also enforces profiles.status at
+the (app) layout, the same gap businesses.status had before the
+Super Admin phase -- a deactivated colleague can no longer sign in.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01EWx2YxrH2vH9gULYahXRAu

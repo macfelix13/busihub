@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // `businesses (name)` is rejected by PostgREST with PGRST201
     // ("more than one relationship was found"). Confirmed against the
     // real schema; profiles_business_id_fkey is the one we want here.
-    .select("id, first_name, last_name, business_id, businesses!profiles_business_id_fkey (name, status)")
+    .select("id, first_name, last_name, business_id, status, businesses!profiles_business_id_fkey (name, status)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -108,6 +108,32 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Staff deactivation (0036) has the exact same "declared but never
+  // enforced" history the business-status check above did before the
+  // Super Admin phase: profiles.status has existed since 0004, and
+  // set_staff_status() (0036) can now actually flip it, but nothing here
+  // read it before this — a deactivated colleague could still sign in and
+  // use Busihub exactly as before. Checked after the business-status
+  // block above (a business-level suspension takes priority in what it
+  // tells the person), before anything else in (app) renders.
+  if (profile.status !== "active") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
+          <h1 className="text-lg font-semibold">Account deactivated</h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            Your access to {businessName ?? "this business"} has been deactivated. Contact your business owner or
+            manager if you think this is a mistake — Busihub support can&apos;t reactivate a staff account on your
+            behalf.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <LogoutButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Goes through the same cached lookup every page below uses (rather
   // than trusting profile.business_id from the query above) so that the
   // app_current_business_id() RPC runs at most ONCE per request: this is
@@ -142,6 +168,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canSell,
     canViewReports,
     canViewExpenses,
+    canManageUsers,
+    canViewAudit,
   ] =
     await Promise.all([
       hasPermission(supabase, businessId, PERMISSIONS.BRANCHES_MANAGE),
@@ -156,6 +184,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, businessId, PERMISSIONS.SALES_PROCESS),
       hasPermission(supabase, businessId, PERMISSIONS.REPORTS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
+      hasPermission(supabase, businessId, PERMISSIONS.USERS_MANAGE),
+      hasPermission(supabase, businessId, PERMISSIONS.AUDIT_VIEW),
     ]);
 
   // Mirrors app/(app)/sales/page.tsx's own access check exactly — a
@@ -177,6 +207,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canManageBranches,
     canViewReports,
     canManageBusiness,
+    canManageUsers,
+    canViewAudit,
   };
 
   return (

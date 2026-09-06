@@ -85,6 +85,9 @@ jobs:
       - name: Run notifications tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/notifications.sql
 
+      - name: Run staff management tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/staff_management.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

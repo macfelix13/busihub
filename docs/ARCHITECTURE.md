@@ -466,6 +466,69 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-06 — Staff management (invite, roles, deactivate) and a business
+  audit log — the first UI for RBAC permission keys (`users.manage`,
+  `roles.manage`, `audit.view`) that have existed since 0005/0010 but had
+  no way to actually add a colleague until now (0009's own comment already
+  said profile rows are "created server-side... as part of registration/
+  staff-creation" — the second half of that sentence just hadn't been
+  built).
+
+  **How a new account gets created**, and why: an owner/manager fills in a
+  name, email, branch, and role (`/settings/staff/new`). Supabase Auth
+  Admin's `inviteUserByEmail()` creates the `auth.users` row and sends
+  Supabase's own "set your password" email — deliberately not a custom
+  email service, since Supabase already sends the registration
+  confirmation email today with no extra configuration. `invite_staff_member()`
+  (new migration, `0036_staff_management.sql`) then creates the profile
+  and branch/role assignment in one transaction, through the caller's own
+  RLS-scoped session — it re-derives the caller's `business_id` from their
+  own profile rather than accepting one as an argument, so there is no way
+  to invite someone into a business other than the caller's own no matter
+  what a tampered request claims. Full walkthrough in `docs/AUTH.md`.
+
+  **Two guards that weren't asked for but were clearly needed** once the
+  schema was actually looked at: `seed_default_roles_for_business` (0011)
+  gives Manager `users.manage` but not `business.manage` — without a
+  check, a Manager could invite a brand-new colleague and directly hand
+  them the Owner role, instantly outranking the Manager who created them.
+  Granting (or later moving someone into) Owner now additionally requires
+  `business.manage`. Separately, `update_staff_role()`/`set_staff_status()`
+  refuse a change that would leave the business with zero active
+  Owner-role holders, and refuse to let anyone act on their own row —
+  self-service role/status changes aren't offered anywhere, so one
+  mis-click can't strand a whole business with no one able to undo it.
+  Both guards, and the ordinary permission checks, are exercised in the
+  new `tests/security/staff_management.sql` — run against a real local
+  Postgres 16 (migrations + seed + the full existing security suite, in
+  the same order `.github/workflows/ci.yml` runs them) before this ever
+  reached the apply script, not just written and assumed correct.
+
+  **A gap found and fixed while building this, not left for later**:
+  `profiles.status` has existed since 0004, but nothing anywhere ever
+  checked it — the exact same "declared but never enforced" history
+  `businesses.status` had before the Super Admin phase. Now that
+  `set_staff_status()` can actually flip it, `app/(app)/layout.tsx` checks
+  it too (same place, same pattern as the business-status check above
+  it): a deactivated colleague sees a plain "Account deactivated" page and
+  is signed out of every route under `(app)`, not just hidden from a
+  staff list somewhere.
+
+  **Audit log** (`/settings/audit-log`, gated on `audit.view`): reads
+  `audit_logs` scoped to the caller's own business, with human-readable
+  labels for every action this app currently writes — which, before this
+  phase, was only `business.registered` and `user.pin_set` (0011) plus
+  whatever Super Admin actions (0035) happened to target this business.
+  The new staff-management functions add `user.invited`, `user.role_changed`,
+  `user.deactivated`, and `user.reactivated`, so a real business now has a
+  genuinely useful trail from day one instead of an almost-empty page.
+
+  **Explicitly out of scope for this phase**: creating or editing custom
+  roles/permissions through the UI. The schema already supports it
+  (`roles.manage`, `role_permissions`) and nothing here forecloses it, but
+  the Staff pages only let an owner/manager assign the six built-in roles
+  to a colleague — see `docs/RBAC.md`.
+
 - 2026-09-05 — Real, configurable support contact on the suspended/closed
   screen. The account-suspended page (`app/(app)/layout.tsx`, added in the
   Super Admin phase below) told a locked-out owner to "contact Busihub

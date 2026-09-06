@@ -55,6 +55,9 @@ export const createServerSupabaseClient = cache(async function createServerSupab
  * pull in. Restricted to:
  *   - Paystack webhook handling (no user session exists yet)
  *   - Super Admin privileged reads (explicitly audited, Section 31)
+ *   - The Auth Admin API call in the staff-invite flow (creating a new
+ *     colleague's auth.users row — see docs/AUTH.md; everything after
+ *     that call runs through the caller's own RLS-scoped session instead)
  *   - Trusted background/Edge Function jobs
  *
  * Every call site using this client MUST perform its own explicit

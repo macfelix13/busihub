@@ -21,6 +21,8 @@ import {
   Settings as SettingsIcon,
   CreditCard,
   KeyRound,
+  UserCog,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -51,6 +53,8 @@ export interface NavPermissions {
   canManageBranches: boolean;
   canViewReports: boolean;
   canManageBusiness: boolean;
+  canManageUsers: boolean;
+  canViewAudit: boolean;
 }
 
 export interface NavLeaf {
@@ -116,6 +120,8 @@ export const NAV_TREE: NavEntry[] = [
   group("Settings", SettingsIcon, [
     leaf("Business", "/settings/business", Building, "canManageBusiness"),
     leaf("Payments", "/settings/payments", CreditCard, "canManageBusiness"),
+    leaf("Staff", "/settings/staff", UserCog, "canManageUsers"),
+    leaf("Audit Log", "/settings/audit-log", ShieldCheck, "canViewAudit"),
   ]),
   leaf("My PIN", "/settings/pin", KeyRound),
 ];

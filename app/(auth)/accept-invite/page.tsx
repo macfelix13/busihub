@@ -59,17 +59,18 @@ export default function AcceptInvitePage() {
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
 
-    if (params.get("error") || !accessToken || !refreshToken) {
-      setStage("invalid");
-      return;
-    }
+    // Every path resolves `nextStage` through a Promise and only calls
+    // setStage() from the .then() below — never synchronously in the
+    // effect body itself (react-hooks/set-state-in-effect) — even the
+    // "missing/invalid token" case, which has nothing to actually await.
+    const nextStage: Promise<Stage> =
+      params.get("error") || !accessToken || !refreshToken
+        ? Promise.resolve<Stage>("invalid")
+        : createClient()
+            .auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+            .then((result: { error: unknown }) => (result.error ? "invalid" : "ready"));
 
-    const supabase = createClient();
-    supabase.auth
-      .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then((result: { error: unknown }) => {
-        setStage(result.error ? "invalid" : "ready");
-      });
+    nextStage.then(setStage);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {

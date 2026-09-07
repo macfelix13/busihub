@@ -2,10 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Bell } from "lucide-react";
 import { getNotificationFeed, markAllNotificationsRead, markNotificationRead } from "@/lib/notifications/actions";
 import { formatNotification } from "@/lib/notifications/format";
 import type { NotificationFeedRow, NotificationSeverity } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
+import { SkeletonBlock } from "@/components/ui/skeleton";
+
+// Matches components/ui/button.tsx's own focus-visible treatment — this
+// file previously had no explicit focus ring anywhere, relying on browser
+// default outlines instead.
+const FOCUS_RING =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
 
 // Every 45s while a tab has this open. Not Realtime (see 0034's header for
 // why that is deliberately deferred) — slower, but everything from RLS to
@@ -88,9 +96,12 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-        className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        className={cn(
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
+          FOCUS_RING
+        )}
       >
-        <BellIcon />
+        <Bell className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         {unreadCount > 0 ? (
           <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">
             {unreadCount > 50 ? "50+" : unreadCount}
@@ -107,14 +118,17 @@ export function NotificationBell() {
         // header's own height (h-11 button + py-3 padding, plus a small
         // gap) — update it if the header's size ever changes. From `sm:`
         // up there is enough room for the original bell-relative popover.
-        <div className="fixed inset-x-4 top-[4.5rem] z-20 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-900 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[90vw]">
+        <div className="fixed inset-x-4 top-[4.5rem] z-20 animate-slide-down overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-900 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[90vw]">
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
             <span className="text-sm font-semibold">Notifications</span>
             {unreadCount > 0 ? (
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-xs font-medium text-brand-700 hover:text-brand-800 dark:text-brand-300"
+                className={cn(
+                  "rounded-md text-xs font-medium text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300",
+                  FOCUS_RING
+                )}
               >
                 Mark all as read
               </button>
@@ -123,7 +137,12 @@ export function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
-              <p className="px-4 py-8 text-center text-sm text-neutral-500">Loading…</p>
+              <div className="flex flex-col gap-3 p-4" aria-busy="true" aria-live="polite">
+                <span className="sr-only">Loading notifications…</span>
+                <SkeletonBlock className="h-10 w-full" />
+                <SkeletonBlock className="h-10 w-full" />
+                <SkeletonBlock className="h-10 w-3/4" />
+              </div>
             ) : error ? (
               <p className="px-4 py-8 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
             ) : notifications.length === 0 ? (
@@ -138,7 +157,8 @@ export function NotificationBell() {
                         href={href}
                         onClick={() => handleItemClick(n)}
                         className={cn(
-                          "flex gap-2.5 px-4 py-3 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
+                          "flex gap-2.5 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
+                          "focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-600",
                           !n.is_read && "bg-brand-50/60 dark:bg-brand-950/20"
                         )}
                       >
@@ -159,24 +179,5 @@ export function NotificationBell() {
         </div>
       ) : null}
     </div>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
   );
 }

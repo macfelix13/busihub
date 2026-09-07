@@ -466,6 +466,55 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 2 of N (navigation and header).
+  Continuing the phased redesign from phase 1 (below): this phase polishes
+  the existing app chrome — sidebar, mobile drawer, top header,
+  notification bell — rather than replacing any of it, since all of it
+  was already structurally sound (a real permission-aware nav tree, a
+  working mobile drawer with backdrop, a sticky desktop sidebar). No
+  layout architecture changed: same breakpoint (`md:`) switches between
+  drawer and in-flow sidebar, same 256px desktop width. A collapsible
+  icon-only sidebar was mentioned as optional in the original ask and is
+  deliberately deferred — it's a real feature (persisted state, tooltips
+  for icon-only labels, a resize of the main content area) better done as
+  its own reviewed change than folded into a polish pass; happy to build
+  it if wanted.
+  `components/layout/sidebar.tsx` — every interactive nav element (leaf
+  links, group toggle buttons, child links, the mobile close button) now
+  has an explicit `focus-visible` ring matching `components/ui/button.tsx`'s
+  own treatment; before this the sidebar relied entirely on the browser's
+  default outline, which is inconsistent across browsers and wasn't
+  present anywhere else in this file. The mobile backdrop now fades in
+  (`animate-fade-in`, from phase 1) instead of appearing instantly. The
+  "B" logo badge is a touch larger with a subtle shadow.
+  `components/notifications/notification-bell.tsx` — the bell icon was a
+  hand-drawn inline SVG, the one place in the app not using the
+  `lucide-react` icon set every nav item and other component already
+  uses; swapped for lucide's own `Bell` icon, visually equivalent but now
+  actually the same icon system as everywhere else. Its dropdown panel's
+  "Loading…" text became a 3-row skeleton (reusing `SkeletonBlock` from
+  the existing `components/ui/skeleton.tsx`) and the panel now slides
+  down on open (`animate-slide-down`, from phase 1) instead of appearing
+  instantly. Added the same explicit focus rings as the sidebar to the
+  bell button, "Mark all as read", and each notification link. None of
+  its data-fetching, polling, or optimistic-update logic changed at all —
+  presentation only.
+  `components/layout/app-shell.tsx` — the header gained a subtle shadow,
+  a thin divider between the notification bell and the user area, and a
+  small initials avatar (e.g. "Jane Doe" -> "JD", computed from the
+  existing `userLabel` prop — no new prop needed) next to the user's
+  name, giving it an actual "profile area" rather than a bare name string.
+  The mobile menu button gained the same explicit focus ring as
+  everything else touched in this phase. Header height/padding is
+  unchanged on purpose — `notification-bell.tsx`'s mobile panel position
+  is hand-tuned against that exact height (see its own comment), and
+  changing it here would have silently broken that.
+  No page content, no route, no permission, and no data-fetching logic
+  changed anywhere in this phase — every diff is presentational or an
+  accessibility addition (explicit focus rings) to components that
+  already existed. No database or RLS surface, so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 1 of N (foundation components).
   The ask was a full professional redesign of the whole POS interface —
   design system, dashboard, navigation, buttons, loading states,

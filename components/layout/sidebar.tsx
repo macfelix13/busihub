@@ -20,6 +20,12 @@ function isLeafActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Every interactive nav element gets the same explicit focus ring
+// (matching components/ui/button.tsx's own focus-visible treatment)
+// rather than relying on the browser's default outline, which varies by
+// browser and didn't previously appear anywhere in this file.
+const FOCUS_RING = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
+
 export function Sidebar({ permissions, businessName, open, onClose }: SidebarProps) {
   const pathname = usePathname();
 
@@ -47,7 +53,13 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
     <>
       {/* Backdrop — mobile only. Tapping it closes the drawer, same as the
           notification bell's own click-outside handling. */}
-      {open ? <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={onClose} aria-hidden="true" /> : null}
+      {open ? (
+        <div
+          className="fixed inset-0 z-30 animate-fade-in bg-black/40 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      ) : null}
 
       <aside
         className={cn(
@@ -60,15 +72,17 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
         )}
       >
         <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-4 py-4 dark:border-neutral-800">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="flex-shrink-0 rounded-lg bg-brand-600 px-2 py-1 text-sm font-bold text-white">B</span>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-sm">
+              B
+            </span>
             <span className="truncate font-semibold">{businessName}</span>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="flex-shrink-0 rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800 md:hidden"
+            className="flex-shrink-0 rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-neutral-400 dark:hover:bg-neutral-800 md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -89,6 +103,7 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                        FOCUS_RING,
                         active
                           ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
                           : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
@@ -114,6 +129,7 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                     aria-expanded={isExpanded}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                      FOCUS_RING,
                       hasActiveChild
                         ? "text-brand-700 dark:text-brand-300"
                         : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
@@ -140,6 +156,7 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                               aria-current={active ? "page" : undefined}
                               className={cn(
                                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                FOCUS_RING,
                                 active
                                   ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
                                   : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"

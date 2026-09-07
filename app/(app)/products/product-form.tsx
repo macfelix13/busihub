@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button, SubmitButton } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { CategoryCombobox } from "@/components/ui/category-combobox";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES } from "@/lib/validation/products";
@@ -126,7 +127,7 @@ export function ProductForm({
           <button
             type="button"
             onClick={() => setType("product")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               !isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
             }`}
           >
@@ -135,7 +136,7 @@ export function ProductForm({
           <button
             type="button"
             onClick={() => setType("service")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
             }`}
           >
@@ -211,7 +212,7 @@ export function ProductForm({
         ) : (
           <div className="flex flex-col gap-4">
             {effectiveVariants.map((row, index) => (
-              <div key={index} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+              <Card key={index} className="p-4">
                 {hasVariants && effectiveOptionNames.length > 0 ? (
                   <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {effectiveOptionNames.map((name) => (
@@ -286,7 +287,7 @@ export function ProductForm({
                     Remove this variant
                   </Button>
                 ) : null}
-              </div>
+              </Card>
             ))}
           </div>
         )}

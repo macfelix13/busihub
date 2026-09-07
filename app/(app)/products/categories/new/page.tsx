@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { CategoryForm } from "../category-form";
 import { createCategory } from "../actions";
 
@@ -20,10 +21,7 @@ export default async function NewCategoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Add category</h1>
-        <p className="text-neutral-500">Available immediately to both products and services.</p>
-      </div>
+      <PageHeader title="Add category" description="Available immediately to both products and services." />
       <CategoryForm action={createCategory} submitLabel="Create category" />
     </div>
   );

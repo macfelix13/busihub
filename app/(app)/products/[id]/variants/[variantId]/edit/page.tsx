@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { VariantForm } from "../../../../variant-form";
 import { updateVariant } from "../../../../actions";
 
@@ -56,12 +57,7 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Edit variant</h1>
-        <p className="text-neutral-500">
-          {product.name} · {variant.sku || "no SKU"}
-        </p>
-      </div>
+      <PageHeader title="Edit variant" description={`${product.name} · ${variant.sku || "no SKU"}`} />
       <VariantForm
         action={boundUpdateVariant}
         optionNames={product.variant_option_names as string[]}

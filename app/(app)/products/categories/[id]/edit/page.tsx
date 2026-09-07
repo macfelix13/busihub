@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { CategoryForm } from "../../category-form";
 import { updateCategory } from "../../actions";
 
@@ -38,10 +39,7 @@ export default async function EditCategoryPage({ params }: { params: Promise<{ i
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Edit category</h1>
-        <p className="text-neutral-500">{category.name}</p>
-      </div>
+      <PageHeader title="Edit category" description={category.name} />
       <CategoryForm
         action={boundUpdateCategory}
         defaultValues={{

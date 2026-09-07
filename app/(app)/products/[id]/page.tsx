@@ -4,7 +4,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { setProductStatus, setProductTillAvailability, setVariantStatus } from "../actions";
@@ -99,21 +101,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{product.name}</h1>
-            {product.type === "service" ? (
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
-                Service
-              </span>
-            ) : null}
-            {product.status === "archived" ? (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                Archived
-              </span>
-            ) : null}
-            {!product.available_at_till ? (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                Hidden from till
-              </span>
-            ) : null}
+            {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
+            {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
+            {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
           </div>
           <p className="text-neutral-500">
             {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
@@ -171,7 +161,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           ) : null}
         </div>
 
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -188,7 +178,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {variants.map((variant) => (
-                  <tr key={variant.id}>
+                  <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                     <td className="px-4 py-3 font-medium">{variant.sku || "—"}</td>
                     <td className="px-4 py-3 text-neutral-500">{variant.barcode || "—"}</td>
                     {product.has_variants ? (
@@ -214,13 +204,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     ) : null}
                     <td className="px-4 py-3">
                       {variant.status === "archived" ? (
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                          Archived
-                        </span>
+                        <Badge variant="neutral">Archived</Badge>
                       ) : (
-                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-                          Active
-                        </span>
+                        <Badge variant="success">Active</Badge>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -254,7 +240,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
         {!canChangePrice ? (
           <p className="mt-2 text-sm text-neutral-500">You can view prices here but don&apos;t have permission to change them.</p>
         ) : null}

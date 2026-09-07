@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AlertCircle, FolderOpen } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { categoryIconComponent } from "@/lib/ui/category-icons";
 import { setCategoryStatus } from "./actions";
 import { StatusToggleButton } from "../status-toggle-button";
@@ -57,22 +62,22 @@ export default async function CategoriesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Categories</h1>
-          <p className="text-neutral-500">Shared by products and services — used to group and filter your catalog.</p>
-        </div>
-        {canCreate ? (
-          <Link href="/products/categories/new">
-            <Button>Add category</Button>
-          </Link>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Categories"
+        description="Shared by products and services — used to group and filter your catalog."
+        actions={
+          canCreate ? (
+            <Link href="/products/categories/new">
+              <Button>Add category</Button>
+            </Link>
+          ) : null
+        }
+      />
 
       <div className="flex gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
         <Link
           href="/products/categories"
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
             activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
           }`}
         >
@@ -80,7 +85,7 @@ export default async function CategoriesPage({
         </Link>
         <Link
           href={{ pathname: "/products/categories", query: { status: "archived" } }}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
             activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
           }`}
         >
@@ -89,70 +94,69 @@ export default async function CategoriesPage({
       </div>
 
       {error ? (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Couldn&apos;t load categories. Please refresh the page.
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Couldn&apos;t load categories. Please refresh the page.</span>
         </p>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={FolderOpen}
+          title={activeStatus === "archived" ? "No archived categories" : "No categories yet"}
+        />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="overflow-hidden">
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {rows.length > 0 ? (
-              rows.map((category) => {
-                const Icon = categoryIconComponent(category.icon);
-                return (
-                  <li key={category.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
-                        {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{category.name}</span>
-                          {category.is_system ? (
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                              Starter
-                            </span>
-                          ) : null}
-                        </div>
-                        {category.description ? (
-                          <p className="text-sm text-neutral-500">{category.description}</p>
-                        ) : null}
+            {rows.map((category) => {
+              const Icon = categoryIconComponent(category.icon);
+              return (
+                <li key={category.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                      {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{category.name}</span>
+                        {category.is_system ? <Badge variant="neutral">Starter</Badge> : null}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      {canEdit ? (
-                        <Link href={`/products/categories/${category.id}/edit`}>
-                          <Button variant="secondary">Edit</Button>
-                        </Link>
-                      ) : null}
-                      {canEdit ? (
-                        <StatusToggleButton
-                          action={setCategoryStatus.bind(null, category.id, category.status === "active" ? "archived" : "active")}
-                          label={category.status === "active" ? "Archive" : "Restore"}
-                          pendingLabel="Saving…"
-                          variant={category.status === "active" ? "danger" : "secondary"}
-                          confirm={
-                            category.status === "active"
-                              ? {
-                                  title: "Archive this category?",
-                                  description:
-                                    "Products and services already using it keep it — it just won't be offered for new ones. You can restore it later.",
-                                  confirmLabel: "Archive",
-                                }
-                              : undefined
-                          }
-                        />
+                      {category.description ? (
+                        <p className="text-sm text-neutral-500">{category.description}</p>
                       ) : null}
                     </div>
-                  </li>
-                );
-              })
-            ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">
-                {activeStatus === "archived" ? "No archived categories." : "No categories yet."}
-              </li>
-            )}
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    {canEdit ? (
+                      <Link href={`/products/categories/${category.id}/edit`}>
+                        <Button variant="secondary">Edit</Button>
+                      </Link>
+                    ) : null}
+                    {canEdit ? (
+                      <StatusToggleButton
+                        action={setCategoryStatus.bind(null, category.id, category.status === "active" ? "archived" : "active")}
+                        label={category.status === "active" ? "Archive" : "Restore"}
+                        pendingLabel="Saving…"
+                        variant={category.status === "active" ? "danger" : "secondary"}
+                        confirm={
+                          category.status === "active"
+                            ? {
+                                title: "Archive this category?",
+                                description:
+                                  "Products and services already using it keep it — it just won't be offered for new ones. You can restore it later.",
+                                confirmLabel: "Archive",
+                              }
+                            : undefined
+                        }
+                      />
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -466,6 +466,72 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 6 of N (Products — detail,
+  edit, new, and variant/category sub-pages).
+  Continuing the phased redesign (phases 1-5 above/below), and the first
+  of a sub-sequence covering "detail/edit/new pages" across Products,
+  Customers, Sales, and Inventory: this phase is Products' half of that
+  scope (Customers, Sales, and Inventory follow as later phases). Same
+  rule as every phase touching a data-heavy screen: presentation only.
+  Every Supabase query (the product/variant/stock-level lookups on the
+  detail page, the category/product-with-embedded-category lookups on
+  the edit and new pages), every permission check (`PRODUCTS_EDIT`,
+  `PRODUCTS_ARCHIVE`, `PRODUCTS_CHANGE_PRICE`, `PRODUCTS_CREATE`,
+  `INVENTORY_VIEW`, `INVENTORY_RECEIVE`), every `redirect`/`notFound`
+  call, every calculation (stock-by-variant aggregation, the SKU sort
+  that pushes variant-less rows last, `formatMoneyMinor`'s
+  decimal-string coercion), and every bound server action
+  (`setProductStatus`, `setProductTillAvailability`, `setVariantStatus`,
+  `setCategoryStatus`, `updateProductDetails`, `createProduct`,
+  `addVariant`, `updateVariant`, `createCategory`, `updateCategory`) is
+  untouched, character for character — confirmed by reviewing the
+  complete final files against the originals.
+  What changed, concretely: six pages whose header was a plain
+  `<h1>` + one-line description (`products/[id]/edit`,
+  `products/[id]/variants/new`, `products/[id]/variants/[variantId]/edit`,
+  `products/new`, `products/categories/new`,
+  `products/categories/[id]/edit`) now use the shared `PageHeader`.
+  `products/[id]/page.tsx` (the product detail page) keeps its existing
+  custom header layout rather than being forced into `PageHeader` — it
+  has inline status badges next to the title plus a separate
+  conditionally-rendered description paragraph, a shape `PageHeader`'s
+  single-title/single-description contract doesn't cleanly fit — but its
+  three hand-rolled pills (Service/Archived/Hidden-from-till) became the
+  shared `Badge`, its variant table's outer box became `Card`, each
+  variant row gained `transition-colors` on hover (it had none before,
+  matching the same fix made to Inventory's table in phase 5), and the
+  per-variant Active/Archived status pill became `Badge` as well —
+  Active's shade normalizes a step lighter in the process (`bg-green-100`
+  -> Badge's `bg-green-50`), the same disclosed normalization phase 5
+  made to Sales' status pills. `products/categories/page.tsx` received
+  the fuller treatment already given to the four phase-5 list pages: its
+  ad-hoc header became `PageHeader`, its Active/Archived tabs gained
+  `transition-colors`, its error banner gained an `AlertCircle` icon and
+  explicit `role="alert"`, its empty state (no categories yet /
+  no archived categories) became the shared `EmptyState` (icon
+  `FolderOpen`) with the exact same per-tab copy the original had, its
+  list container became `Card`, and its "Starter" (`is_system`) pill
+  became `Badge`. Inside `product-form.tsx` (the client-side create-
+  product form), the "Product"/"Service" toggle buttons gained
+  `transition-colors`, matching every other segmented control redesigned
+  so far, and each dynamic variant row — previously a hand-rolled
+  `rounded-xl border` div — became `Card`.
+  Left deliberately alone: `status-toggle-button.tsx` — its own header
+  comment discloses nine app-wide call sites (sales, staff, admin
+  businesses, suppliers, purchase orders, awaiting-payment, payment
+  settings, customers, products/services) and it already composes the
+  shared `SubmitButton`/`Button`/`ConfirmDialog`, so there was nothing to
+  fix and real risk in touching something that widely shared for zero
+  visible benefit. `category-form.tsx`, `variant-form.tsx`, and
+  `product-details-form.tsx` were read and left untouched — all three
+  already use `Field`/`Select`/`Textarea`/`SubmitButton` (plus
+  `CategoryCombobox`/`BarcodeScannerModal` where relevant) and already
+  have `role="alert"` on their error banners, so they were already
+  consistent with the rest of the design system.
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 5 of N (Products, Customers,
   Sales, and Inventory — the core list pages).
   Continuing the phased redesign (phases 1-4 above/below): this phase

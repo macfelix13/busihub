@@ -1,8 +1,9 @@
-﻿import { notFound, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { VariantForm } from "../../../variant-form";
 import { addVariant } from "../../../actions";
 
@@ -43,10 +44,7 @@ export default async function NewVariantPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Add variant</h1>
-        <p className="text-neutral-500">{product.name}</p>
-      </div>
+      <PageHeader title="Add variant" description={product.name} />
       <VariantForm
         action={boundAddVariant}
         optionNames={product.variant_option_names as string[]}
@@ -57,4 +55,3 @@ export default async function NewVariantPage({ params }: { params: Promise<{ id:
     </div>
   );
 }
-

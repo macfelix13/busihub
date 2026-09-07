@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { categoryIconComponent } from "@/lib/ui/category-icons";
+import { signProductPhotoUrls } from "@/lib/storage/product-photos";
+import { ProductThumbnail } from "@/components/ui/product-thumbnail";
 
 export const metadata = { title: "Products" };
 
@@ -26,6 +28,7 @@ interface ProductRow {
   type: "product" | "service";
   duration_minutes: number | null;
   available_at_till: boolean;
+  photo_url: string | null;
   // numeric(14,2) comes back from PostgREST as a string, not a number —
   // see the comment on lib/money/money.ts's toNumber().
   product_variants: { selling_price: number | string }[];
@@ -96,9 +99,10 @@ export default async function ProductsPage({
 
   let query = supabase
     .from("products")
-    .select(`id, name, category_id, categories(name, icon), status, has_variants, type, duration_minutes, available_at_till, ${variantEmbed}`, {
-      count: "exact",
-    })
+    .select(
+      `id, name, category_id, categories(name, icon), status, has_variants, type, duration_minutes, available_at_till, photo_url, ${variantEmbed}`,
+      { count: "exact" }
+    )
     .eq("status", activeStatus)
     .order("name", { ascending: true })
     .range((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE - 1);
@@ -127,6 +131,13 @@ export default async function ProductsPage({
   if (error) {
     console.error("ProductsPage: products query failed", error);
   }
+
+  // One batched Storage call for the whole page rather than one per row —
+  // see lib/storage/product-photos.ts's file header.
+  const photoUrlsByPath = await signProductPhotoUrls(
+    supabase,
+    ((products ?? []) as unknown as ProductRow[]).map((p) => p.photo_url)
+  );
 
   const totalCount = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -340,27 +351,31 @@ export default async function ProductsPage({
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {(products as unknown as ProductRow[]).map((product) => {
               const Icon = categoryIconComponent(product.categories?.icon ?? null);
+              const photoUrl = product.photo_url ? photoUrlsByPath.get(product.photo_url) ?? null : null;
               return (
                 <li key={product.id}>
                   <Link
                     href={`/products/${product.id}`}
                     className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
                   >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{product.name}</span>
-                        {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
-                        {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
-                        {product.has_variants ? (
-                          <Badge variant="neutral">{product.product_variants.length} variants</Badge>
-                        ) : null}
-                        {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
+                    <div className="flex items-center gap-3">
+                      <ProductThumbnail photoUrl={photoUrl} size="sm" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{product.name}</span>
+                          {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
+                          {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
+                          {product.has_variants ? (
+                            <Badge variant="neutral">{product.product_variants.length} variants</Badge>
+                          ) : null}
+                          {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
+                        </div>
+                        <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500">
+                          {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+                          {product.categories?.name ?? "Uncategorized"}
+                          {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
+                        </p>
                       </div>
-                      <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500">
-                        {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-                        {product.categories?.name ?? "Uncategorized"}
-                        {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
-                      </p>
                     </div>
                     <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                       {priceRangeLabel(product.product_variants, currencyCode)}

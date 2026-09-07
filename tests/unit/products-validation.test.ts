@@ -1,5 +1,11 @@
-﻿import { describe, expect, it } from "vitest";
-import { createProductSchema, variantRowSchema } from "@/lib/validation/products";
+import { describe, expect, it } from "vitest";
+import {
+  createProductSchema,
+  variantRowSchema,
+  isAllowedProductPhotoFile,
+  ALLOWED_PRODUCT_PHOTO_MIME_TYPES,
+  MAX_PRODUCT_PHOTO_BYTES,
+} from "@/lib/validation/products";
 
 const baseProduct = {
   name: "Test Product",
@@ -187,5 +193,27 @@ describe("createProductSchema — opening stock", () => {
         variants: [{ ...base.variants[0], openingStock: "12.5005" }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe("isAllowedProductPhotoFile", () => {
+  it("accepts a small file of an allowed image type", () => {
+    for (const type of ALLOWED_PRODUCT_PHOTO_MIME_TYPES) {
+      expect(isAllowedProductPhotoFile({ type, size: 1024 })).toBe(true);
+    }
+  });
+
+  it("rejects a disallowed mime type even at a valid size", () => {
+    expect(isAllowedProductPhotoFile({ type: "application/pdf", size: 1024 })).toBe(false);
+    expect(isAllowedProductPhotoFile({ type: "image/gif", size: 1024 })).toBe(false);
+  });
+
+  it("rejects an empty file", () => {
+    expect(isAllowedProductPhotoFile({ type: "image/png", size: 0 })).toBe(false);
+  });
+
+  it("rejects a file over the size cap, and accepts one right at it", () => {
+    expect(isAllowedProductPhotoFile({ type: "image/png", size: MAX_PRODUCT_PHOTO_BYTES + 1 })).toBe(false);
+    expect(isAllowedProductPhotoFile({ type: "image/png", size: MAX_PRODUCT_PHOTO_BYTES })).toBe(true);
   });
 });

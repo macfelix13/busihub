@@ -231,3 +231,21 @@ export function variantFormSchema(optionNames: string[]) {
 }
 
 export const productStatusSchema = z.enum(["active", "archived"]);
+
+/**
+ * What the photo upload widget is allowed to send, checked again on the
+ * server before anything touches storage — the bucket's own
+ * file_size_limit and allowed_mime_types (migration 0046) are a second,
+ * independent backstop, not a substitute for this. Same shape as
+ * lib/validation/service-providers.ts's isAllowedPhotoFile.
+ */
+export const ALLOWED_PRODUCT_PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const MAX_PRODUCT_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB, matches the bucket's file_size_limit
+
+export function isAllowedProductPhotoFile(file: { type: string; size: number }): boolean {
+  return (
+    (ALLOWED_PRODUCT_PHOTO_MIME_TYPES as readonly string[]).includes(file.type) &&
+    file.size > 0 &&
+    file.size <= MAX_PRODUCT_PHOTO_BYTES
+  );
+}

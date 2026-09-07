@@ -4,6 +4,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { readTillSession } from "@/lib/auth/till-session";
+import { signProductPhotoUrls } from "@/lib/storage/product-photos";
 import { PinPad, type TillCashier, type TillColleague } from "./pin-pad";
 import { Till, type TillProduct, type TillCustomer, type TillStaff, type TillProvider } from "./till";
 
@@ -15,7 +16,13 @@ interface RawVariant {
   barcode: string | null;
   variant_options: Record<string, string> | null;
   selling_price: number | string;
-  products: { name: string; unit_of_measure: string; type: "product" | "service"; duration_minutes: number | null } | null;
+  products: {
+    name: string;
+    unit_of_measure: string;
+    type: "product" | "service";
+    duration_minutes: number | null;
+    photo_url: string | null;
+  } | null;
 }
 
 export default async function TillPage({
@@ -124,7 +131,7 @@ export default async function TillPage({
     supabase
       .from("product_variants")
       .select(
-        "id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type, duration_minutes, available_at_till)"
+        "id, sku, barcode, variant_options, selling_price, products!inner(name, unit_of_measure, status, type, duration_minutes, available_at_till, photo_url)"
       )
       .eq("status", "active")
       .eq("products.status", "active")
@@ -194,11 +201,22 @@ export default async function TillPage({
     ])
   );
 
-  const products: TillProduct[] = ((variants ?? []) as unknown as RawVariant[])
+  // One batched Storage call for the whole till load rather than one per
+  // product — the till can browse a hundred-plus items at once, unlike
+  // the small lists elsewhere that sign one photo at a time (see
+  // lib/storage/product-photos.ts's file header).
+  const rawVariants = (variants ?? []) as unknown as RawVariant[];
+  const photoUrlsByPath = await signProductPhotoUrls(
+    supabase,
+    rawVariants.map((v) => v.products?.photo_url ?? null)
+  );
+
+  const products: TillProduct[] = rawVariants
     .map((v) => {
       const name = v.products?.name ?? "Unknown product";
       const options = Object.entries(v.variant_options ?? {});
       const label = options.length > 0 ? `${name} — ${options.map(([, val]) => val).join(" / ")}` : name;
+      const photoPath = v.products?.photo_url ?? null;
       return {
         variantId: v.id,
         label,
@@ -209,6 +227,7 @@ export default async function TillPage({
         unit: v.products?.unit_of_measure ?? "each",
         type: v.products?.type ?? "product",
         durationMinutes: v.products?.duration_minutes ?? null,
+        photoUrl: photoPath ? photoUrlsByPath.get(photoPath) ?? null : null,
       };
     })
     .sort((a, b) => a.label.localeCompare(b.label));

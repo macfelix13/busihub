@@ -4,8 +4,9 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { PageHeader } from "@/components/ui/page-header";
+import { signProductPhotoUrl } from "@/lib/storage/product-photos";
 import { ProductDetailsForm, type ProductDetailsFormCategory } from "../../product-details-form";
-import { updateProductDetails } from "../../actions";
+import { updateProductDetails, removeProductPhoto } from "../../actions";
 
 export const metadata = { title: "Edit product" };
 
@@ -36,7 +37,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const [{ data: product, error }, { data: categoryRows, error: categoriesError }] = await Promise.all([
     supabase
       .from("products")
-      .select("id, name, description, category_id, categories(name), unit_of_measure, tax_category, type, duration_minutes")
+      .select("id, name, description, category_id, categories(name), unit_of_measure, tax_category, type, duration_minutes, photo_url")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("categories").select("id, name, icon").eq("status", "active").order("name"),
@@ -54,7 +55,9 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   }
 
   const boundUpdateProductDetails = updateProductDetails.bind(null, product.id);
+  const boundRemovePhoto = removeProductPhoto.bind(null, product.id);
   const categories = (categoryRows ?? []) as ProductDetailsFormCategory[];
+  const photoUrl = await signProductPhotoUrl(supabase, product.photo_url);
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,6 +67,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         categories={categories}
         canCreateCategory={canCreateCategory}
         productType={product.type as "product" | "service"}
+        photoUrl={photoUrl}
+        onRemovePhoto={boundRemovePhoto}
         defaultValues={{
           name: product.name,
           description: product.description ?? "",

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { CategoryCombobox } from "@/components/ui/category-combobox";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES } from "@/lib/validation/products";
+import { ProductPhotoField } from "./product-photo-field";
 import { createProduct, type FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -150,6 +151,8 @@ export function ProductForm({
           </p>
         ) : null}
       </div>
+
+      <ProductPhotoField defaultPhotoUrl={null} />
 
       <div className="flex flex-col gap-4">
         <Field label="Product name" name="name" required error={state.fieldErrors?.name} />

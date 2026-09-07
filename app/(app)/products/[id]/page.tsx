@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
+import { signProductPhotoUrl } from "@/lib/storage/product-photos";
+import { ProductThumbnail } from "@/components/ui/product-thumbnail";
 import { setProductStatus, setProductTillAvailability, setVariantStatus } from "../actions";
 import { StatusToggleButton } from "../status-toggle-button";
 
@@ -38,7 +40,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { data: product, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, category_id, categories(name, icon), unit_of_measure, tax_category, has_variants, variant_option_names, status, type, duration_minutes, available_at_till, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
+      "id, name, description, category_id, categories(name, icon), unit_of_measure, tax_category, has_variants, variant_option_names, status, type, duration_minutes, available_at_till, photo_url, product_variants(id, sku, barcode, variant_options, cost_price, selling_price, is_default, status)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -50,6 +52,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   if (!product) {
     notFound();
   }
+
+  const photoUrl = await signProductPhotoUrl(supabase, product.photo_url);
 
   // A service never carries stock (migration 0040), so the whole "In
   // stock" column is meaningless for one — not just empty, but genuinely
@@ -98,18 +102,21 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">{product.name}</h1>
-            {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
-            {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
-            {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
+        <div className="flex items-start gap-4">
+          <ProductThumbnail photoUrl={photoUrl} size="lg" />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">{product.name}</h1>
+              {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
+              {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
+              {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
+            </div>
+            <p className="text-neutral-500">
+              {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
+              {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
+            </p>
+            {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{product.description}</p> : null}
           </div>
-          <p className="text-neutral-500">
-            {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
-            {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
-          </p>
-          {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{product.description}</p> : null}
         </div>
         <div className="flex items-center gap-2">
           {canEdit ? (

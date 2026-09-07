@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
+import { ProductThumbnail } from "@/components/ui/product-thumbnail";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { PAYMENT_METHODS, MOMO_NETWORKS } from "@/lib/validation/sales";
@@ -31,6 +32,10 @@ export interface TillProduct {
   type: "product" | "service";
   /** Cosmetic only (migration 0041) — does not affect pricing or checkout. */
   durationMinutes: number | null;
+  /** Already resolved to a short-lived signed URL by the page (migration
+   *  0046). Null means no photo — ProductThumbnail shows a plain fallback
+   *  icon in that case. */
+  photoUrl: string | null;
 }
 
 export interface TillCustomer {
@@ -355,19 +360,22 @@ export function Till({
                       <button
                         type="button"
                         onClick={() => addToCart(p.variantId)}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                       >
-                        <span>
-                          <span className="font-medium">{p.label}</span>
-                          {p.type === "product" ? (
-                            <span className="ml-2 text-sm text-neutral-500">
-                              {formatQuantity(p.onHand)} {p.unit} left
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-sm text-neutral-500">
-                              Service{p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
-                            </span>
-                          )}
+                        <span className="flex items-center gap-3">
+                          <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
+                          <span>
+                            <span className="font-medium">{p.label}</span>
+                            {p.type === "product" ? (
+                              <span className="ml-2 text-sm text-neutral-500">
+                                {formatQuantity(p.onHand)} {p.unit} left
+                              </span>
+                            ) : (
+                              <span className="ml-2 text-sm text-neutral-500">
+                                Service{p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
+                              </span>
+                            )}
+                          </span>
                         </span>
                         <span className="tabular-nums">{formatMoney(toMinorUnits(p.price), currencyCode)}</span>
                       </button>
@@ -391,8 +399,9 @@ export function Till({
                     key={p.variantId}
                     type="button"
                     onClick={() => addToCart(p.variantId)}
-                    className="flex flex-col items-start gap-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
+                    className="flex flex-col items-start gap-1.5 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
                   >
+                    <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
                     <span className="text-xs text-neutral-500">
                       {p.type === "product"

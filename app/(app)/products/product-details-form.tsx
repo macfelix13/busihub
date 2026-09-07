@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/ui/button";
 import { CategoryCombobox } from "@/components/ui/category-combobox";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES, type ProductDetailsInput } from "@/lib/validation/products";
+import { ProductPhotoField } from "./product-photo-field";
 import type { FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -27,10 +28,22 @@ interface ProductDetailsFormProps {
   productType: "product" | "service";
   /** Whether typing a brand-new category name will actually create one — false for a caller who holds products.edit but not products.create. Cosmetic only: updateProductDetails() re-checks this itself either way. */
   canCreateCategory?: boolean;
+  /** Already resolved to a short-lived signed URL by the page (migration 0046). Null means no photo yet. */
+  photoUrl: string | null;
+  /** Bound to this product's id — removeProductPhoto(productId). */
+  onRemovePhoto: () => Promise<void>;
 }
 
 /** Edits a product's shared catalog fields only — SKU/barcode/price live per-variant and are edited from that variant's own page. */
-export function ProductDetailsForm({ action, defaultValues, categories, productType, canCreateCategory = true }: ProductDetailsFormProps) {
+export function ProductDetailsForm({
+  action,
+  defaultValues,
+  categories,
+  productType,
+  canCreateCategory = true,
+  photoUrl,
+  onRemovePhoto,
+}: ProductDetailsFormProps) {
   const [state, formAction] = useFormState(action, initialState);
 
   return (
@@ -40,6 +53,8 @@ export function ProductDetailsForm({ action, defaultValues, categories, productT
           {state.error}
         </p>
       ) : null}
+
+      <ProductPhotoField defaultPhotoUrl={photoUrl} onRemove={onRemovePhoto} />
 
       <Field label="Product name" name="name" required defaultValue={defaultValues.name} error={state.fieldErrors?.name} />
       <Textarea label="Description (optional)" name="description" defaultValue={defaultValues.description} error={state.fieldErrors?.description} />

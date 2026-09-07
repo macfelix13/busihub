@@ -565,6 +565,98 @@ begin
   update products set status = 'active' where id = v_product;
 end $$;
 
+-- ── 9. photo_url (migration 0046): products.edit gates an EDIT, but
+-- create_product() itself needs only products.create ─────────────────────
+--
+-- Still the Archiver Only session (products.archive, NOT products.edit)
+-- from section 8 above — RLS already lets this row through, so a
+-- rejection here can only come from enforce_product_field_permissions()
+-- itself, exactly the same reasoning as the available_at_till check.
+do $$
+declare v_product uuid;
+begin
+  select product_id into v_product from product_variants where id = (select braiding from svc_variants);
+
+  begin
+    update products set photo_url = 'x/y/z.jpg' where id = v_product;
+    raise exception 'TEST FAILED: products.archive alone could set photo_url (should need products.edit)' using errcode = 'ZZ999';
+  exception when insufficient_privilege or sqlstate '42501' then
+    raise notice 'PASS: changing an EXISTING product''s photo_url needs products.edit, not just products.archive';
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- Contrast: a role holding products.create but NOT products.edit can
+-- still give a BRAND-NEW product its very first photo, because
+-- create_product() sets photo_url in its own INSERT and never touches the
+-- products.edit-gated UPDATE trigger at all — see 0046's file header for
+-- why that split matters (same reasoning already applies to a starting
+-- price/opening stock).
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at)
+values
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000704',
+   'authenticated', 'authenticated', 'creatoronly@busihub.dev.example', 'x', now())
+on conflict (id) do nothing;
+
+do $$
+declare v_biz uuid; v_branch uuid; v_role uuid;
+begin
+  select biz, branch into v_biz, v_branch from svc_ids;
+
+  insert into roles (business_id, name, description, is_system_role)
+    values (v_biz, 'Creator Only', 'Can add new products/services, nothing else about them.', false)
+    on conflict do nothing;
+  select id into v_role from roles where business_id = v_biz and name = 'Creator Only';
+  insert into role_permissions (role_id, permission_id)
+    select v_role, id from permissions where key = 'products.create'
+    on conflict do nothing;
+
+  if exists (
+    select 1 from role_permissions rp join permissions p on p.id = rp.permission_id
+    where rp.role_id = v_role and p.key = 'products.edit'
+  ) then
+    raise exception 'TEST FIXTURE BROKEN: Creator Only somehow holds products.edit' using errcode = 'ZZ999';
+  end if;
+
+  perform set_config('busihub.privileged_write', 'on', true);
+  insert into profiles (id, business_id, first_name, last_name, email)
+    values ('00000000-0000-0000-0000-000000000704', v_biz, 'Creator', 'Only', 'creatoronly@busihub.dev.example')
+    on conflict (id) do nothing;
+  perform set_config('busihub.privileged_write', 'off', true);
+
+  insert into user_branch_roles (business_id, branch_id, user_id, role_id, granted_by)
+    values (v_biz, v_branch, '00000000-0000-0000-0000-000000000704', v_role, '00000000-0000-0000-0000-000000000700')
+    on conflict do nothing;
+end $$;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000704';
+
+do $$
+declare v_biz uuid; v_new_product uuid; v_photo text;
+begin
+  select biz into v_biz from svc_ids;
+
+  select create_product(
+    v_biz, 'Creator Only Test Product', null, null, 'each', 'standard',
+    array[]::text[],
+    jsonb_build_array(jsonb_build_object(
+      'sku', 'CRE-1', 'barcode', null, 'variant_options', '{}'::jsonb, 'cost_price', 0, 'selling_price', 15
+    )),
+    null, 'product', null, 'creatoronly/test-token/photo.jpg'
+  ) into v_new_product;
+
+  select photo_url into v_photo from products where id = v_new_product;
+  if v_photo is distinct from 'creatoronly/test-token/photo.jpg' then
+    raise exception 'TEST FAILED: create_product() did not record the starting photo for a products.create-only caller (got %)', v_photo
+      using errcode = 'ZZ999';
+  end if;
+
+  raise notice 'PASS: create_product() lets a products.create-only caller give a brand-new product its starting photo';
+end $$;
+
 reset role;
 reset request.jwt.claim.sub;
 

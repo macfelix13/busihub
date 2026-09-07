@@ -466,6 +466,94 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — Product/service photos, on the catalog pages and the till
+  (migration `0046`).
+  Requested directly: "i want to be able to add product image to
+  product." Two design questions were put to the user before writing
+  anything: where a photo should actually render (catalog pages only, or
+  also the till grid/search results — chosen: **both**, accepting the
+  bandwidth trade-off that entails on the app's single most-loaded
+  screen) and whether a product needs one photo or several (chosen:
+  **one**, matching the `service_providers` precedent and everything a
+  POS catalog actually needs). `photo_url` lives on `products`, not
+  `product_variants` — a Size/Color variant of "the same shirt" shares
+  one picture, the same way name/description/category already do.
+  **Storage** follows `0045`'s already-established shape almost exactly:
+  a new PRIVATE bucket, `product-photos` (5 MB cap, `image/jpeg`/`png`/
+  `webp` only, enforced at the bucket level and again in the upload
+  Server Action), `storage.objects` policies scoped by the path's own
+  leading folder segment (`storage.foldername(name)[1]`, always the
+  caller's own `business_id`), and `photo_url` storing only the object
+  PATH, resolved to a short-lived (1 hour) signed URL at render time via
+  `lib/storage/product-photos.ts`. One deliberate departure from `0045`:
+  the SELECT policy carries no permission check at all, matching
+  `products_select` itself (`0013`) — any active member of the business
+  can already see every product's name/price/category regardless of
+  role, so gating the photo more tightly would be inconsistent with the
+  row it belongs to.
+  **Till performance, taken seriously rather than assumed away** — the
+  user explicitly chose to put photos on the till knowing the cost, so
+  three mitigations went in rather than one: (1)
+  `lib/storage/product-photos.ts` signs a whole page of photos in ONE
+  Storage call (`createSignedUrls`), not one round trip per row — the
+  till can browse a hundred-plus products at once, unlike the small,
+  admin-only lists `0045`'s per-row `createSignedUrl` was fine for; (2)
+  every rendered thumbnail (`components/ui/product-thumbnail.tsx`) sets
+  `loading="lazy"`, so a tile off-screen in the till's scrollable grid is
+  never actually fetched; (3) `lib/images/downscale-photo-client.ts`
+  downscales/re-encodes a picked photo (to at most 1024px, JPEG quality
+  0.82) entirely in the browser, via `<canvas>`, before it ever leaves
+  the device — a phone-camera original is routinely 3-8 MB, which is a
+  one-time cost to upload but a real, repeated cost once it's something
+  the till fetches on every shift. This never blocks a save: any failure
+  (unsupported format, browser quirk, an already-small source) falls
+  back to the original file untouched, and the server independently
+  re-checks size/type before anything touches storage regardless
+  (`isAllowedProductPhotoFile`, same shape as `0045`'s own check).
+  **The interesting permission question** was whether a brand-new
+  product's first photo should need `products.create` (the permission
+  that already covers a starting price and opening stock) or
+  `products.edit` — and the two are genuinely different in this schema
+  (unlike `service_providers`, where a single permission covers create
+  and edit alike). `photo_url` joins `enforce_product_field_permissions()`'s
+  `products.edit`-gated column list (alongside `category_id`,
+  `duration_minutes`, `available_at_till`) for changing an EXISTING
+  product's photo — but `create_product()` gained a new `p_photo_url`
+  parameter and sets it directly in its own `INSERT`, the same way a
+  starting price already bypasses that UPDATE trigger entirely, so
+  giving a brand-new product its first photo only ever needs
+  `products.create`. That required uploading the photo to Storage
+  *before* the product exists (its path can't be keyed by a product id
+  that doesn't exist yet) — solved by keying the create-time path with a
+  random, throwaway token instead of a real id; `storage.objects`'
+  policies never inspect that segment, only the leading `business_id`
+  one, so this costs nothing. `create_product()` needed `drop function`
+  first (a new parameter is a different overload, not a replacement —
+  the same trap every prior parameter addition to this function, `0026`/
+  `0040`/`0041`, already documented and guards against). A
+  `tests/security/services.sql` addition (section 9) proves both halves
+  against real RLS: a role holding `products.archive` but not
+  `products.edit` is refused when changing an existing product's photo
+  (RLS lets the row through, so the rejection can only be the trigger
+  itself — not just the coarse row-level gate), while a role holding only
+  `products.create` succeeds at giving a brand-new product its starting
+  photo through `create_product()`.
+  **New/changed files**: `supabase/migrations/0046_product_photos.sql`
+  (`products.photo_url` + storage bucket/policies +
+  `enforce_product_field_permissions()`/`create_product()` rewrites);
+  `lib/storage/product-photos.ts`; `lib/images/downscale-photo-client.ts`;
+  `lib/validation/products.ts` gains `isAllowedProductPhotoFile`;
+  `components/ui/product-thumbnail.tsx` (shared by the list, detail, and
+  till); `app/(app)/products/product-photo-field.tsx` (shared by the
+  create and edit forms); `app/(app)/products/{actions.ts,
+  product-form.tsx, product-details-form.tsx, page.tsx, [id]/page.tsx,
+  [id]/edit/page.tsx}` — upload/replace/remove actions, and a thumbnail
+  on the list row and the detail page's header; `app/(app)/till/{page.tsx,
+  till.tsx}` — a thumbnail on every till tile and search result;
+  `tests/unit/products-validation.test.ts` gains an
+  `isAllowedProductPhotoFile` suite; `tests/security/services.sql` gains
+  section 9 (above).
+
 - 2026-09-07 — Service providers: staff who render a service but never
   sign in (migration `0045`).
   Requested directly: "have ability to create staff such as barbers,

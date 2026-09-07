@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -10,9 +11,11 @@ import {
   createProductSchema,
   productDetailsSchema,
   variantFormSchema,
+  isAllowedProductPhotoFile,
   type VariantRowInput,
 } from "@/lib/validation/products";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
+import { productPhotoPath, PRODUCT_PHOTOS_BUCKET } from "@/lib/storage/product-photos";
 
 export interface FormState {
   error?: string;
@@ -168,6 +171,96 @@ function duplicateFieldFromError(message: string): { field: string; text: string
   return null;
 }
 
+/**
+ * Uploads a photo already attached to the create-product form, best-effort
+ * and BEFORE the product itself exists — the resulting path (or null if no
+ * file was picked, or the pick was rejected) is handed straight to
+ * create_product(), which sets it in the very same INSERT as the rest of
+ * the row. See migration 0046's file header for why this can't wait for a
+ * product id the way the edit-flow upload below does: routing the very
+ * first photo through a follow-up UPDATE instead would require
+ * products.edit, when products.create is the only permission a "create a
+ * product with a photo" submission is supposed to need.
+ */
+async function tryUploadPhotoForCreate(
+  supabase: SupabaseServerClient,
+  businessId: string,
+  formData: FormData
+): Promise<string | null> {
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return null;
+
+  if (!isAllowedProductPhotoFile(file)) {
+    console.error("tryUploadPhotoForCreate: rejected file", { type: file.type, size: file.size });
+    return null;
+  }
+
+  // No product id yet — RLS on this bucket only ever checks the leading
+  // business_id segment (migration 0046), so a random, throwaway token
+  // stands in for the not-yet-known product id.
+  const path = productPhotoPath(businessId, randomUUID(), file.name);
+
+  const { error } = await supabase.storage.from(PRODUCT_PHOTOS_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("tryUploadPhotoForCreate: upload failed", error);
+    return null;
+  }
+
+  return path;
+}
+
+/**
+ * Same idea for an EXISTING product's edit form — the product id is
+ * already known, so it's used as the path's own organizational segment
+ * (purely cosmetic; RLS doesn't look at it — see productPhotoPath's own
+ * comment) — and this is a genuine edit, so the caller reaching this point
+ * has already been required to hold products.edit.
+ */
+async function tryUploadPhotoForEdit(
+  supabase: SupabaseServerClient,
+  businessId: string,
+  productId: string,
+  formData: FormData
+): Promise<string | null> {
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return null;
+
+  if (!isAllowedProductPhotoFile(file)) {
+    console.error("tryUploadPhotoForEdit: rejected file", { type: file.type, size: file.size });
+    return null;
+  }
+
+  const path = productPhotoPath(businessId, productId, file.name);
+
+  const { error } = await supabase.storage.from(PRODUCT_PHOTOS_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("tryUploadPhotoForEdit: upload failed", error);
+    return null;
+  }
+
+  return path;
+}
+
+async function deleteProductPhotoObject(supabase: SupabaseServerClient, path: string | null | undefined) {
+  if (!path) return;
+  const { error } = await supabase.storage.from(PRODUCT_PHOTOS_BUCKET).remove([path]);
+  if (error) {
+    // Not fatal — an orphaned object in a private bucket costs nothing a
+    // tenant can see or be charged meaningfully for, and is not worth
+    // failing the surrounding request over. Same reasoning as
+    // settings/service-providers/actions.ts's deletePhotoObject.
+    console.error("deleteProductPhotoObject: remove failed", { path, error });
+  }
+}
+
 export async function createProduct(_prevState: FormState, formData: FormData): Promise<FormState> {
   const parsed = createProductSchema.safeParse(createProductFormValues(formData));
 
@@ -197,6 +290,11 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     return { error: categoryResult.fieldError, fieldErrors: { categoryName: categoryResult.fieldError } };
   }
 
+  // Uploaded BEFORE the product exists (see tryUploadPhotoForCreate's own
+  // comment) so its path can be handed straight to create_product() and
+  // set in the same INSERT as the rest of the row.
+  const photoPath = await tryUploadPhotoForCreate(supabase, businessId, formData);
+
   const { error } = await supabase.rpc("create_product", {
     p_business_id: businessId,
     p_name: name,
@@ -223,10 +321,16 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
     // Meaningless for a product — create_product (0041) forces this to
     // null server-side for type='product' regardless of what is sent.
     p_duration_minutes: durationMinutes ?? null,
+    p_photo_url: photoPath,
   });
 
   if (error) {
     console.error("createProduct: rpc failed", error);
+    // The product was never created — this file has nothing to belong to,
+    // so it doesn't get to linger as an orphan just because the rest of
+    // the form needs correcting and resubmitting (a duplicate name is a
+    // common reason this happens while iterating on a new item).
+    await deleteProductPhotoObject(supabase, photoPath);
     const dup = error.code === "23505" ? duplicateFieldFromError(error.message ?? "") : null;
     if (dup) {
       return { error: dup.text, fieldErrors: { [dup.field]: dup.text } };
@@ -253,6 +357,10 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
   }
 
   revalidatePath("/products");
+  // The till reads product photos too now (migration 0046) — same
+  // revalidation setServiceProviderStatus/setProductTillAvailability
+  // already do for their own till-visible fields.
+  revalidatePath("/till");
   redirect("/products");
 }
 
@@ -300,7 +408,7 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
   // sent, the same treatment create_product() gives it at creation time.
   const { data: existing, error: existingError } = await supabase
     .from("products")
-    .select("type")
+    .select("type, photo_url")
     .eq("id", productId)
     .eq("business_id", businessId)
     .maybeSingle();
@@ -331,8 +439,29 @@ export async function updateProductDetails(productId: string, _prevState: FormSt
     return { error: "Couldn't save changes. Please try again." };
   }
 
+  // Best-effort, same as service providers' updateServiceProvider — a
+  // failed image upload should never sink an otherwise-valid save of the
+  // product's other details, which have already been written above.
+  const photoPath = await tryUploadPhotoForEdit(supabase, businessId, productId, formData);
+  if (photoPath) {
+    const { error: photoError } = await supabase
+      .from("products")
+      .update({ photo_url: photoPath })
+      .eq("id", productId)
+      .eq("business_id", businessId);
+
+    if (photoError) {
+      console.error("updateProductDetails: saving photo_url failed", photoError);
+    } else {
+      // Only delete the OLD object once the new one is confirmed saved —
+      // never the other way around.
+      await deleteProductPhotoObject(supabase, existing.photo_url);
+    }
+  }
+
   revalidatePath("/products");
   revalidatePath(`/products/${productId}`);
+  revalidatePath("/till");
   redirect(`/products/${productId}`);
 }
 
@@ -385,6 +514,48 @@ export async function setProductTillAvailability(productId: string, availableAtT
     console.error("setProductTillAvailability: update failed", error);
     throw new Error("Couldn't update whether this shows up at the till. Please try again.");
   }
+
+  revalidatePath("/products");
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/till");
+}
+
+/**
+ * Removes a product's photo without touching anything else about the
+ * record. Plain action (no form state) — the edit page calls this
+ * directly and re-renders with photo_url now null. Same shape as
+ * settings/service-providers/actions.ts's removeServiceProviderPhoto, but
+ * gated by products.edit (this is a catalog-attribute edit, not a
+ * staffing decision).
+ */
+export async function removeProductPhoto(productId: string): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  const businessId = await requireProductPermission(supabase, PERMISSIONS.PRODUCTS_EDIT);
+
+  const { data: existing, error: readError } = await supabase
+    .from("products")
+    .select("photo_url")
+    .eq("id", productId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  if (readError || !existing?.photo_url) {
+    if (readError) console.error("removeProductPhoto: read failed", readError);
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ photo_url: null })
+    .eq("id", productId)
+    .eq("business_id", businessId);
+
+  if (updateError) {
+    console.error("removeProductPhoto: clearing photo_url failed", updateError);
+    throw new Error("Couldn't remove the photo. Please try again.");
+  }
+
+  await deleteProductPhotoObject(supabase, existing.photo_url);
 
   revalidatePath("/products");
   revalidatePath(`/products/${productId}`);

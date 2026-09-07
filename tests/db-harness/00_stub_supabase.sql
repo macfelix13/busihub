@@ -1,4 +1,4 @@
-﻿-- NOT part of the real schema. Local-only stub that approximates just
+-- NOT part of the real schema. Local-only stub that approximates just
 -- enough of Supabase's auth schema/roles to let us apply the real
 -- migrations against a plain local Postgres and exercise RLS, since this
 -- sandbox has no network access to a real Supabase project.
@@ -83,3 +83,67 @@ grant all on all tables in schema public to service_role;
 grant all on all sequences in schema public to service_role;
 alter default privileges in schema public grant all on tables to service_role;
 alter default privileges in schema public grant all on sequences to service_role;
+
+-- Supabase's Storage schema: just enough of `storage.buckets` /
+-- `storage.objects` / `storage.foldername()` for a migration that creates
+-- a bucket and RLS-scopes it to work here, the same way `auth` above is
+-- stubbed rather than real. Migration 0045 (service provider photos) is
+-- the first migration in the project's history to touch storage.* at
+-- all, so this harness never needed it before now.
+--
+-- On a real Supabase project this schema and both tables already exist
+-- from provisioning, and storage.objects already has row level security
+-- enabled — which is exactly why 0045 does NOT run `alter table
+-- storage.objects enable row level security` itself (that statement is
+-- rejected there with "must be owner of table objects"). Here, this
+-- harness creates the tables fresh as their owner, so enabling RLS is
+-- both necessary and allowed — it belongs in the stub, not the
+-- migration, precisely because the two environments differ on who owns
+-- the table.
+create schema storage;
+
+create table storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[],
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name text,
+  owner uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  metadata jsonb
+);
+
+alter table storage.objects enable row level security;
+
+-- Real signature: storage.foldername(name text) returns text[], the
+-- path's segments minus the trailing filename — e.g. 'a/b/c.jpg' -> {a,b}.
+-- 0045's policies read segment [1] off this as the leading business_id.
+create or replace function storage.foldername(name text)
+returns text[]
+language plpgsql
+immutable
+as $$
+declare
+  parts text[];
+begin
+  parts := string_to_array(name, '/');
+  return parts[1 : greatest(array_length(parts, 1) - 1, 0)];
+end;
+$$;
+
+-- Matches Supabase's own default grants on these tables: both anon and
+-- authenticated can read buckets and read/write objects, gated by RLS;
+-- service_role bypasses RLS entirely (bypassrls, set above) but still
+-- needs the underlying table grants.
+grant usage on schema storage to anon, authenticated, service_role;
+grant select on storage.buckets to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;

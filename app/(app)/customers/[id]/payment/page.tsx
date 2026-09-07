@@ -1,8 +1,9 @@
-﻿import { notFound, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { AccountEntryForm } from "../../account-entry-form";
 import { recordPayment } from "../../actions";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
@@ -49,10 +50,7 @@ export default async function RecordPaymentPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Record payment</h1>
-        <p className="text-neutral-500">{customer.name}</p>
-      </div>
+      <PageHeader title="Record payment" description={customer.name} />
       <AccountEntryForm
         mode="payment"
         action={recordPayment.bind(null, customer.id)}

@@ -1,10 +1,12 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { StatusToggleButton } from "../../products/status-toggle-button";
 import { setCustomerStatus } from "../actions";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
@@ -79,11 +81,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{customer.name}</h1>
-            {customer.status === "archived" ? (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                Archived
-              </span>
-            ) : null}
+            {customer.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
           </div>
           <p className="text-neutral-500">{customer.phone || "No phone number"}</p>
         </div>
@@ -111,7 +109,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="p-5">
           <p className="text-sm text-neutral-500">Balance</p>
           <p
             className={`mt-1 text-2xl font-semibold tabular-nums ${
@@ -123,15 +121,15 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           <p className="mt-0.5 text-sm text-neutral-500">
             {balance === 0 ? "Settled up" : state.owing ? "owed to you" : "in their favour"}
           </p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        </Card>
+        <Card className="p-5">
           <p className="text-sm text-neutral-500">Credit limit</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {formatMoney(toMinorUnits(creditLimit), currencyCode)}
           </p>
           <p className="mt-0.5 text-sm text-neutral-500">{creditLimit === 0 ? "Cash only" : "maximum they may owe"}</p>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        </Card>
+        <Card className="p-5">
           <p className="text-sm text-neutral-500">Still available</p>
           <p
             className={`mt-1 text-2xl font-semibold tabular-nums ${
@@ -143,10 +141,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           <p className="mt-0.5 text-sm text-neutral-500">
             {headroom <= 0 ? "at their limit" : "can still be charged"}
           </p>
-        </div>
+        </Card>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <Card className="overflow-hidden">
         <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
           {[
             ["Email", customer.email],
@@ -161,7 +159,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             </div>
           ))}
         </dl>
-      </div>
+      </Card>
 
       <div>
         <h2 className="font-semibold">Account history</h2>
@@ -169,7 +167,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           Everything charged and paid, most recent first. Entries are never edited or deleted — a correction is a new
           entry.
         </p>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -187,7 +185,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     const amount = Number(entry.amount);
                     const who = [entry.profiles?.first_name, entry.profiles?.last_name].filter(Boolean).join(" ");
                     return (
-                      <tr key={entry.id}>
+                      <tr key={entry.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                         <td className="px-4 py-3 text-neutral-500">
                           {new Date(entry.created_at).toLocaleString("en-GB", {
                             day: "2-digit",
@@ -221,7 +219,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
         <p className="mt-2 text-sm text-neutral-500">
           A charge (+) increases what they owe; a payment (−) reduces it.
         </p>

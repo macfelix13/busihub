@@ -466,6 +466,58 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 7 of N (Customers — detail,
+  edit, new, charge, and payment pages).
+  Continuing the phased redesign (phases 1-6 above/below), and the
+  second of the "detail/edit/new pages" sub-sequence across Products,
+  Customers, Sales, and Inventory: this phase is Customers' half (Sales
+  and Inventory follow as later phases). Same rule as every phase
+  touching a data-heavy screen: presentation only. Every Supabase query
+  (the customer/balance/account-entries lookups on the detail page, the
+  customer-plus-balance-plus-branches lookups on the charge and payment
+  pages), every permission check (`CUSTOMERS_VIEW`, `CUSTOMERS_EDIT`),
+  every `redirect`/`notFound` call, every calculation (the balance/
+  credit-limit/headroom figures and their owing/in-credit color
+  thresholds, the "settled up" / "currently owed" balance label built
+  for the charge and payment forms, the decimal-string coercions), and
+  every bound server action (`setCustomerStatus`, `updateCustomer`,
+  `recordCharge`, `recordPayment`, `createCustomer`) is untouched,
+  character for character — confirmed by reviewing the complete final
+  files against the originals.
+  What changed, concretely: four pages whose header was a plain
+  `<h1>` + one-line description (`customers/[id]/edit`,
+  `customers/[id]/charge`, `customers/[id]/payment`, `customers/new`)
+  now use the shared `PageHeader`. `customers/[id]/page.tsx` (the
+  customer detail page) keeps its existing custom header layout rather
+  than being forced into `PageHeader` — same reasoning as
+  `products/[id]/page.tsx` in phase 6: it has a status badge inline next
+  to the title alongside a separate phone-number line, a shape
+  `PageHeader`'s single-title/single-description contract doesn't
+  cleanly fit — but its one hand-rolled "Archived" pill became the
+  shared `Badge`. That page's three balance/credit-limit/headroom
+  summary boxes, its email/address/notes details box, and its account-
+  history table's outer box — all three previously hand-rolled
+  `rounded-2xl border bg-white` boxes, identical in every way to what
+  `Card` already provides — became `Card`s, and each account-history
+  row gained `transition-colors` on hover (it had none before, matching
+  the same fix made to Inventory's table in phase 5 and Products'
+  variant table in phase 6).
+  Left deliberately alone: the account-history table's empty-row
+  message ("Nothing on this account yet.") stays a plain centered table
+  row (`<tr><td colSpan>`) rather than `EmptyState`, which doesn't fit
+  inside a table row's markup — same reasoning as Inventory's table in
+  phase 5. `customer-form.tsx` and `account-entry-form.tsx` were read
+  and left untouched — both already use `Field`/`Select`/`Textarea`/
+  `SubmitButton` and already have `role="alert"` on their error banners,
+  so they were already consistent with the rest of the design system;
+  `account-entry-form.tsx`'s balance-label strip is a plain informational
+  notice rather than a list/card container, so it wasn't a fit for
+  `Card` either. `status-toggle-button.tsx` is untouched for the same
+  nine-call-site reasoning given in phase 6.
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 6 of N (Products — detail,
   edit, new, and variant/category sub-pages).
   Continuing the phased redesign (phases 1-5 above/below), and the first

@@ -1,8 +1,9 @@
-﻿import { notFound, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { CustomerForm } from "../../customer-form";
 import { updateCustomer } from "../../actions";
 
@@ -39,10 +40,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Edit customer</h1>
-        <p className="text-neutral-500">{customer.name}</p>
-      </div>
+      <PageHeader title="Edit customer" description={customer.name} />
       <CustomerForm
         action={updateCustomer.bind(null, customer.id)}
         currencyCode={business?.currency_code ?? "GHS"}

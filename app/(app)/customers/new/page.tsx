@@ -1,8 +1,9 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { CustomerForm } from "../customer-form";
 import { createCustomer } from "../actions";
 
@@ -24,10 +25,7 @@ export default async function NewCustomerPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Add customer</h1>
-        <p className="text-neutral-500">Someone who buys from you.</p>
-      </div>
+      <PageHeader title="Add customer" description="Someone who buys from you." />
       <CustomerForm
         action={createCustomer}
         currencyCode={business?.currency_code ?? "GHS"}

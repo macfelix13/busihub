@@ -305,6 +305,119 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
   redirect(`/sales/${sale}`);
 }
 
+export interface NoSaleResult {
+  ok: boolean;
+  error?: string;
+  /** Present only when ok — the small slip to print, see below. */
+  slipText?: string;
+}
+
+/**
+ * "No sale" — open the cash drawer without ringing anything up (giving
+ * change, correcting a mistake). Gated by sales.no_sale (migration 0044),
+ * deliberately separate from sales.process: every cashier can sell, but
+ * not every cashier is meant to be able to pop the drawer on demand — see
+ * that migration's own header for why it isn't handed out by default.
+ *
+ * This never touches the sales table — there is no transaction here, on
+ * purpose, so it can never be mistaken for a real one in reports. It is
+ * recorded exclusively as an audit_logs row via log_audit_event() (0008),
+ * the same sanctioned write path every other sensitive action in this app
+ * uses, so authorization and logging cannot drift apart.
+ *
+ * The chosen printing architecture is the browser's own print dialog
+ * against a formatted receipt/slip (see ARCHITECTURE.md and the receipt
+ * page), relying on the physical printer's own driver setting to pulse
+ * the cash drawer on any print job — not direct in-app hardware control.
+ * That means this action cannot pop the drawer by itself; what it CAN do
+ * is hand back a small printable slip, and printing it on the same
+ * printer the drawer is wired to pops it exactly the way a sale's receipt
+ * does. The slip text is returned here, not fetched back from audit_logs
+ * afterward — a plain Cashier who holds sales.no_sale but not audit.view
+ * could not read their own row back under audit_logs' RLS policy
+ * (0009, requires audit.view), so the caller's own request/response is
+ * the only place this data can safely come from.
+ */
+export async function openDrawerNoSale(branchId: string, reason?: string): Promise<NoSaleResult> {
+  const supabase = await createServerSupabaseClient();
+
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+    await requirePermission(supabase, businessId, PERMISSIONS.SALES_NO_SALE);
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { ok: false, error: err.message };
+    console.error("openDrawerNoSale: permission/business lookup failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [{ data: business }, { data: branch }] = await Promise.all([
+    supabase.from("businesses").select("name").eq("id", businessId).maybeSingle(),
+    // A branch id from the browser is never trusted at face value (see
+    // this project's standing rule against trusting client-supplied IDs)
+    // — scoping by business_id means a branch belonging to another
+    // tenant simply won't be found here.
+    supabase.from("branches").select("name").eq("id", branchId).eq("business_id", businessId).maybeSingle(),
+  ]);
+
+  if (!branch) {
+    return { ok: false, error: "That branch could not be found." };
+  }
+
+  let cashierName = "Unknown";
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, first_name, last_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    cashierName =
+      (profile as { display_name: string | null } | null)?.display_name ||
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+      "Unknown";
+  }
+
+  const trimmedReason = reason?.trim() || null;
+
+  const { data: auditId, error: auditError } = await supabase.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: branchId,
+    p_action: "till.no_sale",
+    p_resource_type: "till",
+    p_resource_id: null,
+    p_metadata: trimmedReason ? { reason: trimmedReason } : {},
+  });
+
+  if (auditError) {
+    console.error("openDrawerNoSale: log_audit_event failed", auditError);
+    return { ok: false, error: "Couldn't record this. Please try again." };
+  }
+
+  const now = new Date();
+  const lines = [
+    (business?.name ?? "Busihub").toUpperCase(),
+    branch.name,
+    "",
+    "*** NO SALE - DRAWER OPENED ***",
+    `Cashier: ${cashierName}`,
+    `Time: ${now.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+  ];
+  if (trimmedReason) lines.push(`Reason: ${trimmedReason}`);
+  lines.push("", `Ref: ${typeof auditId === "string" ? auditId.slice(0, 8) : "—"}`);
+
+  return { ok: true, slipText: lines.join("\n") };
+}
+
 /**
  * Asks Paystack to prompt the customer's phone for the pending tender on
  * this sale. Returns null on success, or a message for the counter.

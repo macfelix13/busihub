@@ -34,6 +34,8 @@ export const PERMISSIONS = {
   DISCOUNTS_APPLY_UNLIMITED: "discounts.apply.unlimited",
   SALES_REFUND: "sales.refund",
   SALES_HOLD: "sales.hold",
+  /** Open the cash drawer without ringing anything up (migration 0044) — see that migration's header. */
+  SALES_NO_SALE: "sales.no_sale",
 
   REPORTS_VIEW: "reports.view",
   REPORTS_EXPORT: "reports.export",

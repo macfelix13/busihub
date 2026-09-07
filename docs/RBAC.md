@@ -14,8 +14,8 @@ See `seed_default_roles_for_business()` for the authoritative list. Summary:
 | Role | Gets |
 |---|---|
 | Owner | every permission |
-| Manager | products, inventory, purchasing, customers, sales (incl. void/refund, capped discounts), reports, financial view, expenses, `users.manage`, `audit.view`, `approvals.decide` — not `roles.manage` or `business.manage` |
-| Cashier | product/customer view+edit, `sales.process`/`sales.hold`, capped `discounts.apply`, `inventory.view` — no refunds, no voids |
+| Manager | products, inventory, purchasing, customers, sales (incl. void/refund, capped discounts, `sales.no_sale`), reports, financial view, expenses, `users.manage`, `audit.view`, `approvals.decide` — not `roles.manage` or `business.manage` |
+| Cashier | product/customer view+edit, `sales.process`/`sales.hold`, capped `discounts.apply`, `inventory.view` — no refunds, no voids, no `sales.no_sale` |
 | Inventory Manager | products (view/create/edit), full inventory, purchasing, `reports.view` |
 | Accountant | `financial.view`, reports, expenses, `audit.view`, supplier/customer view |
 | Auditor | read-only: `audit.view`, `reports.view`, `financial.view`, product/inventory/customer/supplier view |
@@ -42,11 +42,18 @@ is gated by the exact same `products.view`/`products.create`/`products.edit`/`pr
 permissions a product already uses — **there is no `services.*` permission set**, and none is planned.
 
 This was a deliberate choice, not an oversight: `seed_default_roles_for_business()` (0011) only ever runs once, at
-business registration, and this project has never yet added a new permission to the catalog after the initial
-`0010_seed_platform_catalog.sql` seed. Introducing a `services.*` set would have meant every already-registered
-business's Owner/Manager/etc. roles silently lacking it until a separate backfill migration touched every tenant's
-`role_permissions` rows — a kind of migration this codebase has no precedent for and no tooling built around. Reusing
-`products.*` means every existing business's staff permissions extend to services with zero backfill required.
+business registration, and at the time this decision was made, this project had never yet added a new permission to
+the catalog after the initial `0010_seed_platform_catalog.sql` seed. Introducing a `services.*` set would have meant
+every already-registered business's Owner/Manager/etc. roles silently lacking it until a separate backfill migration
+touched every tenant's `role_permissions` rows — a kind of migration this codebase had no precedent for and no
+tooling built around at that point. Reusing `products.*` means every existing business's staff permissions extend to
+services with zero backfill required.
+
+That "no precedent" changed with `0044_till_no_sale.sql`, the first migration to actually add a brand-new permission
+(`sales.no_sale`, for opening the cash drawer without a sale) and backfill it into every existing business's
+Owner/Manager `role_permissions` rows — see that migration's own header for the mechanics. It does not retroactively
+make a `services.*` split any more attractive; it just means "add a permission after the fact" is no longer
+hypothetical the next time it comes up.
 
 One consequence worth naming: a custom role that was given `products.view`/`products.create` etc. *without* wanting
 staff to also manage services has no way to separate the two — granting one still grants the other, by construction.

@@ -466,6 +466,89 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — "Now let's move on with the scanning and printing" —
+  scanning via a USB/Bluetooth barcode scanner and printing a receipt
+  already existed (the till's search box has always treated a scanner as
+  a keyboard typing a code then Enter, and `app/(app)/sales/[id]/receipt`
+  already formats and prints a receipt through the browser's own print
+  dialog, per-business paper-size setting and all). Two genuinely new
+  pieces this covers, plus one design decision that turned out to need no
+  new code at all:
+
+  1. **Cash drawer, wired through the printer.** Asked directly before
+     writing anything, since the options differ enormously in browser
+     support: direct in-app hardware control (WebUSB) only works in
+     Chrome/Edge on a desktop — Safari, Firefox, and effectively every
+     mobile browser cannot use it, which would leave a till on a phone or
+     iPad with no printing or drawer function at all. Chose instead to
+     rely on the receipt printer's own driver setting that pulses the
+     drawer on any print job — the normal setup for a thermal printer with
+     an attached drawer, and already fully working with zero new code,
+     since printing already went through the browser's print dialog. This
+     is a hardware/OS-configuration task for the shop, not something the
+     app can verify or control from here — stated plainly rather than
+     claimed as "done" when it depends on printer driver configuration
+     outside this codebase.
+
+  2. **Camera-based barcode scanning**, for a till running on a phone or
+     tablet with no USB/Bluetooth scanner attached — the actual new
+     scanning surface (a plain USB/Bluetooth scanner needed no changes).
+     `components/ui/barcode-scanner-modal.tsx` decodes frames off a live
+     `<video>` feed using `@zxing/browser` (a new dependency) rather than
+     the native `BarcodeDetector` API, which has no Safari/iOS
+     implementation — "phone camera for mobile" would not hold on every
+     phone otherwise. `till.tsx` gained a "Scan" button next to the search
+     box, and its old inline exact-barcode-match logic was pulled out into
+     a shared `tryAddByBarcode()` so a USB scanner's keystrokes and a
+     camera's decoded text are matched against the catalog exactly the
+     same way — they can never quietly disagree about what a code means.
+     Worth naming rather than glossing over: the very first scan on a
+     brand-new browser install may default to the front camera on some
+     phones (camera labels needed to prefer the rear one are only
+     populated once permission has been granted at least once for that
+     origin) — self-corrects from the second attempt onward.
+
+  3. **"No sale"** — asked directly whether staff should be able to open
+     the drawer without a sale (giving change, correcting a mistake): yes,
+     but permission-gated and logged, since an always-available
+     drawer-open button is a known till-fraud vector. Migration 0044 adds
+     `sales.no_sale` — the first new permission this project has added to
+     the catalog since the initial 0010/0011 seed, and so also the first
+     time a `role_permissions` backfill migration (granting it to every
+     existing business's Owner and Manager roles, not only new ones) has
+     actually been needed — see docs/RBAC.md, which had already flagged
+     this exact situation as hypothetical when 0040 chose to reuse
+     `products.*` for services rather than face it early. Cashier does not
+     get it by default. `openDrawerNoSale()` (`app/(app)/till/actions.ts`)
+     never touches the `sales` table — there is no transaction, on purpose,
+     so it can never be mistaken for a real one in reports — and records
+     the event exclusively via `log_audit_event()` (0008). Because a plain
+     Cashier holding `sales.no_sale` but not `audit.view` cannot read that
+     row back under `audit_logs`' own RLS policy, the printable slip is
+     composed and returned directly by the same server action rather than
+     fetched back afterward from a separate page. `till.tsx` prints it
+     through the same browser-print-dialog path as a sale receipt (a
+     `print:hidden` wrapper around the normal till UI, with the slip as
+     the one thing left visible to print), reusing the printer's own
+     drawer-kick-on-print behavior rather than needing a second hardware
+     integration.
+
+  No SQL test changes were needed for the camera scanner or the printing
+  architecture itself (neither has a database-enforced security surface);
+  `tests/security/tenant_isolation_and_rbac.sql` gained assertions for
+  `sales.no_sale`: catalogued under the `sales` category, correctly
+  granted to Owner/Manager on both the pre-existing demo business (proves
+  the backfill reached already-registered rows) and a business registered
+  fresh within that same test file after 0044 (proves the updated seed
+  function itself grants it going forward), and confirmed absent from
+  Cashier by default. Verified against a from-scratch local Postgres
+  rebuild through all 44 migrations with the full 18-file security suite
+  green. `@zxing/browser`'s exact TypeScript surface could not be
+  confirmed against the real package in this sandbox (no npm registry
+  access here) — its runtime API is stable and this is disclosed plainly
+  rather than assumed correct, in case one type name needs adjusting once
+  `npm run typecheck` runs for real.
+
 - 2026-09-06 — Follow-up to the till-availability toggle shipped earlier
   the same day: "some available products and services (6 or more) should
   always be seen in the till page" — the toggle itself (below) only

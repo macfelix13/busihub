@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormState } from "react-dom";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { PAYMENT_METHODS, MOMO_NETWORKS } from "@/lib/validation/sales";
-import { completeSale, signOutCashier, type FormState } from "./actions";
+import { completeSale, signOutCashier, openDrawerNoSale, type FormState } from "./actions";
 
 const initialState: FormState = {};
 
@@ -66,6 +67,8 @@ interface TillProps {
   allowNegativeStock: boolean;
   /** Switched on AND a Paystack account connected. Both, or the option would only fail. */
   momoEnabled: boolean;
+  /** sales.no_sale (migration 0044) — cosmetic gate for showing the "No sale" button; openDrawerNoSale() re-checks this itself. */
+  canOpenDrawer: boolean;
 }
 
 export function Till({
@@ -78,6 +81,7 @@ export function Till({
   currencyCode,
   allowNegativeStock,
   momoEnabled,
+  canOpenDrawer,
 }: TillProps) {
   const [state, formAction] = useFormState(completeSale, initialState);
   const [query, setQuery] = useState("");
@@ -89,6 +93,13 @@ export function Till({
   const [momoNumber, setMomoNumber] = useState("");
   const [momoNetwork, setMomoNetwork] = useState<string>(MOMO_NETWORKS[0].value);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [noSaleOpen, setNoSaleOpen] = useState(false);
+  const [noSaleReason, setNoSaleReason] = useState("");
+  const [noSaleError, setNoSaleError] = useState<string | null>(null);
+  const [noSaleSlip, setNoSaleSlip] = useState<string | null>(null);
+  const [noSalePending, startNoSaleTransition] = useTransition();
 
   const byId = useMemo(() => new Map(products.map((p) => [p.variantId, p])), [products]);
 
@@ -129,6 +140,33 @@ export function Till({
   }
 
   /**
+   * Exact barcode/SKU match, shared by every scanning input this till
+   * has: a USB/Bluetooth scanner (which behaves as a keyboard typing the
+   * code then Enter — see onSearchKeyDown below) and the phone-camera
+   * scanner (BarcodeScannerModal), which hands a decoded string straight
+   * to this same function. One matching rule for "found it" means the
+   * two input methods can never quietly disagree about what a code means.
+   */
+  function tryAddByBarcode(code: string): boolean {
+    const q = code.trim().toLowerCase();
+    if (!q) return false;
+    const exact = products.find(
+      (p) => (p.barcode ?? "").toLowerCase() === q || (p.sku ?? "").toLowerCase() === q
+    );
+    if (!exact) return false;
+    addToCart(exact.variantId);
+    return true;
+  }
+
+  function onScanned(code: string) {
+    setScannerOpen(false);
+    if (!tryAddByBarcode(code)) {
+      setScanError(`Nothing matches "${code}".`);
+      window.setTimeout(() => setScanError(null), 4000);
+    }
+  }
+
+  /**
    * A barcode scanner behaves as a keyboard that types the code then
    * presses Enter. So Enter on an exact barcode/SKU match adds the item
    * straight away — that is the whole of "scanner support". Enter with a
@@ -137,15 +175,9 @@ export function Till({
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return;
-    const exact = products.find(
-      (p) => (p.barcode ?? "").toLowerCase() === q || (p.sku ?? "").toLowerCase() === q
-    );
-    if (exact) {
-      addToCart(exact.variantId);
-      return;
-    }
+    if (tryAddByBarcode(q)) return;
     // Bound to a local first: with noUncheckedIndexedAccess, narrowing an
     // indexed access across statements is not something to rely on.
     const only = matches.length === 1 ? matches[0] : undefined;
@@ -199,7 +231,8 @@ export function Till({
   const selectedCustomer = customers.find((c) => c.id === customerId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+    <div className="flex flex-col gap-6 print:hidden">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Till</h1>
@@ -207,11 +240,27 @@ export function Till({
             {branchName} · served by <span className="font-medium">{cashierName}</span>
           </p>
         </div>
-        <form action={signOutCashier}>
-          <Button type="submit" variant="ghost">
-            Not {cashierName}?
-          </Button>
-        </form>
+        <div className="flex items-center gap-2">
+          {canOpenDrawer ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setNoSaleReason("");
+                setNoSaleError(null);
+                setNoSaleSlip(null);
+                setNoSaleOpen(true);
+              }}
+            >
+              No sale
+            </Button>
+          ) : null}
+          <form action={signOutCashier}>
+            <Button type="submit" variant="ghost">
+              Not {cashierName}?
+            </Button>
+          </form>
+        </div>
       </div>
 
       {state.error ? (
@@ -223,16 +272,34 @@ export function Till({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_2fr]">
         {/* ── left: find and add ── */}
         <div className="flex flex-col gap-3">
-          <input
-            ref={searchRef}
-            autoFocus
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onSearchKeyDown}
-            placeholder="Scan a barcode, or type a name or SKU…"
-            className="min-h-[52px] w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-          />
+          <div className="flex gap-2">
+            <input
+              ref={searchRef}
+              autoFocus
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Scan a barcode, or type a name or SKU…"
+              className="min-h-[52px] w-full flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            />
+            {/* Camera-based scanning — for a till running on a phone/tablet
+                with no USB/Bluetooth scanner attached. That hardware kind
+                already works through the search box above (it types a code
+                then presses Enter, same as a keyboard). */}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setScanError(null);
+                setScannerOpen(true);
+              }}
+              className="min-h-[52px] shrink-0"
+            >
+              Scan
+            </Button>
+          </div>
+          {scanError ? <p className="text-sm text-red-600 dark:text-red-400">{scanError}</p> : null}
 
           {query.trim().length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -541,5 +608,104 @@ export function Till({
         </form>
       </div>
     </div>
+
+    {scannerOpen ? (
+      <BarcodeScannerModal onDetected={onScanned} onClose={() => setScannerOpen(false)} />
+    ) : null}
+
+    {noSaleOpen ? (
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="no-sale-title"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
+        onClick={() => !noSalePending && !noSaleSlip && setNoSaleOpen(false)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-900"
+        >
+          {noSaleSlip ? (
+            <>
+              <h2 id="no-sale-title" className="text-lg font-semibold">
+                Drawer opened
+              </h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Logged under your name. If your printer needs a print job to trigger the drawer, print the slip
+                below on it.
+              </p>
+              <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-100 p-3 font-mono text-xs dark:bg-neutral-800">
+                {noSaleSlip}
+              </pre>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)}>
+                  Close
+                </Button>
+                <Button type="button" onClick={() => window.print()}>
+                  Print
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 id="no-sale-title" className="text-lg font-semibold">
+                Open the cash drawer without a sale?
+              </h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                For giving change or correcting a mistake — not for completing a purchase. This is recorded to the
+                audit trail under your name.
+              </p>
+              <label className="mt-3 block text-sm font-medium" htmlFor="no-sale-reason">
+                Reason (optional)
+              </label>
+              <textarea
+                id="no-sale-reason"
+                value={noSaleReason}
+                onChange={(e) => setNoSaleReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. giving change for a customer"
+                className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+              />
+              {noSaleError ? (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{noSaleError}</p>
+              ) : null}
+              <div className="mt-4 flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)} disabled={noSalePending}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={noSalePending}
+                  onClick={() => {
+                    setNoSaleError(null);
+                    startNoSaleTransition(async () => {
+                      const result = await openDrawerNoSale(branchId, noSaleReason);
+                      if (!result.ok || !result.slipText) {
+                        setNoSaleError(result.error ?? "Something went wrong. Please try again.");
+                        return;
+                      }
+                      setNoSaleSlip(result.slipText);
+                    });
+                  }}
+                >
+                  {noSalePending ? "Opening…" : "Open drawer"}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null}
+
+    {/* Print-only: the drawer-open slip. Everything else on this page is
+        print:hidden, so printing while this is set sends only the slip to
+        the printer — see openDrawerNoSale()'s own comment for why this
+        exists instead of direct hardware control. */}
+    {noSaleSlip ? (
+      <div className="hidden print:block">
+        <pre className="whitespace-pre font-mono text-[12px] leading-[1.35]">{noSaleSlip}</pre>
+      </div>
+    ) : null}
+    </>
   );
 }

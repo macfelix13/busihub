@@ -113,6 +113,7 @@ export default async function TillPage({
     { data: settings },
     { data: momoEnabled },
     { data: staffRows, error: staffError },
+    canOpenDrawer,
   ] = await Promise.all([
     supabase
       .from("branches")
@@ -147,6 +148,9 @@ export default async function TillPage({
       .select("id, display_name, first_name, last_name")
       .eq("status", "active")
       .order("first_name"),
+    // "No sale" (migration 0044) — cosmetic here (shows/hides the
+    // button); openDrawerNoSale() re-checks this itself, the real gate.
+    hasPermission(supabase, businessId, PERMISSIONS.SALES_NO_SALE),
   ]);
 
   if (branchesError) console.error("TillPage: branches query failed", branchesError);
@@ -227,6 +231,7 @@ export default async function TillPage({
       currencyCode={currencyCode}
       allowNegativeStock={allowNegativeStock}
       momoEnabled={Boolean(momoEnabled)}
+      canOpenDrawer={Boolean(canOpenDrawer)}
     />
   );
 }

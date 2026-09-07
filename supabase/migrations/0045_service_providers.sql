@@ -223,8 +223,14 @@ on conflict (id) do update set
 -- folder segment, which the app always writes as the business_id (see
 -- the upload server action). storage.foldername(name) splits "a/b/c.jpg"
 -- into {a, b}; segment [1] is that leading business_id.
-alter table storage.objects enable row level security;
-
+--
+-- storage.objects already has row level security enabled by Supabase
+-- itself from project provisioning, and the migration role is granted
+-- what it needs to add policies to it (the documented, supported way to
+-- secure a bucket) — but is NOT its owner. Re-issuing
+-- `alter table storage.objects enable row level security` here is both
+-- unnecessary (it is already on) and actively rejected with
+-- "must be owner of table objects", so it is deliberately not repeated.
 create policy service_provider_photos_select on storage.objects
   for select
   using (

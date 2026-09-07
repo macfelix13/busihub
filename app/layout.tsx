@@ -3,18 +3,33 @@ import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://busihub.vercel.app"),
   title: {
-    default: "Busihub — Point of Sale for growing businesses",
+    default: "Busihub — POS & Business Management Software for Modern Businesses",
     template: "%s · Busihub",
   },
   description:
-    "Busihub is a multi-tenant Point-of-Sale and business management platform built for small retail businesses in Ghana and beyond.",
+    "Busihub helps businesses manage sales, inventory, payments, customers and reports from one simple POS platform.",
   manifest: "/manifest.webmanifest",
   applicationName: "Busihub",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Busihub",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Busihub",
+    title: "Busihub — POS & Business Management Software for Modern Businesses",
+    description:
+      "Busihub helps businesses manage sales, inventory, payments, customers and reports from one simple POS platform.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Busihub — POS & Business Management Software for Modern Businesses",
+    description:
+      "Busihub helps businesses manage sales, inventory, payments, customers and reports from one simple POS platform.",
   },
 };
 

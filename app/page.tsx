@@ -1,17 +1,61 @@
+import { Navbar } from "@/components/marketing/navbar";
+import { Hero } from "@/components/marketing/hero";
+import { TrustBar } from "@/components/marketing/trust-bar";
+import { ProblemSection } from "@/components/marketing/problem-section";
+import { SolutionSection } from "@/components/marketing/solution-section";
+import { FeaturesSection } from "@/components/marketing/features-section";
+import { ProductServiceSection } from "@/components/marketing/product-service-section";
+import { PaymentsSection } from "@/components/marketing/payments-section";
+import { MobileMoneySection } from "@/components/marketing/mobile-money-section";
+import { BarcodeSection } from "@/components/marketing/barcode-section";
+import { MultiDeviceSection } from "@/components/marketing/multi-device-section";
+import { DashboardSection } from "@/components/marketing/dashboard-section";
+import { StaffSection } from "@/components/marketing/staff-section";
+import { SecuritySection } from "@/components/marketing/security-section";
+import { HowItWorks } from "@/components/marketing/how-it-works";
+import { PricingPreview } from "@/components/marketing/pricing-preview";
+import { FaqSection } from "@/components/marketing/faq-section";
+import { FinalCta } from "@/components/marketing/final-cta";
+import { Footer } from "@/components/marketing/footer";
+
+/**
+ * The public homepage — busihub.vercel.app/. Deliberately outside every
+ * route group that requires sign-in: app/(app)/layout.tsx (the
+ * authenticated shell) and app/(auth)/layout.tsx (login/register) are
+ * untouched by this file, and proxy.ts never redirects "/", so an
+ * unauthenticated visitor lands here rather than on the dashboard or a
+ * login wall.
+ *
+ * Every claim on this page was checked against what's actually
+ * implemented in the app (see this build's PR description for the
+ * file-by-file audit) rather than the wishlist a generic POS landing
+ * page would make: no offline-mode section, no native-app claims, no
+ * invented pricing tiers, no fabricated testimonials or customer counts.
+ */
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-start justify-center gap-4 px-6 py-24">
-      <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-medium text-brand-800">
-        Busihub
-      </span>
-      <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-        Point of Sale, built for how you actually run your shop.
-      </h1>
-      <p className="text-lg text-neutral-600 dark:text-neutral-300">
-        This is the foundation build of Busihub — multi-tenant architecture,
-        authentication, and role-based access are being assembled first. The
-        POS, inventory, and payments experience follows in the phases after.
-      </p>
-    </main>
+    <>
+      <Navbar />
+      <main>
+        <Hero />
+        <TrustBar />
+        <ProblemSection />
+        <SolutionSection />
+        <FeaturesSection />
+        <ProductServiceSection />
+        <PaymentsSection />
+        <MobileMoneySection />
+        <BarcodeSection />
+        <MultiDeviceSection />
+        <DashboardSection />
+        <StaffSection />
+        <SecuritySection />
+        <HowItWorks />
+        <PricingPreview />
+        <FaqSection />
+        <FinalCta />
+      </main>
+      <Footer />
+    </>
   );
 }

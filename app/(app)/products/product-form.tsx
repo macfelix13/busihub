@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { CategoryCombobox } from "@/components/ui/category-combobox";
+import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES } from "@/lib/validation/products";
 import { createProduct, type FormState } from "./actions";
 
@@ -78,6 +79,10 @@ export function ProductForm({
     .slice(0, 3);
 
   const [variants, setVariants] = useState<VariantRow[]>([emptyVariant([])]);
+  // Which row's barcode field the scanner is filling — null when closed.
+  // Only one scan happens at a time, so a single index (not per-row state)
+  // is enough.
+  const [scanningRowIndex, setScanningRowIndex] = useState<number | null>(null);
 
   function patchVariant(index: number, patch: Partial<VariantRow>) {
     setVariants((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -232,6 +237,16 @@ export function ProductForm({
                     value={row.barcode}
                     onChange={(e) => patchVariant(index, { barcode: e.target.value })}
                     error={state.fieldErrors?.[`variants.${index}.barcode`]}
+                    trailing={
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="shrink-0"
+                        onClick={() => setScanningRowIndex(index)}
+                      >
+                        Scan
+                      </Button>
+                    }
                   />
                   <Field
                     label="Cost price"
@@ -331,6 +346,16 @@ export function ProductForm({
       <SubmitButton pendingText="Creating…" className="self-start px-6">
         {isService ? "Create service" : "Create product"}
       </SubmitButton>
+
+      {scanningRowIndex !== null ? (
+        <BarcodeScannerModal
+          onDetected={(text) => {
+            patchVariant(scanningRowIndex, { barcode: text });
+            setScanningRowIndex(null);
+          }}
+          onClose={() => setScanningRowIndex(null)}
+        />
+      ) : null}
     </form>
   );
 }

@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
-import { SubmitButton } from "@/components/ui/button";
+import { Button, SubmitButton } from "@/components/ui/button";
+import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import type { FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -37,6 +38,10 @@ export function VariantForm({ action, optionNames, defaultValues, canSetPrice, s
   const [variantOptions, setVariantOptions] = useState<Record<string, string>>(() =>
     Object.fromEntries(optionNames.map((n) => [n, defaultValues?.variantOptions?.[n] ?? ""]))
   );
+  // Controlled only so a scan can fill it — every other field here stays
+  // uncontrolled (defaultValue), same as before this change.
+  const [barcode, setBarcode] = useState(defaultValues?.barcode ?? "");
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
@@ -63,8 +68,29 @@ export function VariantForm({ action, optionNames, defaultValues, canSetPrice, s
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="SKU (optional)" name="sku" defaultValue={defaultValues?.sku} error={state.fieldErrors?.sku} />
-        <Field label="Barcode (optional)" name="barcode" defaultValue={defaultValues?.barcode} error={state.fieldErrors?.barcode} />
+        <Field
+          label="Barcode (optional)"
+          name="barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          error={state.fieldErrors?.barcode}
+          trailing={
+            <Button type="button" variant="secondary" className="shrink-0" onClick={() => setScannerOpen(true)}>
+              Scan
+            </Button>
+          }
+        />
       </div>
+
+      {scannerOpen ? (
+        <BarcodeScannerModal
+          onDetected={(text) => {
+            setBarcode(text);
+            setScannerOpen(false);
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {canSetPrice ? (

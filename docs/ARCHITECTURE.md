@@ -466,6 +466,30 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — "we need to add scan barcode feature in the add products
+  section (barcode) so barcode of products automatically scans into the
+  field with either scanner or phone camera" — a direct follow-up reusing
+  `components/ui/barcode-scanner-modal.tsx` from the till's camera-scanning
+  feature (above) rather than building a second scanner. A USB/Bluetooth
+  scanner already worked here with no changes: it types into whichever
+  text field has focus, same as a keyboard, and a barcode field was
+  already a plain text input. The only genuinely missing piece was camera
+  scanning, plus a visible "Scan" button so someone unfamiliar with the
+  keyboard-wedge behavior has an obvious way in either way.
+  `components/ui/field.tsx` gained an optional `trailing` prop (an element
+  rendered beside the input — purely additive, every existing caller is
+  unaffected) so a "Scan" button could sit directly next to the barcode
+  input without a bespoke layout. Wired into both places a barcode is
+  entered: the new-product form's per-variant rows
+  (`app/(app)/products/product-form.tsx`, tracking which row a scan should
+  fill since more than one row can exist at once) and the single-variant
+  add/edit form (`app/(app)/products/variant-form.tsx`, whose barcode
+  field became controlled — it was plain `defaultValue` before — solely so
+  a scan result has somewhere to land; every other field there is
+  untouched). No database, permission, or RLS surface — this only ever
+  fills a text field the user could otherwise type into by hand — so no
+  migration and no security test changes.
+
 - 2026-09-07 — "Now let's move on with the scanning and printing" —
   scanning via a USB/Bluetooth barcode scanner and printing a receipt
   already existed (the till's search box has always treated a scanner as

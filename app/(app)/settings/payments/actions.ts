@@ -17,6 +17,33 @@ export interface PaymentSettingsFormState {
   fieldErrors?: Record<string, string>;
 }
 
+/**
+ * Records a change to this business's payment settings through the one
+ * sanctioned audit write path (log_audit_event, 0008). Best-effort on
+ * purpose: by the time this runs, the actual settings change has already
+ * succeeded, and a logging hiccup must never make that look like it
+ * failed — so a failure here is logged to the server console and nothing
+ * else.
+ */
+async function logPaymentSettingsEvent(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  businessId: string,
+  action: string,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  const { error } = await supabase.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: null,
+    p_action: action,
+    p_resource_type: "business_payment_settings",
+    p_resource_id: null,
+    p_metadata: metadata,
+  });
+  if (error) {
+    console.error("logPaymentSettingsEvent: log_audit_event failed", { action, error });
+  }
+}
+
 export async function updatePaystackSettings(
   _prevState: PaymentSettingsFormState,
   formData: FormData
@@ -25,6 +52,7 @@ export async function updatePaystackSettings(
     secretKey: formData.get("secretKey"),
     publicKey: formData.get("publicKey"),
     momoEnabled: formData.get("momoEnabled") === "on",
+    confirmLive: formData.get("confirmLive") === "on",
   });
 
   if (!parsed.success) {
@@ -106,6 +134,12 @@ export async function updatePaystackSettings(
     return { error: "Couldn't save your payment settings. Please try again." };
   }
 
+  await logPaymentSettingsEvent(supabase, businessId, row ? "payment_settings.updated" : "payment_settings.connected", {
+    momo_enabled: momoEnabled,
+    is_live: keyMode(publicKey) === "live",
+    secret_changed: hasNewSecret,
+  });
+
   revalidatePath("/settings/payments");
   return { success: true };
 }
@@ -131,6 +165,38 @@ export async function disconnectPaystack(): Promise<void> {
     console.error("disconnectPaystack: write failed", error);
     throw new Error("Couldn't disconnect Paystack. Please try again.");
   }
+
+  await logPaymentSettingsEvent(supabase, businessId, "payment_settings.disconnected");
+
+  revalidatePath("/settings/payments");
+}
+
+/**
+ * Issues a new webhook_identifier (migration 0047), immediately replacing
+ * the old one — the old URL, wherever it is pasted, stops meaning
+ * anything from this moment on. The database function
+ * (regenerate_paystack_webhook_identifier) does the actual write and the
+ * permission check — there is no UPDATE grant on the column at all — so
+ * this just calls it and records the change.
+ */
+export async function regenerateWebhookIdentifier(): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  const businessId = await getCurrentBusinessId(supabase);
+  await requirePermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE);
+
+  const { error } = await supabase.rpc("regenerate_paystack_webhook_identifier", {
+    p_business_id: businessId,
+  });
+
+  if (error) {
+    console.error("regenerateWebhookIdentifier: rpc failed", error);
+    if (error.code === "P0001" && error.message) {
+      throw new Error(error.message);
+    }
+    throw new Error("Couldn't regenerate the webhook URL. Please try again.");
+  }
+
+  await logPaymentSettingsEvent(supabase, businessId, "payment_settings.webhook_regenerated");
 
   revalidatePath("/settings/payments");
 }

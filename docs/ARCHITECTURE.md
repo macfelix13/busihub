@@ -466,6 +466,66 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — The three remaining additive Paystack items (migration
+  `0047`): a webhook identifier separate from `business_id`, audit-log
+  entries for payment-settings changes, and a live-mode confirmation
+  checkbox. Picking up exactly where the "Test connection" entry below
+  left off — those three were offered and deferred at the time; this is
+  them getting built.
+
+  **Webhook identifier.** `business_payment_settings.webhook_identifier`
+  (a `gen_random_uuid()`, same as every other opaque id in this schema)
+  replaces `business_id` as the value in a shop's webhook URL. Nothing was
+  actually broken before this — the HMAC signature, not the URL, is what
+  authenticates a webhook — but a `business_id` shows up in plenty of
+  ordinary application URLs, while this value is meant to appear nowhere
+  else, and unlike a `business_id` it can be thrown away and reissued.
+  There is deliberately no UPDATE grant on the column at all;
+  `regenerate_paystack_webhook_identifier()` (`security definer`, gated on
+  `business.manage`) is the only door in, matching the shape of every
+  other sensitive write path in this schema. The webhook route
+  (`resolveBusinessIdFromWebhookParam` in `lib/paystack/client.ts`) checks
+  the new column first and falls back to treating the URL segment as a
+  raw `business_id` — so a shop that connected before this migration,
+  with the old URL already pasted into its Paystack dashboard, never has
+  to notice anything changed. Getting the resolution wrong in either
+  direction only ever produces a 404; it can't route traffic to the wrong
+  business, because whatever business_id comes back still has to pass
+  that exact business's own signature check before anything is trusted.
+
+  **Audit logging.** `log_audit_event()` (0008) is now granted to
+  `service_role`, because the webhook route runs with no authenticated
+  user at all — an incoming Paystack event has no person behind it, the
+  same reasoning `finalize_sale` already relies on — and it is the one
+  caller in this app that needs to write an audit row as `service_role`
+  rather than as itself. It now records `paystack_webhook.invalid_signature`
+  and `paystack_webhook.duplicate_ignored`, both best-effort (a logging
+  failure is swallowed and never turns into a failed webhook response,
+  which would just make Paystack retry an event already handled
+  correctly). `app/(app)/settings/payments/actions.ts` gained the same
+  pattern for the human-driven events: `payment_settings.connected`,
+  `.updated`, `.disconnected`, `.webhook_regenerated` — metadata carries
+  only booleans (`momo_enabled`, `is_live`, whether the secret changed),
+  never the key.
+
+  **Live-mode confirmation.** `paystackSettingsSchema` (`lib/validation/payments.ts`)
+  now refuses to save a *new* `sk_live_…` key unless a `confirmLive`
+  checkbox came with it — checked only at the moment a live key is being
+  entered, not on every later toggle of an already-live, already-confirmed
+  account, since that would just become a checkbox people click without
+  reading. `paystack-form.tsx` shows the checkbox only once the secret
+  field's live-in-progress value actually starts with `sk_live_`, watched
+  client-side purely for UI timing; the server makes the identical check
+  regardless of what the client thinks.
+
+  6 new SQL security assertions (`tests/security/payments.sql`, sections
+  25–27): the identifier is visible to its own owner and regenerable by
+  them, invisible to a cashier and to another business's owner, has no
+  raw UPDATE path at all, and a service-role audit write correctly
+  records no actor. 6 new unit tests (`tests/unit/payments-validation.test.ts`)
+  cover the confirmLive branch, including that an unrelated test/live
+  key-pair mismatch is still reported on `secretKey`, not `confirmLive`.
+
 - 2026-09-07 — Paystack "Test connection" on the payments settings page.
   Prompted by a full multi-tenant-Paystack specification handed over by
   the user; before writing anything, the existing payment implementation

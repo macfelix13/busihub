@@ -1046,5 +1046,143 @@ begin
   raise notice 'PASS: stock, balances and every completed sale''s payments all reconcile';
 end $$;
 
+-- ── 25. The webhook identifier (0047) is per-shop, and only changes ──────
+--        through regenerate_paystack_webhook_identifier() ─────────────────
+--
+-- webhook_identifier is not secret — the HMAC signature is what actually
+-- authenticates a webhook, not the URL — but it should still behave like
+-- any other tenant-scoped column: visible to this shop's own owner,
+-- invisible to anyone else's, and not something a browser can set to a
+-- value of its own choosing. There is no UPDATE grant on it at all.
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_before uuid; v_after uuid;
+begin
+  select webhook_identifier into v_before from business_payment_settings
+  where business_id = (select biz_a from pay_ids);
+  if v_before is null then
+    raise exception 'TEST FAILED: webhook_identifier is null for a connected shop' using errcode = 'ZZ999';
+  end if;
+
+  select regenerate_paystack_webhook_identifier((select biz_a from pay_ids)) into v_after;
+
+  if v_after = v_before then
+    raise exception 'TEST FAILED: regenerating produced the same identifier' using errcode = 'ZZ999';
+  end if;
+  if (select webhook_identifier from business_payment_settings where business_id = (select biz_a from pay_ids))
+     <> v_after then
+    raise exception 'TEST FAILED: the regenerated identifier was not actually stored' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: regenerating replaces the webhook identifier with a genuinely new one';
+
+  begin
+    update business_payment_settings set webhook_identifier = gen_random_uuid()
+    where business_id = (select biz_a from pay_ids);
+    raise exception 'TEST FAILED: webhook_identifier was updated directly, without the function'
+      using errcode = 'ZZ999';
+  exception when insufficient_privilege then
+    raise notice 'PASS: webhook_identifier has no UPDATE grant — regenerate_paystack_webhook_identifier() is the only way to change it';
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- A cashier — sales.process, not business.manage — cannot see it or
+-- regenerate it. The row-level policy already covers this at every other
+-- column; this just confirms the new one is not an exception.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000095';
+
+do $$
+declare v_count int;
+begin
+  if not exists (select 1 from profiles where id = '00000000-0000-0000-0000-000000000095') then
+    raise exception 'TEST FIXTURE BROKEN: the cashier from refunds.sql is missing' using errcode = 'ZZ999';
+  end if;
+
+  select count(*) into v_count from business_payment_settings where webhook_identifier is not null;
+  if v_count <> 0 then
+    raise exception 'TEST FAILED: a cashier can see % webhook identifier(s)', v_count using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: a cashier cannot see any shop''s webhook identifier';
+
+  begin
+    perform regenerate_paystack_webhook_identifier((select biz_a from pay_ids));
+    raise exception 'TEST FAILED: a cashier regenerated the webhook identifier' using errcode = 'ZZ999';
+  exception when insufficient_privilege then
+    raise notice 'PASS: a cashier cannot regenerate the webhook identifier';
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- ── 26. One shop cannot touch another shop's webhook identifier ─────────
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_other uuid; v_before uuid;
+begin
+  select id into v_other from businesses where id <> (select biz_a from pay_ids) limit 1;
+  if v_other is null then
+    raise exception 'TEST FIXTURE BROKEN: the seed has only one business' using errcode = 'ZZ999';
+  end if;
+
+  select webhook_identifier into v_before from business_payment_settings where business_id = v_other;
+
+  begin
+    perform regenerate_paystack_webhook_identifier(v_other);
+    raise exception 'TEST FAILED: business A regenerated business B''s webhook identifier' using errcode = 'ZZ999';
+  exception when insufficient_privilege then
+    raise notice 'PASS: a business.manage holder cannot regenerate another business''s webhook identifier';
+  end;
+
+  if v_before is not null
+     and (select webhook_identifier from business_payment_settings where business_id = v_other) <> v_before then
+    raise exception 'TEST FAILED: business B''s webhook identifier changed anyway' using errcode = 'ZZ999';
+  end if;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- ── 27. A webhook with nobody behind it can still be audited ─────────────
+--
+-- The Paystack webhook route runs with no authenticated user at all — an
+-- incoming event has no person on the other end, same reasoning
+-- finalize_sale already relies on. 0047 grants it service_role access to
+-- the one sanctioned audit write path so it can log a bad signature or an
+-- ignored duplicate the same way every other audited action in this app
+-- is recorded.
+
+set role service_role;
+
+do $$
+declare v_id uuid;
+begin
+  v_id := log_audit_event(
+    (select biz_a from pay_ids), null, 'paystack_webhook.invalid_signature',
+    'business_payment_settings', null, '{}'::jsonb
+  );
+  if v_id is null then
+    raise exception 'TEST FAILED: log_audit_event returned no id for a service_role call' using errcode = 'ZZ999';
+  end if;
+  if (select actor_user_id from audit_logs where id = v_id) is not null then
+    raise exception 'TEST FAILED: a webhook-originated audit row has a person attached to it' using errcode = 'ZZ999';
+  end if;
+  if (select business_id from audit_logs where id = v_id) <> (select biz_a from pay_ids) then
+    raise exception 'TEST FAILED: the audit row is not scoped to the right business' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: the webhook route can record a security event, correctly with no actor behind it';
+end $$;
+
+reset role;
+
 \echo ''
 \echo 'All payment tests passed.'

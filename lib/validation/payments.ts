@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 /**
  * Connecting a shop's own Paystack account.
@@ -44,6 +44,10 @@ export const paystackSettingsSchema = z
       .min(1, "Paste your Paystack public key.")
       .regex(PUBLIC_PATTERN, "That doesn't look like a Paystack public key (it starts with pk_test_ or pk_live_)."),
     momoEnabled: z.boolean(),
+    // Only meaningful when a LIVE secret key is being saved (see below) —
+    // absent from the form entirely otherwise, so it defaults to false
+    // rather than being required on every ordinary test-mode save.
+    confirmLive: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     const secret = data.secretKey ?? "";
@@ -65,6 +69,20 @@ export const paystackSettingsSchema = z
           code: z.ZodIssueCode.custom,
           message: "One of these is a test key and the other is live. Use a matching pair.",
           path: ["secretKey"],
+        });
+        return;
+      }
+      // A live key takes real money from a real customer's phone the
+      // moment mobile money is switched on — the one save on this page
+      // with an actual financial consequence, so it gets an explicit
+      // "yes, I mean it" rather than a plain Save button. Only checked
+      // when a NEW live key is being entered, not on every later toggle
+      // of an already-live, already-confirmed account.
+      if (keyMode(secret) === "live" && !data.confirmLive) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Confirm you understand this connects a LIVE account that will take real customer payments.",
+          path: ["confirmLive"],
         });
       }
     }

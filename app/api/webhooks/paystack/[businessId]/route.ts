@@ -1,6 +1,32 @@
-﻿import { createServiceRoleClient } from "@/lib/supabase/server";
-import { loadPaystackCredentials } from "@/lib/paystack/client";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { loadPaystackCredentials, resolveBusinessIdFromWebhookParam } from "@/lib/paystack/client";
 import { verifyWebhookSignature } from "@/lib/paystack/webhook";
+
+/**
+ * Best-effort audit trail for the two security-relevant things that can
+ * happen to a webhook before it is ever trusted: a bad signature, and a
+ * duplicate Paystack already retried. Never lets a logging failure turn
+ * into a failed webhook response — Paystack would just retry an event
+ * that was, in fact, already handled correctly.
+ */
+async function recordWebhookSecurityEvent(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  businessId: string,
+  action: string,
+  metadata: Record<string, unknown>
+) {
+  const { error } = await admin.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: null,
+    p_action: action,
+    p_resource_type: "business_payment_settings",
+    p_resource_id: null,
+    p_metadata: metadata,
+  });
+  if (error) {
+    console.error("recordWebhookSecurityEvent: log_audit_event failed", { action, error });
+  }
+}
 
 /**
  * Where Paystack tells us a mobile money charge succeeded.
@@ -43,10 +69,19 @@ interface PaystackEvent {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ businessId: string }> }) {
-  const { businessId } = await params;
+  const { businessId: rawParam } = await params;
 
   // Read the body exactly as sent, before anything parses it.
   const rawBody = await request.text();
+
+  // The URL segment is no longer necessarily a raw business_id — see
+  // resolveBusinessIdFromWebhookParam's own comment (migration 0047).
+  const businessId = await resolveBusinessIdFromWebhookParam(rawParam);
+  if (!businessId) {
+    return new Response("Unknown business", { status: 404 });
+  }
+
+  const admin = createServiceRoleClient();
 
   const credentials = await loadPaystackCredentials(businessId);
   if (!credentials) {
@@ -56,6 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
   }
 
   if (!verifyWebhookSignature(rawBody, request.headers.get("x-paystack-signature"), credentials.secretKey)) {
+    await recordWebhookSecurityEvent(admin, businessId, "paystack_webhook.invalid_signature", {});
     return new Response("Invalid signature", { status: 401 });
   }
 
@@ -68,8 +104,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
     console.error("paystack webhook: signed body was not JSON", { businessId });
     return new Response("OK", { status: 200 });
   }
-
-  const admin = createServiceRoleClient();
 
   // Paystack does not send a dedicated event id, so the event name and
   // the transaction it concerns identify it: a retry repeats both, while
@@ -88,6 +122,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
     // other error means we could not record it, and acting on an event we
     // cannot mark as seen risks doing it twice — so ask for a retry.
     if (seenError.code === "23505") {
+      await recordWebhookSecurityEvent(admin, businessId, "paystack_webhook.duplicate_ignored", {
+        event_type: event.event ?? "unknown",
+      });
       return new Response("OK", { status: 200 });
     }
     console.error("paystack webhook: could not record event", seenError);

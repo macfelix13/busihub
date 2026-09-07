@@ -73,6 +73,63 @@ export async function loadPaystackCredentials(businessId: string): Promise<Payst
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Turns the path segment on an incoming Paystack webhook URL into the
+ * business it belongs to.
+ *
+ * A shop's webhook URL is /api/webhooks/paystack/[businessId] in the
+ * route's own folder name, but the value that arrives there is no longer
+ * necessarily a business_id — migration 0047 gives every shop its own
+ * webhook_identifier, decoupled from business_id on purpose (see that
+ * migration's header). This checks the new column FIRST, and falls back
+ * to treating the value as a raw business_id only if that fails — which
+ * is exactly the URL a shop that connected before 0047 already has
+ * pasted into its Paystack dashboard. That shop never has to notice
+ * anything changed; only a shop that regenerates its identifier moves off
+ * the fallback.
+ *
+ * Getting this wrong in either direction only ever means the webhook is
+ * NOT recognised (a 404 the caller below turns into "Unknown business") —
+ * it can never point traffic at the wrong business, because whichever
+ * business_id this returns still has to pass the HMAC signature check
+ * with that exact business's own secret key before anything is trusted.
+ */
+export async function resolveBusinessIdFromWebhookParam(param: string): Promise<string | null> {
+  if (!UUID_RE.test(param)) return null;
+
+  const admin = createServiceRoleClient();
+
+  const { data: byIdentifier, error: identifierError } = await admin
+    .from("business_payment_settings")
+    .select("business_id")
+    .eq("webhook_identifier", param)
+    .maybeSingle();
+
+  if (identifierError) {
+    console.error("resolveBusinessIdFromWebhookParam: identifier lookup failed", identifierError);
+  }
+  if (byIdentifier) {
+    return (byIdentifier as { business_id: string }).business_id;
+  }
+
+  const { data: byBusinessId, error: businessIdError } = await admin
+    .from("business_payment_settings")
+    .select("business_id")
+    .eq("business_id", param)
+    .maybeSingle();
+
+  if (businessIdError) {
+    console.error("resolveBusinessIdFromWebhookParam: business_id lookup failed", businessIdError);
+  }
+  if (byBusinessId) {
+    return (byBusinessId as { business_id: string }).business_id;
+  }
+
+  return null;
+}
+
 export type MomoNetwork = "mtn" | "vod" | "atl";
 
 export interface ChargeResult {

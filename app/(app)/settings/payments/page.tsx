@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -14,6 +14,7 @@ interface SettingsRow {
   paystack_secret_last4: string | null;
   is_live: boolean;
   momo_enabled: boolean;
+  webhook_identifier: string | null;
 }
 
 export default async function PaymentSettingsPage() {
@@ -32,7 +33,7 @@ export default async function PaymentSettingsPage() {
   // this page needs it — only the server, decrypting it to call Paystack.
   const { data, error } = await supabase
     .from("business_payment_settings")
-    .select("paystack_public_key, paystack_secret_last4, is_live, momo_enabled")
+    .select("paystack_public_key, paystack_secret_last4, is_live, momo_enabled, webhook_identifier")
     .eq("business_id", businessId)
     .maybeSingle();
 
@@ -42,8 +43,14 @@ export default async function PaymentSettingsPage() {
 
   const settings = (data ?? null) as SettingsRow | null;
 
+  // Before this shop has ever connected an account, there is no row and
+  // so no webhook_identifier (migration 0047) yet — the businessId-shaped
+  // URL shown here is only a preview in that case, replaced the moment
+  // the first save assigns a real identifier. Once connected, the webhook
+  // route recognises this fallback shape forever anyway (see
+  // resolveBusinessIdFromWebhookParam), so nothing here can go stale.
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
-  const webhookUrl = `${base}/api/webhooks/paystack/${businessId}`;
+  const webhookUrl = `${base}/api/webhooks/paystack/${settings?.webhook_identifier ?? businessId}`;
 
   return (
     <div className="flex flex-col gap-8">

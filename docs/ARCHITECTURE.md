@@ -466,6 +466,58 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 3 of N (the dashboard).
+  Continuing the phased redesign (phases 1-2 below): this phase applies
+  the phase-1 foundation components to `app/(app)/dashboard/page.tsx`,
+  `sales-chart.tsx`, and `loading.tsx`. This file is entirely
+  presentation-layer work — every permission check
+  (`canSeeMoney`/`canViewInventory`/etc.), every RPC call
+  (`sales_summary`, `sales_trend`, `dashboard_snapshot`,
+  `low_stock_report`, `staff_performance`, `branch_performance`,
+  `expense_summary`, `expenses_by_category`), every calculation (net
+  profit, average sale, urgent-stock count), and every conditional that
+  decides what a given permission level sees is untouched, character for
+  character — confirmed by reviewing the full diff against the original
+  file rather than assuming. The one non-presentational touch: the file's
+  own local `Card` component (a `<section>` wrapper duplicating what
+  `components/ui/card.tsx` now provides) and local severity-badge pill
+  classes were removed in favor of the shared components; the local
+  `SEVERITY_STYLES` color mapping became `SEVERITY_BADGE` mapped to
+  `Badge` variants with the exact same colors (out=red, critical=amber,
+  low=neutral-grey) it already used.
+  What changed, concretely: the ad-hoc `<h1>` + date/branch line + action
+  buttons became a `PageHeader` (from phase 1). The four KPI tiles (Net
+  sales, Gross profit, Net profit/Average sale, Returned) gained an icon
+  each (`Wallet`, `TrendingUp`, `PiggyBank`/`Receipt`, `Undo2`), a
+  `hoverable` `Card`, and a larger value (`text-xl` -> `text-2xl`) for
+  the "large readable values" the request asked for. The low-stock
+  severity pill became the shared `Badge`. The "awaiting payment" and
+  "stock running out" priority banners gained a `Clock`/`AlertTriangle`
+  icon each, and every plain "→" text arrow in the file became a lucide
+  `ArrowRight`. The two data tables (staff performance, branch
+  performance) gained row hover states. `sales-chart.tsx` — a
+  deliberately server-rendered plain-SVG chart with NO client JavaScript
+  and NO charting library, kept that way on purpose for a shop on a phone
+  on mobile data (see that file's own header comment) — gained a pure-CSS
+  `animate-fade-in` entrance (from phase 1's `tailwind.config.ts`), which
+  plays automatically on first paint with zero added JavaScript, so that
+  architectural choice is unaffected. `dashboard/loading.tsx`'s local
+  `Block` skeleton component (identical to the pre-existing
+  `SkeletonBlock` in `components/ui/skeleton.tsx`) was replaced by that
+  shared component instead of keeping a duplicate.
+  Left deliberately alone: the small inline empty-state sentences
+  ("Nothing taken today.", "Everything is above its reorder point.", …)
+  were NOT converted to the new `EmptyState` component — that component's
+  icon-circle-plus-padding treatment is sized for an empty full-page list,
+  and would look oversized inside these already-compact dashboard panels;
+  a plain contextual sentence reads better at this size. The two data
+  tables were not restructured into a mobile card layout — both already
+  degrade via a contained `overflow-x-auto` scroll that doesn't affect
+  page width, a reasonable existing pattern for a 4-5 column table.
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 2 of N (navigation and header).
   Continuing the phased redesign from phase 1 (below): this phase polishes
   the existing app chrome — sidebar, mobile drawer, top header,

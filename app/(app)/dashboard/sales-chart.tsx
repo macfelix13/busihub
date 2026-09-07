@@ -65,7 +65,12 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
   const everythingIsZero = values.every((v) => v === 0);
 
   return (
-    <div>
+    // animate-fade-in (added in the UI polish pass) is a pure CSS
+    // @keyframes animation — it plays automatically on first paint even
+    // for server-rendered markup like this, so the chart gets a smooth
+    // entrance with zero client-side JavaScript, preserving the
+    // no-charting-library, server-rendered-SVG approach described above.
+    <div className="animate-fade-in">
       <div className="flex items-baseline justify-between text-xs text-neutral-500">
         <span>{money(min < 0 ? min : 0)}</span>
         <span>{money(max)}</span>

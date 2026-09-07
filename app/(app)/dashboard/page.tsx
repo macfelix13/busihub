@@ -1,9 +1,22 @@
 import Link from "next/link";
+import {
+  Wallet,
+  TrendingUp,
+  PiggyBank,
+  Receipt,
+  Undo2,
+  AlertTriangle,
+  Clock,
+  ArrowRight,
+} from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
 import { RANGES, resolvePeriod, periodDates } from "@/lib/reports/period";
@@ -77,10 +90,14 @@ interface BranchRow {
   timezone: string | null;
 }
 
-const SEVERITY_STYLES: Record<string, string> = {
-  out: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  critical: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  low: "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+// Same three severities low_stock_report() has always returned; mapped to
+// components/ui/badge.tsx's variants (added in the UI polish pass) rather
+// than the hand-rolled pill classes this used before — "out" keeps the
+// same red, "critical" the same amber, "low" the same neutral grey.
+const SEVERITY_BADGE: Record<string, "danger" | "warning" | "neutral"> = {
+  out: "danger",
+  critical: "warning",
+  low: "neutral",
 };
 
 const SEVERITY_LABELS: Record<string, string> = {
@@ -88,16 +105,6 @@ const SEVERITY_LABELS: Record<string, string> = {
   critical: "Critical",
   low: "Low",
 };
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <section
-      className={`rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 ${className}`}
-    >
-      {children}
-    </section>
-  );
-}
 
 function staffName(first: string | null, last: string | null): string {
   const name = [first, last].filter(Boolean).join(" ").trim();
@@ -314,33 +321,30 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{business?.name ?? "Busihub"}</h1>
-          <p className="text-neutral-500">
-            {new Date().toLocaleDateString("en-GB", {
-              timeZone: period.timezone,
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-            {selectedBranch ? ` · ${selectedBranch.name}` : branches.length > 1 ? " · all branches" : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canViewInventory ? (
-            <Link href="/inventory/receive">
-              <Button variant="secondary">Receive stock</Button>
-            </Link>
-          ) : null}
-          {canSell ? (
-            <Link href="/till">
-              <Button>Open the till</Button>
-            </Link>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={business?.name ?? "Busihub"}
+        description={`${new Date().toLocaleDateString("en-GB", {
+          timeZone: period.timezone,
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}${selectedBranch ? ` · ${selectedBranch.name}` : branches.length > 1 ? " · all branches" : ""}`}
+        actions={
+          <>
+            {canViewInventory ? (
+              <Link href="/inventory/receive">
+                <Button variant="secondary">Receive stock</Button>
+              </Link>
+            ) : null}
+            {canSell ? (
+              <Link href="/till">
+                <Button>Open the till</Button>
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {/* Filters as links, so a particular week at a particular branch is
           a URL that can be bookmarked or sent to someone. */}
@@ -350,7 +354,7 @@ export default async function DashboardPage({
             <Link
               key={option.value}
               href={{ pathname: "/dashboard", query: linkQuery({ range: option.value, from: undefined, to: undefined }) }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 period.range === option.value
                   ? "bg-brand-600 text-white"
                   : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
@@ -365,7 +369,7 @@ export default async function DashboardPage({
           <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
             <Link
               href={{ pathname: "/dashboard", query: linkQuery({ branch: undefined }) }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 branchId === null
                   ? "bg-brand-600 text-white"
                   : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
@@ -377,7 +381,7 @@ export default async function DashboardPage({
               <Link
                 key={branch.id}
                 href={{ pathname: "/dashboard", query: linkQuery({ branch: branch.id }) }}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   branchId === branch.id
                     ? "bg-brand-600 text-white"
                     : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
@@ -398,25 +402,31 @@ export default async function DashboardPage({
           {waiting > 0 ? (
             <Link
               href={{ pathname: "/sales", query: { status: "awaiting_payment" } }}
-              className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
+              className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 transition-colors hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
             >
-              <span>
-                <span className="font-semibold">{waiting}</span>{" "}
-                {waiting === 1 ? "sale is" : "sales are"} still waiting for payment, holding stock off the shelf.
+              <span className="flex items-center gap-2.5">
+                <Clock className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-semibold">{waiting}</span>{" "}
+                  {waiting === 1 ? "sale is" : "sales are"} still waiting for payment, holding stock off the shelf.
+                </span>
               </span>
-              <span aria-hidden="true">→</span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
             </Link>
           ) : null}
           {urgentStock > 0 ? (
             <Link
               href="/inventory"
-              className="flex items-center justify-between rounded-xl bg-red-50 px-4 py-3 text-sm text-red-900 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+              className="flex items-center justify-between gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-900 transition-colors hover:bg-red-100 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
             >
-              <span>
-                <span className="font-semibold">{urgentStock}</span>{" "}
-                {urgentStock === 1 ? "product has" : "products have"} run out or are about to.
+              <span className="flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                <span>
+                  <span className="font-semibold">{urgentStock}</span>{" "}
+                  {urgentStock === 1 ? "product has" : "products have"} run out or are about to.
+                </span>
               </span>
-              <span aria-hidden="true">→</span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
             </Link>
           ) : null}
         </div>
@@ -424,7 +434,7 @@ export default async function DashboardPage({
 
       {canSeeMoney ? (
         summaryError ? (
-          <Card>
+          <Card className="p-5">
             <p className="text-sm text-neutral-500">
               Today&rsquo;s figures could not be loaded. Reload the page, or check back in a moment.
             </p>
@@ -437,38 +447,50 @@ export default async function DashboardPage({
                   label: "Net sales",
                   value: money(summary?.net_total),
                   sub: `${saleCount} ${saleCount === 1 ? "sale" : "sales"} ${period.label}`,
+                  icon: Wallet,
                 },
                 {
                   label: "Gross profit",
                   value: money(summary?.gross_profit),
                   sub: "before expenses",
+                  icon: TrendingUp,
                 },
                 canSeeNetProfit
                   ? {
                       label: "Net profit",
                       value: money(netProfit),
                       sub: `after ${money(expenseTotal)} of expenses`,
+                      icon: PiggyBank,
                     }
                   : {
                       label: "Average sale",
                       value: money(averageSale),
                       sub: `${Number(summary?.items_sold ?? 0)} items sold`,
+                      icon: Receipt,
                     },
                 {
                   label: "Returned",
                   value: money(summary?.refunded_total),
                   sub: Number(summary?.refunded_total ?? 0) > 0 ? "off these takings" : "nothing back",
+                  icon: Undo2,
                 },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
-                >
-                  <p className="text-xs uppercase text-neutral-500">{card.label}</p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums">{card.value}</p>
-                  <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
-                </div>
-              ))}
+              ].map((card) => {
+                const Icon = card.icon;
+                return (
+                  <Card key={card.label} hoverable className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{card.label}</p>
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold tabular-nums text-neutral-900 dark:text-white">
+                      {card.value}
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Said plainly rather than buried: sales rung up before cost
@@ -488,7 +510,7 @@ export default async function DashboardPage({
               </p>
             ) : null}
 
-            <Card>
+            <Card className="p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-semibold">Sales {period.label}</h2>
                 <span className="text-sm text-neutral-500">
@@ -505,7 +527,7 @@ export default async function DashboardPage({
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card>
+              <Card className="p-5">
                 <h2 className="font-semibold">How people paid</h2>
                 {payments.length > 0 ? (
                   <ul className="mt-4 flex flex-col gap-3">
@@ -541,7 +563,7 @@ export default async function DashboardPage({
                 )}
               </Card>
 
-              <Card>
+              <Card className="p-5">
                 <div className="flex items-baseline justify-between">
                   <h2 className="font-semibold">Best sellers</h2>
                   <span className="text-xs text-neutral-500">by profit</span>
@@ -574,7 +596,7 @@ export default async function DashboardPage({
       ) : null}
 
       {canViewExpenses && expenseCategories.length > 0 ? (
-        <Card>
+        <Card className="p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">Where the money went</h2>
             <Link href="/expenses" className="text-sm text-brand-700 hover:underline dark:text-brand-300">
@@ -613,7 +635,7 @@ export default async function DashboardPage({
 
       <div className="grid gap-4 lg:grid-cols-2">
         {canViewInventory ? (
-          <Card>
+          <Card className="p-5">
             <div className="flex items-baseline justify-between">
               <h2 className="font-semibold">Running low</h2>
               <Link href="/inventory" className="text-sm text-brand-700 hover:underline dark:text-brand-300">
@@ -631,13 +653,9 @@ export default async function DashboardPage({
                         {row.branch_name} · {Number(row.quantity ?? 0)} left of {Number(row.reorder_point ?? 0)}
                       </span>
                     </span>
-                    <span
-                      className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-                        SEVERITY_STYLES[row.severity] ?? SEVERITY_STYLES.low
-                      }`}
-                    >
+                    <Badge variant={SEVERITY_BADGE[row.severity] ?? "neutral"} className="flex-shrink-0">
                       {SEVERITY_LABELS[row.severity] ?? row.severity}
-                    </span>
+                    </Badge>
                   </li>
                 ))}
               </ul>
@@ -649,7 +667,7 @@ export default async function DashboardPage({
           </Card>
         ) : null}
 
-        <Card>
+        <Card className="p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">Latest sales</h2>
             {canSell || canReport ? (
@@ -666,7 +684,7 @@ export default async function DashboardPage({
                   <li key={sale.id}>
                     <Link
                       href={`/sales/${sale.id}`}
-                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                     >
                       <span className="min-w-0">
                         <span className="font-medium">{sale.receipt_number}</span>
@@ -697,7 +715,7 @@ export default async function DashboardPage({
       </div>
 
       {canSeeMoney && staff.length > 0 ? (
-        <Card>
+        <Card className="p-5">
           <h2 className="font-semibold">Who sold what</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-sm">
@@ -712,7 +730,7 @@ export default async function DashboardPage({
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {staff.map((row) => (
-                  <tr key={row.cashier_id}>
+                  <tr key={row.cashier_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                     <td className="py-2.5 pr-3">{staffName(row.first_name, row.last_name)}</td>
                     <td className="py-2.5 text-right tabular-nums">{Number(row.sale_count ?? 0)}</td>
                     <td className="py-2.5 text-right tabular-nums">{money(row.gross_total)}</td>
@@ -729,7 +747,7 @@ export default async function DashboardPage({
       ) : null}
 
       {canSeeMoney && branchPerf.length > 1 ? (
-        <Card>
+        <Card className="p-5">
           <h2 className="font-semibold">Branches</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[24rem] text-sm">
@@ -743,7 +761,7 @@ export default async function DashboardPage({
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {branchPerf.map((row) => (
-                  <tr key={row.branch_id}>
+                  <tr key={row.branch_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                     <td className="py-2.5 pr-3">
                       <Link
                         href={{ pathname: "/dashboard", query: linkQuery({ branch: row.branch_id }) }}
@@ -767,14 +785,14 @@ export default async function DashboardPage({
       {canViewCustomers && owed > 0 ? (
         <Link
           href="/customers"
-          className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-sm hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
         >
           <span>
             <span className="font-semibold tabular-nums">{money(owed)}</span> is owed to you by{" "}
             {Number(snapshot?.owing_customers ?? 0)}{" "}
             {Number(snapshot?.owing_customers ?? 0) === 1 ? "customer" : "customers"}.
           </span>
-          <span aria-hidden="true">→</span>
+          <ArrowRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
         </Link>
       ) : null}
     </div>

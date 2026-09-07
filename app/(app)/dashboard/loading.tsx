@@ -5,37 +5,37 @@
  * panels — so the layout does not jump when the figures arrive. It is
  * deliberately grey and numberless: a skeleton that shows a plausible
  * total for a fraction of a second is a lie a shopkeeper might act on.
+ *
+ * Uses the shared SkeletonBlock (components/ui/skeleton.tsx) rather than
+ * a local duplicate of the same "grey pulsing rounded box" component this
+ * file previously defined itself.
  */
 
-function Block({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-neutral-100 dark:bg-neutral-800 ${className}`} />;
-}
+import { SkeletonBlock, SkeletonPage } from "@/components/ui/skeleton";
 
 export default function DashboardLoading() {
   return (
-    <div className="flex flex-col gap-6" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your figures…</span>
-
+    <SkeletonPage label="Loading your figures…">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Block className="h-9 w-56" />
-        <Block className="h-9 w-32" />
+        <SkeletonBlock className="h-9 w-56" />
+        <SkeletonBlock className="h-9 w-32" />
       </div>
 
-      <Block className="h-10 w-full max-w-md" />
+      <SkeletonBlock className="h-10 w-full max-w-md" />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Block className="h-24" />
-        <Block className="h-24" />
-        <Block className="h-24" />
-        <Block className="h-24" />
+        <SkeletonBlock className="h-24" />
+        <SkeletonBlock className="h-24" />
+        <SkeletonBlock className="h-24" />
+        <SkeletonBlock className="h-24" />
       </div>
 
-      <Block className="h-64" />
+      <SkeletonBlock className="h-64" />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Block className="h-56" />
-        <Block className="h-56" />
+        <SkeletonBlock className="h-56" />
+        <SkeletonBlock className="h-56" />
       </div>
-    </div>
+    </SkeletonPage>
   );
 }

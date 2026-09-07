@@ -466,6 +466,82 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 1 of N (foundation components).
+  The ask was a full professional redesign of the whole POS interface —
+  design system, dashboard, navigation, buttons, loading states,
+  animations, cards, tables, forms, modals, toasts, responsiveness, the
+  till screen, empty/error states, accessibility, micro-interactions,
+  covering essentially every page. Given the size of that (30+ routes)
+  and that every change here ships as a script that's run and verified on
+  the real project rather than applied directly, this is being done in
+  verified phases rather than one pass — phase 1 is the shared building
+  blocks every later phase reuses, so page-by-page work never has to be
+  redone once a better primitive shows up.
+  An inspection first (nothing rebuilt sight unseen): the app already had
+  a real, consistent design system — Tailwind with a custom `brand` color
+  scale, the neutral/dark-mode palette, `lucide-react` for every icon
+  (already covering every nav item), `rounded-xl`/`rounded-2xl`,
+  consistent focus rings, and existing shared components (`Button`,
+  `SubmitButton`, `Field`, `Select`, `Checkbox`, `Textarea`,
+  `SkeletonBlock`/`SkeletonPage`, `ConfirmDialog`). What genuinely didn't
+  exist yet: a toast/notification system (errors only ever showed as
+  inline red boxes), a generic modal (`ConfirmDialog` only covers yes/no
+  confirmations), `Card`/`Badge`/`EmptyState`/`PageHeader`, and a
+  button loading state with an actual spinner rather than text alone.
+  This phase adds exactly those gaps:
+  `components/ui/spinner.tsx` (new) — a single reusable spinner (CSS
+  `animate-spin`, no library) every loading state below uses.
+  `components/ui/button.tsx` — `Button` gained an optional `loading` prop
+  (renders the spinner, disables the button, sets `aria-busy`) and a
+  subtle `active:scale-[0.98]` press effect (skipped under
+  `prefers-reduced-motion` via Tailwind's `motion-reduce:` variant).
+  `SubmitButton` now passes `loading={pending}` through, so every existing
+  `<SubmitButton pendingText="Saving…">` call across the app — unchanged
+  itself — now shows "[spinner] Saving…" instead of text alone, and stays
+  exactly as disabled (so exactly as protected against a double-submit)
+  as it already was.
+  `components/ui/card.tsx` (new) — `Card`/`CardHeader`/`CardTitle`/
+  `CardDescription`/`CardContent`/`CardFooter`, one consistent card shell
+  (border, radius, background, dark mode) with an optional `hoverable`
+  prop for cards that are themselves clickable.
+  `components/ui/badge.tsx` (new) — status pills (`neutral`/`brand`/
+  `success`/`warning`/`danger`/`info`), reusing Tailwind's stock
+  green/amber/red/blue scales rather than inventing new semantic color
+  tokens (this app's "danger" already means `red-600` everywhere else).
+  `components/ui/empty-state.tsx` (new) — icon + title + description +
+  action, for list pages that currently show a bare sentence or nothing.
+  `components/ui/page-header.tsx` (new) — title + description + an
+  actions slot, stacking on narrow screens instead of forcing horizontal
+  scroll with a wide button row next to a page title.
+  `components/ui/modal.tsx` (new) — the general-purpose modal
+  `ConfirmDialog` never was; built the same unopinionated way (no portal,
+  no focus-trap library) so it matches that proven pattern rather than
+  introducing a second one. Behaves as a bottom sheet on mobile (slides up
+  from the bottom, rounded top corners only) and a centered dialog at
+  `sm:` and up.
+  `components/ui/toast.tsx` (new) — `ToastProvider` + `useToast()`,
+  mounted once in `app/layout.tsx` around `{children}` so any client
+  component anywhere can call `useToast().success(...)` /
+  `.error(...)` / `.info(...)`. Auto-dismisses after 5s, individually
+  closeable, announced via `aria-live`. Deliberately additive alongside
+  existing inline `useFormState` field errors, not a replacement for them.
+  `tailwind.config.ts` — three shared entrance animations (`fade-in`,
+  `slide-up`, `slide-down`), each 150-200ms, used by the new modal and
+  toast.
+  `app/globals.css` — a `prefers-reduced-motion: reduce` rule that
+  shortens every animation/transition in the app to near-zero, as a
+  blanket second layer under the per-element `motion-reduce:` variants
+  used at individual call sites.
+  Existing bespoke modals (`BarcodeScannerModal`, till.tsx's No-Sale
+  dialog) and every page's current empty/error text are deliberately left
+  untouched in this phase — migrating them onto these new primitives, and
+  the dashboard/navigation/till/other-page redesigns themselves, are
+  later phases. No database, permission, RLS, or route surface changed —
+  this phase is entirely new/extended presentation-layer components plus
+  one call-site change (`SubmitButton`'s internal `disabled` prop became
+  `loading`, same resulting behavior) — so no migration and no security
+  test changes.
+
 - 2026-09-07 — "works but takes long for camera to scan bar codes,
   especially when adding products" — a speed follow-up to the camera
   barcode scanner, touching only the shared component both the till and

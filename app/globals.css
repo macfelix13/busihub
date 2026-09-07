@@ -22,6 +22,23 @@ body {
   --min-touch-target: 44px;
 }
 
+/* Anyone who has asked their OS/browser for reduced motion gets it here
+   too, as a blanket second layer on top of the per-element
+   `motion-reduce:` Tailwind variants used at individual call sites (the
+   button press-down effect, card hover lift) — this rule is what covers
+   every animation/transition this app has today AND any added later that
+   forgets to add its own motion-reduce: override. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Printing a receipt ───────────────────────────────────────────────────
    The receipt page marks its own chrome print:hidden, but the app shell
    around it (header, nav, footer) knows nothing about printing. Rather

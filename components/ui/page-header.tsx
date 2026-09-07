@@ -2,7 +2,10 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  /** Usually a plain string; accepts a node too so a caller can style part
+   *  of it (e.g. bolding a name within the sentence) without giving up the
+   *  shared layout. */
+  description?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
 }

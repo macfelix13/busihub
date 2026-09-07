@@ -2,8 +2,12 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormState } from "react-dom";
+import { AlertCircle, Minus, Plus } from "lucide-react";
 import { Button, SubmitButton } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
@@ -233,39 +237,45 @@ export function Till({
   return (
     <>
     <div className="flex flex-col gap-6 print:hidden">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Till</h1>
-          <p className="text-neutral-500">
+      <PageHeader
+        title="Till"
+        description={
+          <>
             {branchName} · served by <span className="font-medium">{cashierName}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canOpenDrawer ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setNoSaleReason("");
-                setNoSaleError(null);
-                setNoSaleSlip(null);
-                setNoSaleOpen(true);
-              }}
-            >
-              No sale
-            </Button>
-          ) : null}
-          <form action={signOutCashier}>
-            <Button type="submit" variant="ghost">
-              Not {cashierName}?
-            </Button>
-          </form>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            {canOpenDrawer ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setNoSaleReason("");
+                  setNoSaleError(null);
+                  setNoSaleSlip(null);
+                  setNoSaleOpen(true);
+                }}
+              >
+                No sale
+              </Button>
+            ) : null}
+            <form action={signOutCashier}>
+              <Button type="submit" variant="ghost">
+                Not {cashierName}?
+              </Button>
+            </form>
+          </>
+        }
+      />
 
       {state.error ? (
-        <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {state.error}
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>{state.error}</span>
         </p>
       ) : null}
 
@@ -302,7 +312,7 @@ export function Till({
           {scanError ? <p className="text-sm text-red-600 dark:text-red-400">{scanError}</p> : null}
 
           {query.trim().length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <Card className="overflow-hidden">
               <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {matches.length > 0 ? (
                   matches.map((p) => (
@@ -310,7 +320,7 @@ export function Till({
                       <button
                         type="button"
                         onClick={() => addToCart(p.variantId)}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                       >
                         <span>
                           <span className="font-medium">{p.label}</span>
@@ -332,21 +342,21 @@ export function Till({
                   <li className="px-4 py-6 text-center text-sm text-neutral-500">Nothing matches that.</li>
                 )}
               </ul>
-            </div>
+            </Card>
           ) : products.length > 0 ? (
             // Browsable by default — not just reachable by typing. Every
             // product/service here already passed the server's own
             // available_at_till + active filter (migration 0043), so
             // nothing extra to gate here; tapping a tile is identical to
             // picking a search match below.
-            <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
+            <Card className="max-h-[28rem] overflow-y-auto p-3">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {products.map((p) => (
                   <button
                     key={p.variantId}
                     type="button"
                     onClick={() => addToCart(p.variantId)}
-                    className="flex flex-col items-start gap-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-left hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
+                    className="flex flex-col items-start gap-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
                   >
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
                     <span className="text-xs text-neutral-500">
@@ -360,7 +370,7 @@ export function Till({
                   </button>
                 ))}
               </div>
-            </div>
+            </Card>
           ) : (
             <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-neutral-800">
               Nothing is set to show at the till yet. Turn on &ldquo;Show at till&rdquo; from a product or
@@ -368,7 +378,7 @@ export function Till({
             </p>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <Card className="overflow-hidden">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {cart.length > 0 ? (
                 cart.map((line) => {
@@ -392,12 +402,22 @@ export function Till({
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Button type="button" variant="ghost" onClick={() => setQuantity(line.key, line.quantity - 1)}>
-                            −
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            aria-label="Decrease quantity"
+                            onClick={() => setQuantity(line.key, line.quantity - 1)}
+                          >
+                            <Minus className="h-4 w-4" aria-hidden="true" />
                           </Button>
                           <span className="w-10 text-center tabular-nums">{formatQuantity(line.quantity)}</span>
-                          <Button type="button" variant="ghost" onClick={() => setQuantity(line.key, line.quantity + 1)}>
-                            +
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            aria-label="Increase quantity"
+                            onClick={() => setQuantity(line.key, line.quantity + 1)}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </div>
                         <span className="w-24 text-right font-medium tabular-nums">
@@ -424,7 +444,7 @@ export function Till({
                 </li>
               )}
             </ul>
-          </div>
+          </Card>
         </div>
 
         {/* ── right: take payment ── */}
@@ -442,7 +462,7 @@ export function Till({
             )}
           />
 
-          <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+          <Card className="p-5">
             <div className="flex items-baseline justify-between">
               <span className="text-neutral-500">Total</span>
               <span className="text-3xl font-semibold tabular-nums">
@@ -452,7 +472,7 @@ export function Till({
             <p className="mt-1 text-right text-xs text-neutral-500">
               Tax included. Confirmed by the server when you take payment.
             </p>
-          </div>
+          </Card>
 
           <Select
             label="Payment"
@@ -613,89 +633,86 @@ export function Till({
       <BarcodeScannerModal onDetected={onScanned} onClose={() => setScannerOpen(false)} />
     ) : null}
 
-    {noSaleOpen ? (
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="no-sale-title"
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden"
-        onClick={() => !noSalePending && !noSaleSlip && setNoSaleOpen(false)}
-      >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:bg-neutral-900"
-        >
-          {noSaleSlip ? (
+    {/* The shared Modal shell (components/ui/modal.tsx) replaces what used
+        to be a bespoke fixed-overlay dialog here — same two states
+        (confirm, then the printable slip), same rule for when a backdrop
+        click/Escape is allowed to close it (never while the drawer-open
+        request is in flight, and never once the slip is showing — that
+        still requires an explicit "Close"), just built on the one modal
+        shell the rest of the app now uses instead of its own copy of that
+        logic. Wrapped in its own print:hidden div because Modal itself has
+        no opinion about printing — the actual print output still comes
+        from the plain print:block slip below, unchanged. */}
+    <div className="print:hidden">
+      <Modal
+        open={noSaleOpen}
+        onClose={() => setNoSaleOpen(false)}
+        size="sm"
+        pending={noSalePending || Boolean(noSaleSlip)}
+        title={noSaleSlip ? "Drawer opened" : "Open the cash drawer without a sale?"}
+        description={
+          noSaleSlip
+            ? "Logged under your name. If your printer needs a print job to trigger the drawer, print the slip below on it."
+            : "For giving change or correcting a mistake — not for completing a purchase. This is recorded to the audit trail under your name."
+        }
+        footer={
+          noSaleSlip ? (
             <>
-              <h2 id="no-sale-title" className="text-lg font-semibold">
-                Drawer opened
-              </h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                Logged under your name. If your printer needs a print job to trigger the drawer, print the slip
-                below on it.
-              </p>
-              <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-100 p-3 font-mono text-xs dark:bg-neutral-800">
-                {noSaleSlip}
-              </pre>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)}>
-                  Close
-                </Button>
-                <Button type="button" onClick={() => window.print()}>
-                  Print
-                </Button>
-              </div>
+              <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={() => window.print()}>
+                Print
+              </Button>
             </>
           ) : (
             <>
-              <h2 id="no-sale-title" className="text-lg font-semibold">
-                Open the cash drawer without a sale?
-              </h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                For giving change or correcting a mistake — not for completing a purchase. This is recorded to the
-                audit trail under your name.
-              </p>
-              <label className="mt-3 block text-sm font-medium" htmlFor="no-sale-reason">
-                Reason (optional)
-              </label>
-              <textarea
-                id="no-sale-reason"
-                value={noSaleReason}
-                onChange={(e) => setNoSaleReason(e.target.value)}
-                rows={2}
-                placeholder="e.g. giving change for a customer"
-                className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-              />
-              {noSaleError ? (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{noSaleError}</p>
-              ) : null}
-              <div className="mt-4 flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)} disabled={noSalePending}>
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  disabled={noSalePending}
-                  onClick={() => {
-                    setNoSaleError(null);
-                    startNoSaleTransition(async () => {
-                      const result = await openDrawerNoSale(branchId, noSaleReason);
-                      if (!result.ok || !result.slipText) {
-                        setNoSaleError(result.error ?? "Something went wrong. Please try again.");
-                        return;
-                      }
-                      setNoSaleSlip(result.slipText);
-                    });
-                  }}
-                >
-                  {noSalePending ? "Opening…" : "Open drawer"}
-                </Button>
-              </div>
+              <Button type="button" variant="ghost" onClick={() => setNoSaleOpen(false)} disabled={noSalePending}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={noSalePending}
+                onClick={() => {
+                  setNoSaleError(null);
+                  startNoSaleTransition(async () => {
+                    const result = await openDrawerNoSale(branchId, noSaleReason);
+                    if (!result.ok || !result.slipText) {
+                      setNoSaleError(result.error ?? "Something went wrong. Please try again.");
+                      return;
+                    }
+                    setNoSaleSlip(result.slipText);
+                  });
+                }}
+              >
+                {noSalePending ? "Opening…" : "Open drawer"}
+              </Button>
             </>
-          )}
-        </div>
-      </div>
-    ) : null}
+          )
+        }
+      >
+        {noSaleSlip ? (
+          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-100 p-3 font-mono text-xs dark:bg-neutral-800">
+            {noSaleSlip}
+          </pre>
+        ) : (
+          <>
+            <label className="block text-sm font-medium" htmlFor="no-sale-reason">
+              Reason (optional)
+            </label>
+            <textarea
+              id="no-sale-reason"
+              value={noSaleReason}
+              onChange={(e) => setNoSaleReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. giving change for a customer"
+              className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            />
+            {noSaleError ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{noSaleError}</p> : null}
+          </>
+        )}
+      </Modal>
+    </div>
 
     {/* Print-only: the drawer-open slip. Everything else on this page is
         print:hidden, so printing while this is set sends only the slip to

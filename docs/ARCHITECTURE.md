@@ -466,6 +466,71 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 4 of N (the till/POS screen).
+  Continuing the phased redesign (phases 1-3 above/below): this is the
+  app's single highest-traffic screen, reloaded after every sale, so the
+  same strict rule as the dashboard phase applied — presentation only.
+  Every calculation (`total`, cash `change`, the split-payment `momoPart`
+  preview, `shortLines`, `missingRenderedBy`), every call into
+  `actions.ts` (`completeSale`, `signOutCashier`, `openDrawerNoSale`), the
+  cart's client-only line identity (`crypto.randomUUID()`), the
+  barcode/SKU exact-match logic shared by the USB scanner and the camera
+  modal, and every permission-derived prop (`canOpenDrawer`,
+  `allowNegativeStock`, `momoEnabled`) is untouched, character for
+  character — confirmed by reviewing the complete final files against the
+  originals rather than assuming.
+  `app/(app)/till/till.tsx` — the ad-hoc `<h1>Till</h1>` + branch/cashier
+  line + action buttons became a `PageHeader` (from phase 1; its
+  `description` prop was widened from `string` to `React.ReactNode` so
+  the cashier's name could stay bold within the sentence — a
+  backward-compatible widening, every existing caller still passes a
+  plain string). The product search results, the browsable product grid,
+  and the cart line list — three separately hand-rolled
+  `rounded-2xl border bg-white` boxes — became the shared `Card`. The
+  cart's quantity `−`/`+` text-character buttons became lucide
+  `Minus`/`Plus` icons with explicit `aria-label`s, and the payment total
+  box became a `Card`. The error banner gained an `AlertCircle` icon.
+  The "No sale" (open cash drawer without a sale) dialog — previously its
+  own bespoke `fixed inset-0` overlay, the last one of those left in the
+  app — was migrated onto the shared `Modal` shell added in phase 1
+  (`components/ui/modal.tsx` had explicitly flagged this exact dialog as
+  a deferred follow-up). Both of its states (the confirm step, then the
+  printable slip) render as the same `Modal` with a different
+  title/description/footer; the `pending` prop is set to
+  `noSalePending || Boolean(noSaleSlip)` so backdrop-click, Escape, and
+  the modal's close button stay disabled under the exact same two
+  conditions the original hand-rolled `onClick` guard checked (never
+  while the drawer-open request is in flight, and never once the slip is
+  showing — that still requires clicking "Close" on purpose). The modal
+  is wrapped in its own `print:hidden` div, since `Modal` itself has no
+  opinion about printing — the separate `hidden print:block` slip
+  rendering right after it, which is what a print job actually sends to
+  the printer, is unchanged. Net gain from the migration: focus-on-open
+  and Escape-to-close, neither of which the original had.
+  `app/(app)/till/pin-pad.tsx` — the till's lock screen (PIN entry,
+  "you don't have a PIN yet", switch-user picker, switch-user password
+  entry) gained a small icon circle above each screen's heading
+  (`KeyRound`/`Users`/`Lock`, matching the avatar-circle treatment
+  app-shell.tsx already uses), and its colleague-picker list and
+  no-PIN-yet notice became the shared `Card` (the no-PIN-yet box
+  previously had no explicit background, an inconsistency with every
+  other bordered box in this file — `Card` fixes that as a byproduct).
+  The backspace key's `←` text character became a lucide `Delete` icon
+  with an `aria-label` — the only other leftover hand-rolled arrow
+  character in the app after phase 3 removed the dashboard's. No changes
+  to PIN verification, the lockout timer, or the switch-user password
+  flow.
+  Left deliberately alone: `app/(app)/till/loading.tsx` already used the
+  shared `SkeletonBlock`/`SkeletonPage` components from an earlier pass,
+  so nothing needed changing there. `BarcodeScannerModal` (the
+  phone-camera scanner) keeps its own bespoke overlay — it owns a live
+  `<video>` element and its own camera-permission error states that don't
+  fit the generic `Modal` shell's content model, the same reasoning
+  `Modal`'s own header comment already gave for leaving it alone.
+  No database, permission, or RLS surface changed, and no calculation,
+  visibility rule, or server call changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 3 of N (the dashboard).
   Continuing the phased redesign (phases 1-2 below): this phase applies
   the phase-1 foundation components to `app/(app)/dashboard/page.tsx`,

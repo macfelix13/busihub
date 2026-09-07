@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
+import { Delete, KeyRound, Lock, Users } from "lucide-react";
 import { Button, SubmitButton } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { verifyOwnPin, switchTillUser, type FormState } from "./actions";
 
@@ -53,6 +55,9 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
     return (
       <div className="mx-auto flex max-w-md flex-col gap-4">
         <div className="text-center">
+          <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+            <Users className="h-6 w-6" aria-hidden="true" />
+          </div>
           <h1 className="text-2xl font-semibold">Switch user</h1>
           <p className="text-neutral-500">Pick who&apos;s taking over the till.</p>
         </div>
@@ -61,7 +66,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
             There&apos;s nobody else active on this account to switch to.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <Card className="overflow-hidden">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {colleagues.map((c) => (
                 <li key={c.id}>
@@ -72,14 +77,14 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
                       setPassword("");
                       setMode("switch-password");
                     }}
-                    className="min-h-[56px] w-full px-5 py-4 text-left font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    className="min-h-[56px] w-full px-5 py-4 text-left font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                   >
                     {c.name}
                   </button>
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         )}
         <Button type="button" variant="ghost" onClick={() => setMode("pin")}>
           Back
@@ -98,6 +103,9 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
         <input type="hidden" name="email" value={colleague.email ?? ""} />
 
         <div className="text-center">
+          <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+            <Lock className="h-6 w-6" aria-hidden="true" />
+          </div>
           <h1 className="text-2xl font-semibold">{colleague.name}</h1>
           <p className="text-neutral-500">Enter their password to switch.</p>
         </div>
@@ -151,13 +159,16 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
   if (!cashier.hasPin) {
     return (
       <div className="mx-auto flex max-w-md flex-col gap-4">
-        <div className="mx-auto max-w-md rounded-2xl border border-neutral-200 p-8 text-center dark:border-neutral-800">
+        <Card className="mx-auto max-w-md p-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+            <KeyRound className="h-6 w-6" aria-hidden="true" />
+          </div>
           <h1 className="text-xl font-semibold">You don&apos;t have a PIN yet</h1>
           <p className="mt-2 text-sm text-neutral-500">
             The till confirms it&apos;s really you with a short PIN before you can start selling. Set one under{" "}
             <span className="font-medium">My PIN</span>, then come back here.
           </p>
-        </div>
+        </Card>
         {colleagues.length > 0 ? (
           <Button type="button" variant="ghost" onClick={() => setMode("switch-pick")}>
             Switch user instead
@@ -172,6 +183,9 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
       <input type="hidden" name="pin" value={pin} />
 
       <div className="text-center">
+        <div className="mx-auto mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+          <KeyRound className="h-6 w-6" aria-hidden="true" />
+        </div>
         <h1 className="text-2xl font-semibold">{cashier.name}</h1>
         <p className="text-neutral-500">Enter your PIN to start serving.</p>
       </div>
@@ -224,8 +238,14 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
         >
           0
         </Button>
-        <Button type="button" variant="ghost" className="min-h-[64px]" onClick={() => setPin((p) => p.slice(0, -1))}>
-          ←
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-[64px]"
+          aria-label="Backspace"
+          onClick={() => setPin((p) => p.slice(0, -1))}
+        >
+          <Delete className="h-5 w-5" aria-hidden="true" />
         </Button>
       </div>
 

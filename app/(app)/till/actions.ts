@@ -251,10 +251,13 @@ export async function completeSale(_prevState: FormState, formData: FormData): P
       variant_id: line.variantId,
       quantity: line.quantity,
       // Ignored server-side for a product line; required and validated
-      // (must be an active profile in the caller's own business) for a
-      // service line — see create_sale() in migration 0040. Its error
-      // ("Choose who rendered...") is a P0001 already handled below.
-      rendered_by: line.renderedBy || null,
+      // for a service line — EXACTLY ONE of the two, from either pool
+      // (migration 0045): rendered_by (a profiles.id, active in the
+      // caller's own business) or provider_id (a service_providers.id,
+      // active at THIS sale's own branch). Its errors ("Choose who
+      // rendered...") are P0001s already handled below.
+      rendered_by: line.renderedByStaffId || null,
+      provider_id: line.renderedByProviderId || null,
     })),
     p_payments: payments,
   });

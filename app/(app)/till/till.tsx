@@ -47,12 +47,43 @@ export interface TillStaff {
   name: string;
 }
 
+/** The second renderer pool (migration 0045): staff who render a service
+ *  but never sign in — a barber, a nail tech. Already scoped to THIS
+ *  branch by the page (unlike TillStaff, which is business-wide) — a
+ *  service provider tied to a different branch never reaches this list. */
+export interface TillProvider {
+  id: string;
+  name: string;
+  title: string | null;
+}
+
+/** Encodes which of the two renderer pools a cart line's choice came
+ *  from, so the till never has to compare a profiles.id against a
+ *  service_providers.id as if they were one id space. */
+type RendererChoice = { kind: "staff" | "provider"; id: string };
+
+function encodeRenderer(choice: RendererChoice): string {
+  return `${choice.kind}:${choice.id}`;
+}
+
+function decodeRenderer(value: string | undefined): RendererChoice | null {
+  if (!value) return null;
+  const separator = value.indexOf(":");
+  if (separator < 0) return null;
+  const kind = value.slice(0, separator);
+  const id = value.slice(separator + 1);
+  if ((kind !== "staff" && kind !== "provider") || !id) return null;
+  return { kind, id };
+}
+
 interface CartLine {
   /** Client-only identity for this line — see addToCart(). Never sent to the server. */
   key: string;
   variantId: string;
   quantity: number;
-  /** Only meaningful for a service line. Required by the database before checkout completes. */
+  /** Only meaningful for a service line. Encodes which pool the choice
+   *  came from (see encodeRenderer/decodeRenderer) — required by the
+   *  database before checkout completes. */
   renderedBy?: string;
 }
 
@@ -66,6 +97,9 @@ interface TillProps {
   customers: TillCustomer[];
   /** Active staff, for the "Who rendered this?" picker on a service line. */
   staff: TillStaff[];
+  /** Active service providers AT THIS BRANCH (migration 0045), merged
+   *  into the same picker alongside staff. */
+  providers: TillProvider[];
   currencyCode: string;
   /** From pos_settings — decides whether the till warns or refuses when stock runs out. */
   allowNegativeStock: boolean;
@@ -82,6 +116,7 @@ export function Till({
   products,
   customers,
   staff,
+  providers,
   currencyCode,
   allowNegativeStock,
   momoEnabled,
@@ -196,8 +231,8 @@ export function Till({
     );
   }
 
-  function setRenderedBy(key: string, staffId: string) {
-    setCart((lines) => lines.map((l) => (l.key === key ? { ...l, renderedBy: staffId } : l)));
+  function setRenderedBy(key: string, encoded: string) {
+    setCart((lines) => lines.map((l) => (l.key === key ? { ...l, renderedBy: encoded } : l)));
   }
 
   // A preview only. The database recomputes every figure from the catalog
@@ -430,8 +465,21 @@ export function Till({
                           value={line.renderedBy ?? ""}
                           onChange={(e) => setRenderedBy(line.key, e.target.value)}
                           options={[
-                            { value: "", label: "Choose a staff member…" },
-                            ...staff.map((s) => ({ value: s.id, label: s.name })),
+                            { value: "", label: "Choose who rendered this…" },
+                            // Two pools (migration 0045), merged into one
+                            // list — a real staff account and a no-login
+                            // service provider are equally valid answers
+                            // to "who did the work"; encodeRenderer keeps
+                            // their ids from ever being compared as if
+                            // they were the same id space.
+                            ...staff.map((s) => ({
+                              value: encodeRenderer({ kind: "staff", id: s.id }),
+                              label: s.name,
+                            })),
+                            ...providers.map((p) => ({
+                              value: encodeRenderer({ kind: "provider", id: p.id }),
+                              label: p.title ? `${p.name} — ${p.title}` : p.name,
+                            })),
                           ]}
                         />
                       ) : null}
@@ -454,11 +502,15 @@ export function Till({
             type="hidden"
             name="cartJson"
             value={JSON.stringify(
-              cart.map((line) => ({
-                variantId: line.variantId,
-                quantity: line.quantity,
-                renderedBy: line.renderedBy || undefined,
-              }))
+              cart.map((line) => {
+                const renderer = decodeRenderer(line.renderedBy);
+                return {
+                  variantId: line.variantId,
+                  quantity: line.quantity,
+                  renderedByStaffId: renderer?.kind === "staff" ? renderer.id : undefined,
+                  renderedByProviderId: renderer?.kind === "provider" ? renderer.id : undefined,
+                };
+              })
             )}
           />
 

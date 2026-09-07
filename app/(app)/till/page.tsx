@@ -5,7 +5,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { readTillSession } from "@/lib/auth/till-session";
 import { PinPad, type TillCashier, type TillColleague } from "./pin-pad";
-import { Till, type TillProduct, type TillCustomer, type TillStaff } from "./till";
+import { Till, type TillProduct, type TillCustomer, type TillStaff, type TillProvider } from "./till";
 
 export const metadata = { title: "Till" };
 
@@ -168,12 +168,23 @@ export default async function TillPage({
     );
   }
 
-  const { data: levels, error: levelsError } = await supabase
-    .from("stock_levels")
-    .select("variant_id, quantity")
-    .eq("branch_id", activeBranch.id);
+  const [{ data: levels, error: levelsError }, { data: providerRows, error: providersError }] = await Promise.all([
+    supabase.from("stock_levels").select("variant_id, quantity").eq("branch_id", activeBranch.id),
+    // The second renderer pool (migration 0045) — active service
+    // providers tied to THIS branch specifically, unlike staff above
+    // (any active profile qualifies business-wide). Queried here, not in
+    // the earlier Promise.all, because it depends on activeBranch, which
+    // is only known once the branches list itself has come back.
+    supabase
+      .from("service_providers")
+      .select("id, name, title")
+      .eq("branch_id", activeBranch.id)
+      .eq("status", "active")
+      .order("name"),
+  ]);
 
   if (levelsError) console.error("TillPage: stock levels query failed", levelsError);
+  if (providersError) console.error("TillPage: service providers query failed", providersError);
 
   const onHand = new Map<string, number>(
     (levels ?? []).map((l) => [
@@ -216,6 +227,10 @@ export default async function TillPage({
       "Unnamed",
   }));
 
+  const providerList: TillProvider[] = ((providerRows ?? []) as { id: string; name: string; title: string | null }[]).map(
+    (p) => ({ id: p.id, name: p.name, title: p.title })
+  );
+
   const allowNegativeStock = Boolean(
     (settings?.pos_settings as { allow_negative_stock?: boolean } | null)?.allow_negative_stock
   );
@@ -228,6 +243,7 @@ export default async function TillPage({
       products={products}
       customers={tillCustomers}
       staff={staffList}
+      providers={providerList}
       currencyCode={currencyCode}
       allowNegativeStock={allowNegativeStock}
       momoEnabled={Boolean(momoEnabled)}

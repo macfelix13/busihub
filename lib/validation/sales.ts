@@ -34,18 +34,27 @@ const tenderedSchema = z.preprocess(
   )
 );
 
-export const cartLineSchema = z.object({
-  variantId: z.string().uuid("Choose a product"),
-  quantity: quantitySchema,
-  // Who actually did the work, for a service line (migration 0040). Blank
-  // for a product line, or when nothing was picked yet — the database is
-  // what actually requires and validates this for a service line
-  // (create_sale refuses a service with no rendered_by, or one naming
-  // someone outside the caller's own business, or an inactive profile);
-  // this is just shaped so a blank value round-trips cleanly rather than
-  // failing .uuid() on "".
-  renderedBy: z.union([z.literal(""), z.string().uuid()]).optional(),
-});
+export const cartLineSchema = z
+  .object({
+    variantId: z.string().uuid("Choose a product"),
+    quantity: quantitySchema,
+    // Who actually did the work, for a service line — from EITHER of two
+    // pools (migration 0045): a real staff account (renderedByStaffId, a
+    // profiles.id — migration 0040's original rendered_by) or a no-login
+    // service provider (renderedByProviderId, a service_providers.id).
+    // Blank for a product line, or when nothing was picked yet — the
+    // database is what actually requires and validates exactly one of the
+    // two for a service line (create_sale refuses a service line naming
+    // neither, both, or someone outside the caller's own business/branch);
+    // this is just shaped so a blank value round-trips cleanly rather than
+    // failing .uuid() on "".
+    renderedByStaffId: z.union([z.literal(""), z.string().uuid()]).optional(),
+    renderedByProviderId: z.union([z.literal(""), z.string().uuid()]).optional(),
+  })
+  .refine((line) => !(line.renderedByStaffId && line.renderedByProviderId), {
+    message: "Choose one renderer, not two.",
+    path: ["renderedByStaffId"],
+  });
 
 export type CartLineInput = z.infer<typeof cartLineSchema>;
 
@@ -128,12 +137,13 @@ export const checkoutSchema = z
     // service is different on purpose: the till never merges service
     // lines (see till.tsx), because "barber A did the braiding, barber B
     // did the dreadlocks" is two lines of possibly the same service with
-    // two different renderers — so the dedup key includes renderedBy,
-    // and only a byte-for-byte duplicate (same variant, same renderer,
-    // or same product line twice) is rejected here.
+    // two different renderers — so the dedup key includes both renderer
+    // fields (0045: either may be set, never both), and only a
+    // byte-for-byte duplicate (same variant, same renderer, or same
+    // product line twice) is rejected here.
     const seen = new Set<string>();
     data.items.forEach((line, index) => {
-      const key = `${line.variantId}::${line.renderedBy ?? ""}`;
+      const key = `${line.variantId}::${line.renderedByStaffId ?? ""}::${line.renderedByProviderId ?? ""}`;
       if (seen.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

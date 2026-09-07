@@ -132,6 +132,12 @@ export const NAV_TREE: NavEntry[] = [
     leaf("Business", "/settings/business", Building, "canManageBusiness"),
     leaf("Payments", "/settings/payments", CreditCard, "canManageBusiness"),
     leaf("Staff", "/settings/staff", UserCog, "canManageUsers"),
+    // Barbers, nail techs, and other staff who render a service but never
+    // sign in (migration 0045) — reusing users.manage rather than a new
+    // permission, same reasoning as Staff itself: this is a staffing
+    // decision, not a catalog one, so it does not reuse products.* the
+    // way Categories does above.
+    leaf("Service Providers", "/settings/service-providers", Scissors, "canManageUsers"),
     leaf("Audit Log", "/settings/audit-log", ShieldCheck, "canViewAudit"),
   ]),
   leaf("My PIN", "/settings/pin", KeyRound),

@@ -83,10 +83,16 @@ export default async function SalesReportPage({
     refunded_total: number | string;
     net_total: number | string;
   }[];
+  // Two renderer pools unified into one leaderboard (migration 0045): a
+  // real staff account (renderer_type 'staff') or a no-login service
+  // provider (renderer_type 'provider') — full_name/title cover both
+  // shapes instead of the profiles-only first_name/last_name this used
+  // to return.
   const providers = (providerRows ?? []) as unknown as {
-    provider_id: string;
-    first_name: string | null;
-    last_name: string | null;
+    renderer_type: "staff" | "provider";
+    renderer_id: string;
+    full_name: string | null;
+    title: string | null;
     service_count: number | string;
     gross_total: number | string;
     refunded_total: number | string;
@@ -270,9 +276,10 @@ export default async function SalesReportPage({
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                   {providers.map((row) => (
-                    <tr key={row.provider_id}>
+                    <tr key={`${row.renderer_type}:${row.renderer_id}`}>
                       <td className="py-2.5 pr-3">
-                        {[row.first_name, row.last_name].filter(Boolean).join(" ") || "Unnamed user"}
+                        {row.full_name || "Unnamed"}
+                        {row.title ? <span className="ml-1 text-neutral-500">· {row.title}</span> : null}
                       </td>
                       <td className="py-2.5 text-right tabular-nums">{Number(row.service_count ?? 0)}</td>
                       <td className="py-2.5 text-right tabular-nums">{money(row.gross_total)}</td>

@@ -466,6 +466,131 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — Service providers: staff who render a service but never
+  sign in (migration `0045`).
+  Requested directly: "have ability to create staff such as barbers,
+  nail tech, .... so we can link exact staff who rendered a particular
+  service, we will also have reports on service staff so we track
+  individual performances." Migrations `0040`/`0041` already let a
+  service line name whoever rendered it — but only from `profiles`, i.e.
+  people who can sign in. This adds a second, deliberately separate pool:
+  `service_providers`, a simple named record (name, job title/specialty,
+  phone, photo, one fixed branch, active/archived) with no `auth.users`
+  row and no `profiles` row at all — a real shop chair or booth is
+  frequently staffed by someone who has no reason to ever log in to
+  Busihub. Three forks were discussed with the user before writing
+  anything (recorded in full in `0045`'s own header, summarized here):
+  no login (the deliberate, chosen shape — `profiles.id` is a hard FK to
+  `auth.users(id)`, so this is genuinely a second table, not a login-less
+  profile); tied to exactly one branch, not any branch (`branch_id` is
+  `not null` — a service provider only shows up in the till's picker for
+  sales at their own branch); and build full photo upload now rather than
+  defer it, since nothing in Busihub uploads a file today (confirmed by
+  grepping for `avatar_url`/`logo_url` across the app — placeholder text
+  columns only) — this is genuinely new infrastructure, not a form field.
+  **The hardest design question** was where this plugs into a sale line.
+  `sale_items.rendered_by` (a FK to `profiles`, required and validated by
+  `create_sale()` for a service line since `0040`) is deliberately left
+  completely untouched, rather than repointed or migrated at the new
+  table — a historical `rendered_by` profile cannot be safely reassigned
+  a single required `service_providers.branch_id` after the fact without
+  guessing at history. Instead `sale_items` gains a second, independent
+  column, `provider_id` (FK to `service_providers`), alongside the
+  original. A service line now carries exactly one of the two — enforced
+  inside `create_sale()` itself (the same place `rendered_by`'s own
+  requirement has always lived, since the rule depends on the linked
+  product's `type`, which a table `CHECK` constraint cannot see); a row-
+  local `sale_items_renderer_not_both` constraint adds defense in depth
+  against both being set at once, which a `CHECK` constraint CAN see.
+  Every sale ever recorded keeps meaning exactly what it always meant.
+  `create_sale()` needed no new overload — its signature is unchanged
+  (`uuid, uuid, uuid, text, numeric, jsonb, jsonb`), because the per-item
+  renderer fields live inside the existing `p_items` jsonb payload, not
+  as new positional arguments; a plain `create or replace` sufficed.
+  `service_provider_performance()` DID need `drop function` first — its
+  `returns table` column list changes (`first_name`/`last_name`, which
+  only ever made sense for a `profiles` row, become `renderer_type` +
+  `full_name` + `title` so a `service_providers` row has somewhere to put
+  its own name and job title) — Postgres refuses a `create or replace`
+  that changes a function's return type. The rewritten function unions
+  both pools (keyed as `'staff'`/`'provider'` + that pool's own id, never
+  comparing a `profiles.id` and a `service_providers.id` as if they were
+  one id space) into one leaderboard, still `security invoker`, still
+  attributing each service LINE's own revenue to whoever actually
+  rendered it rather than composing from `staff_performance()` (same
+  reasoning `0041`'s version already gave for why that composition would
+  silently answer the wrong question).
+  **Permissions** — reusing `users.manage` (create/edit/archive) and
+  `sales.process OR users.manage` (view), no new permission key, so
+  nothing needs backfilling onto any already-registered business's roles
+  (the same standing rule `0040`/`0041` already established for
+  services/categories). This is a staffing decision, not a catalog one,
+  so — unlike categories — it does not reuse `products.*`.
+  **Photo storage** — a new PRIVATE Supabase Storage bucket,
+  `service-provider-photos` (5 MB cap, `image/jpeg`/`png`/`webp` only,
+  enforced at the bucket level and again in the upload Server Action).
+  Deliberately private, not public: a public bucket would mean anyone
+  holding a photo's URL could load it forever with no permission check —
+  exactly the "access by knowing an id/URL" pattern the master spec rules
+  out, even though a uuid-shaped path is not realistically guessable.
+  `storage.objects` policies scope every read/write/delete by the path's
+  own leading folder segment (always the caller's own `business_id`,
+  never taken from the client) via `storage.foldername(name)[1]`, checked
+  against the same `sales.process`/`users.manage` permissions the table
+  itself uses. `service_providers.photo_url` stores only the object PATH,
+  never a public URL; `lib/storage/service-provider-photos.ts` resolves
+  it to a short-lived (1 hour) SIGNED url at render time, so a stale
+  cached link goes dead on its own rather than staying live forever.
+  **New/changed files**: `supabase/migrations/0045_service_providers.sql`
+  (table + RLS + storage bucket/policies + `sale_items.provider_id` +
+  `create_sale()`/`service_provider_performance()` rewrites);
+  `lib/validation/service-providers.ts` +
+  `tests/unit/service-providers.test.ts`;
+  `lib/storage/service-provider-photos.ts`;
+  `app/(app)/settings/service-providers/{page.tsx, actions.ts,
+  provider-form.tsx, new/page.tsx, [id]/edit/page.tsx}` — modelled
+  directly on `products/categories`' own list/new/edit/actions shape,
+  and deliberately kept to the plain `<h1>`/`rounded-2xl border` header
+  style every other Settings page still uses (the `PageHeader`/`Card`
+  design-system rollout in phases 1-9 was scoped to Products, Customers,
+  Sales, and Inventory only — introducing it in one corner of Settings
+  alone would read as inconsistent, not as progress); `nav-items.tsx`
+  gains a "Service Providers" leaf under Settings (gated by the existing
+  `canManageUsers`, not a new nav permission) — the actual place a new
+  Settings-area destination is registered in this app, confirmed by
+  checking how Products → Categories is wired in (a sidebar entry, not an
+  inline link on the Products page, which has none).
+  `lib/validation/sales.ts`'s `cartLineSchema` replaces its single
+  `renderedBy` field with `renderedByStaffId`/`renderedByProviderId` (plus
+  a `.refine()` rejecting both at once, mirroring the database's own
+  constraint) — `checkoutSchema`'s duplicate-line dedup key now includes
+  both. `app/(app)/till/actions.ts`'s `completeSale()` sends whichever one
+  the till chose straight through to `create_sale()`. `app/(app)/till/
+  page.tsx` now also queries `service_providers` scoped to the sale's own
+  active branch (staff, by contrast, has always been business-wide) and
+  passes it to `till.tsx` as a new `providers` prop. `till.tsx` merges
+  both pools into one "who rendered this?" picker, encoding each option
+  as `staff:<id>` or `provider:<id>` (`encodeRenderer`/`decodeRenderer`)
+  so the two id spaces are never compared as if they were one, and decodes
+  the choice back into the two named fields the hidden `cartJson` payload
+  now carries. `app/(app)/sales/[id]/page.tsx`'s "Rendered by" line now
+  falls back from the `rendered_by` embed to a new `provider` embed
+  (`service_providers(name, title)` — sale_items has only one FK to that
+  table, same unambiguous-embed reasoning already used for `rendered_by`
+  itself). `app/(app)/reports/sales/page.tsx`'s "Who rendered what"
+  section consumes `service_provider_performance()`'s new unified shape
+  (`renderer_type`, `renderer_id`, `full_name`, `title`) instead of the
+  old `provider_id`/`first_name`/`last_name`.
+  Every new/modified `.ts`/`.tsx` file passed the sandbox's `tsc
+  --noEmit` structural syntax check (filtered to genuine `TS1xxx`
+  parse/syntax errors only) — I have not run `npm run typecheck` / `npm
+  run lint` / `npm test` / `npm run build` myself, since this sandbox has
+  no npm registry access. Please run those and paste back anything that
+  fails, same as always. This migration also needs to actually run
+  against the Supabase project (`npm run db:migrate` or equivalent) —
+  unlike the UI-polish phases above, this one is not a no-op on the
+  database.
+
 - 2026-09-07 — UI/UX polish pass, phase 9 of N (Inventory — stock
   history, receive, adjust, and count pages).
   Continuing the phased redesign (phases 1-8 above/below): this is the

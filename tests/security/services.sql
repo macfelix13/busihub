@@ -341,18 +341,27 @@ end $$;
 -- since it's a product), and a second braiding (80, fully refunded).
 -- Expected: 3 lines, 280 gross, 80 refunded, 200 net. Barber 702 (never
 -- named as a renderer, and inactive besides) must not appear at all.
+--
+-- 0045 (service providers — the no-login pool, distinct from staff)
+-- rewrote this function's return shape to cover both kinds of renderer:
+-- the old bare `provider_id` column became `renderer_type` ('staff' or
+-- 'provider') plus `renderer_id`. Every renderer in this suite is staff,
+-- so every check below pins renderer_type = 'staff' as well as the id —
+-- that both documents the shape and proves a staff-rendered line is
+-- never mistakenly tagged 'provider'.
 
 do $$
 declare v_row record; v_rows int;
 begin
   select count(*) into v_rows from service_provider_performance(null, null, null, 50)
-  where provider_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
+  where renderer_type = 'staff'
+    and renderer_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
   if v_rows <> 1 then
     raise exception 'TEST FAILED: expected exactly one renderer with figures, got %', v_rows using errcode = 'ZZ999';
   end if;
 
   select * into v_row from service_provider_performance(null, null, null, 50)
-  where provider_id = '00000000-0000-0000-0000-000000000701';
+  where renderer_type = 'staff' and renderer_id = '00000000-0000-0000-0000-000000000701';
 
   if v_row.service_count <> 3 or v_row.gross_total <> 280.00 or v_row.refunded_total <> 80.00
      or v_row.net_total <> 200.00 then
@@ -385,7 +394,7 @@ begin
   -- other real active profile besides the owner), so re-check the
   -- running total picked both up rather than merging them into one line.
   select * into v_a from service_provider_performance(null, null, null, 50)
-  where provider_id = '00000000-0000-0000-0000-000000000701';
+  where renderer_type = 'staff' and renderer_id = '00000000-0000-0000-0000-000000000701';
 
   if v_a.service_count <> 5 or v_a.gross_total <> 480.00 then
     raise exception 'TEST FAILED: a two-line service sale was not fully counted (% lines / % gross)',
@@ -406,7 +415,8 @@ begin
   perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 
   select count(*) into v_rows from service_provider_performance(null, null, null, 100)
-  where provider_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
+  where renderer_type = 'staff'
+    and renderer_id in ('00000000-0000-0000-0000-000000000701', '00000000-0000-0000-0000-000000000702');
 
   if v_rows <> 0 then
     raise exception 'TEST FAILED: another business''s renderer figures were visible (% rows)', v_rows

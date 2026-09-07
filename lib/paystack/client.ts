@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto/secret-box";
 

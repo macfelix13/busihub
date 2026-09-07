@@ -466,6 +466,52 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — Paystack "Test connection" on the payments settings page.
+  Prompted by a full multi-tenant-Paystack specification handed over by
+  the user; before writing anything, the existing payment implementation
+  was inspected end-to-end (migrations 0022–0025, `lib/paystack/client.ts`,
+  `lib/crypto/secret-box.ts`, the webhook route, `tests/security/payments.sql`'s
+  172+ assertions) and found to already satisfy nearly everything the
+  specification asked for: per-tenant encrypted credentials, HMAC-SHA512
+  webhook verification against the *shop's own* key, webhook idempotency,
+  the cross-tenant hole closed back in 0023, live/test key-prefix
+  validation, and no client-trusted callback (there isn't one — momo is a
+  server-initiated charge plus a webhook, not a browser redirect). Rather
+  than rebuild any of that, only the one genuinely missing, purely
+  additive piece was built, after confirming both the scope and one real
+  disagreement with the user: the specification's "inventory must not
+  decrease until payment is confirmed" (its §24) directly conflicts with
+  this app's deliberate, already-tested "stock leaves the shelf at
+  ring-up" design from 0022 (built specifically to stop two tills both
+  promising the last unit) — the user chose to keep the existing
+  behaviour, so nothing about sale/inventory timing changed here.
+  A new module, `lib/paystack/connection-test.ts`, adds `testConnection()`:
+  it asks Paystack to verify a transaction reference that cannot exist,
+  and reads the difference between a 401 ("Invalid key" — before Paystack
+  even looks) and a 404 ("not found" — the key checked out, the reference
+  just isn't real) to prove a stored secret actually authenticates,
+  without charging anything and without the result ever carrying the key
+  itself. It is a separate file from `lib/paystack/client.ts` on purpose:
+  client.ts imports the service-role Supabase client, which wraps itself
+  in React's `cache()` and only works inside a real Next.js server
+  request — pulling that in transitively broke the very first unit test
+  written against it (`TypeError: cache is not a function` under Vitest's
+  plain Node environment), so `testConnection()` lives somewhere that
+  imports nothing from Supabase, only `PaystackCredentials` as a
+  type-only (compile-time-erased) import from client.ts. A new Server
+  Action (`testPaystackConnection`) gates this behind `business.manage`,
+  same as every other read of these settings, and a small client
+  component renders a "Test connection" button and result line under the
+  existing "Connected" panel — no new table, no schema change, no change
+  to the create-sale/webhook/settlement path. 6 new unit tests stub
+  `fetch` to cover the 404/401/network-failure/unexpected-status
+  branches and confirm the secret key never appears in the returned
+  message. The other three additive items the specification raised — a
+  webhook identifier separate from the raw `business_id` with a
+  regenerate flow, audit-log entries for payment-settings changes, and a
+  live-mode confirmation warning — were offered and intentionally deferred
+  by the user; they remain open if wanted later.
+
 - 2026-09-07 — Product/service photos, on the catalog pages and the till
   (migration `0046`).
   Requested directly: "i want to be able to add product image to

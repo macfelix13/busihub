@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -8,6 +8,8 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { paystackSettingsSchema, keyMode } from "@/lib/validation/payments";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
 import { encryptSecret, secretLast4 } from "@/lib/crypto/secret-box";
+import { loadPaystackCredentials } from "@/lib/paystack/client";
+import { testConnection } from "@/lib/paystack/connection-test";
 
 export interface PaymentSettingsFormState {
   error?: string;
@@ -131,4 +133,37 @@ export async function disconnectPaystack(): Promise<void> {
   }
 
   revalidatePath("/settings/payments");
+}
+
+export interface ConnectionTestState {
+  ok: boolean;
+  message: string;
+}
+
+/**
+ * "Test connection" on the settings page. Read-only — it proves the
+ * stored key actually authenticates with Paystack (lib/paystack/client's
+ * testConnection) and reports back a plain yes/no, never the key. Gated
+ * the same way as everything else on this page: only someone who could
+ * already see and change these settings can trigger a check against them.
+ */
+export async function testPaystackConnection(): Promise<ConnectionTestState> {
+  const supabase = await createServerSupabaseClient();
+
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+    await requirePermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE);
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { ok: false, message: err.message };
+    console.error("testPaystackConnection: permission lookup failed", err);
+    return { ok: false, message: "Something went wrong. Please try again." };
+  }
+
+  const credentials = await loadPaystackCredentials(businessId);
+  if (!credentials) {
+    return { ok: false, message: "Connect a Paystack account first, then test it." };
+  }
+
+  return testConnection(credentials);
 }

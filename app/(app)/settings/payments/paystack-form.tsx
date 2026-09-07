@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 import type { PaymentSettingsFormState } from "./actions";
 import { updatePaystackSettings } from "./actions";
+import { TestConnectionButton } from "./test-connection-button";
 
 const initialState: PaymentSettingsFormState = {};
 
@@ -50,6 +51,9 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
           <p className="mt-1 text-neutral-500">
             Secret key ending <span className="font-mono">…{secretLast4}</span>. Leave the box below empty to keep it.
           </p>
+          <div className="mt-3">
+            <TestConnectionButton />
+          </div>
         </div>
       ) : null}
 

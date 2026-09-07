@@ -466,6 +466,63 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 9 of N (Inventory — stock
+  history, receive, adjust, and count pages).
+  Continuing the phased redesign (phases 1-8 above/below): this is the
+  fourth and final phase of the "detail/edit/new pages" sub-sequence
+  across Products, Customers, Sales, and Inventory, completing the scope
+  approved after phase 5. Same rule as every phase touching a
+  data-heavy screen: presentation only. Every Supabase query (the
+  variant/stock-levels/movements lookups on the stock-history page, the
+  shared `loadStockFormData` call behind all three stock-entry pages),
+  every permission check (`INVENTORY_VIEW`, `INVENTORY_RECEIVE`,
+  `INVENTORY_ADJUST`), every redirect/notFound call, every calculation
+  (the per-branch and total-across-branches quantities, the movement
+  delta sign and color, the "currently on hand" figure the form reads
+  per selected variant), and every bound server action (`adjustStock`,
+  `recordStockCount`, `receiveStock`) is untouched, character for
+  character — confirmed by reviewing the complete final files against
+  the originals.
+  What changed, concretely: `inventory/adjust/page.tsx`,
+  `inventory/count/page.tsx`, and `inventory/receive/page.tsx`'s
+  identical plain `<h1>` + one-line description headers now use the
+  shared `PageHeader`. `inventory/[variantId]/page.tsx` (the per-variant
+  stock-history page) also moved to `PageHeader` — unlike the Products/
+  Customers/Sales detail pages in phases 6-8, its header has no status
+  badges next to the title, just a title, a one-line description, and
+  the Receive/Adjust action buttons, which is exactly `PageHeader`'s
+  contract. That page's "On hand" and "Movement history" boxes — two
+  more hand-rolled `rounded-2xl border bg-white` boxes — became `Card`s,
+  and the movement-history table's rows gained `transition-colors` on
+  hover (matching every other data table redesigned in phases 5-8).
+  `stock-form.tsx`'s "no active products to stock yet" early return —
+  previously one sentence with an inline link, replacing the whole form
+  exactly like the empty-full-form cases `EmptyState` was built for in
+  phases 5 and 8 — became `EmptyState` (icon `PackagePlus`), with the
+  same "Add a product" link now rendered as its `action` button instead
+  of sitting mid-sentence; same condition (`variants.length === 0`),
+  same destination (`/products/new`), just a different presentational
+  shape for the identical link — flagged here since it is a slightly
+  larger visual change than a straight pill or box swap.
+  Left deliberately alone: the "No stock recorded yet." and "No
+  movements recorded yet." rows inside the On-hand list and the
+  Movement-history table stay plain text — same reasoning as every
+  small in-page empty row left alone in phases 5, 7, and 8 (Inventory's
+  own list-page table in phase 5, Customers' account history in phase
+  7, Sales' items/payments tables in phase 8): `EmptyState`'s icon-
+  circle treatment is for a genuinely empty full page or full form, not
+  a sub-section of a page that already has other content. The stock
+  form's "Branch: … change" strip stays a plain `bg-neutral-100` notice
+  for the same reason `account-entry-form.tsx`'s balance label
+  (phase 7) and `refund-form.tsx`'s "Roughly" estimate (phase 8) stayed
+  plain notices rather than becoming `Card`s.
+  This completes the "detail/edit/new pages for these four areas" scope
+  approved after phase 5 (Products in phase 6, Customers in phase 7,
+  Sales in phase 8, Inventory here).
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 8 of N (Sales — detail, receipt,
   and refund pages).
   Continuing the phased redesign (phases 1-7 above/below), and the third

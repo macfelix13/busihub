@@ -1,10 +1,12 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatQuantity } from "@/lib/validation/inventory";
 
 export const metadata = { title: "Stock history" };
@@ -94,31 +96,30 @@ export default async function VariantStockHistoryPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{product.name}</h1>
-          <p className="text-neutral-500">
-            {options.length > 0 ? `${options.map(([k, v]) => `${k}: ${v}`).join(", ")} · ` : ""}
-            {variant.sku || "No SKU"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canReceive ? (
-            <Link href={`/inventory/receive?variant=${variant.id}${backBranch ? `&branch=${backBranch}` : ""}`}>
-              <Button variant="secondary">Receive</Button>
-            </Link>
-          ) : null}
-          {canAdjust ? (
-            <Link href={`/inventory/adjust?variant=${variant.id}${backBranch ? `&branch=${backBranch}` : ""}`}>
-              <Button variant="secondary">Adjust</Button>
-            </Link>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={product.name}
+        description={`${options.length > 0 ? `${options.map(([k, v]) => `${k}: ${v}`).join(", ")} · ` : ""}${
+          variant.sku || "No SKU"
+        }`}
+        actions={
+          <>
+            {canReceive ? (
+              <Link href={`/inventory/receive?variant=${variant.id}${backBranch ? `&branch=${backBranch}` : ""}`}>
+                <Button variant="secondary">Receive</Button>
+              </Link>
+            ) : null}
+            {canAdjust ? (
+              <Link href={`/inventory/adjust?variant=${variant.id}${backBranch ? `&branch=${backBranch}` : ""}`}>
+                <Button variant="secondary">Adjust</Button>
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <div>
         <h2 className="font-semibold">On hand</h2>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="mt-3 overflow-hidden">
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {levelRows.length > 0 ? (
               <>
@@ -145,7 +146,7 @@ export default async function VariantStockHistoryPage({
               <li className="px-5 py-6 text-center text-sm text-neutral-500">No stock recorded yet.</li>
             )}
           </ul>
-        </div>
+        </Card>
       </div>
 
       <div>
@@ -154,7 +155,7 @@ export default async function VariantStockHistoryPage({
           Every change to this item&apos;s stock, most recent first. Entries are never edited or deleted — a correction is
           a new entry.
         </p>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -173,7 +174,7 @@ export default async function VariantStockHistoryPage({
                     const delta = Number(m.quantity_delta);
                     const who = [m.profiles?.first_name, m.profiles?.last_name].filter(Boolean).join(" ");
                     return (
-                      <tr key={m.id}>
+                      <tr key={m.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                         <td className="px-4 py-3 text-neutral-500">
                           {new Date(m.created_at).toLocaleString("en-GB", {
                             day: "2-digit",
@@ -208,7 +209,7 @@ export default async function VariantStockHistoryPage({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -1,12 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
 import Link from "next/link";
+import { PackagePlus } from "lucide-react";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { SubmitButton } from "@/components/ui/button";
+import { Button, SubmitButton } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ADJUSTMENT_REASONS, formatQuantity } from "@/lib/validation/inventory";
 import type { FormState } from "./actions";
 
@@ -70,13 +72,16 @@ export function StockForm({ mode, action, branchId, branchName, variants, quanti
 
   if (variants.length === 0) {
     return (
-      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
-        There are no active products to stock yet.{" "}
-        <Link href="/products/new" className="font-medium text-brand-700 dark:text-brand-300">
-          Add a product
-        </Link>{" "}
-        first.
-      </p>
+      <EmptyState
+        icon={PackagePlus}
+        title="No active products yet"
+        description="Add a product before you can receive, adjust, or count its stock."
+        action={
+          <Link href="/products/new">
+            <Button variant="secondary">Add a product</Button>
+          </Link>
+        }
+      />
     );
   }
 

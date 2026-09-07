@@ -1,8 +1,9 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { StockForm } from "../stock-form";
 import { loadStockFormData } from "../load-form-data";
 import { adjustStock } from "../actions";
@@ -32,10 +33,7 @@ export default async function AdjustStockPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Adjust stock</h1>
-        <p className="text-neutral-500">Correct the stock on hand, with a reason for the record.</p>
-      </div>
+      <PageHeader title="Adjust stock" description="Correct the stock on hand, with a reason for the record." />
       <StockForm
         mode="adjust"
         action={adjustStock}

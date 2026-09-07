@@ -1,8 +1,9 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { PageHeader } from "@/components/ui/page-header";
 import { StockForm } from "../stock-form";
 import { loadStockFormData } from "../load-form-data";
 import { receiveStock } from "../actions";
@@ -32,10 +33,7 @@ export default async function ReceiveStockPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Receive stock</h1>
-        <p className="text-neutral-500">Record stock arriving at a branch.</p>
-      </div>
+      <PageHeader title="Receive stock" description="Record stock arriving at a branch." />
       <StockForm
         mode="receive"
         action={receiveStock}

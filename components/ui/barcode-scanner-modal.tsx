@@ -65,19 +65,24 @@ export function BarcodeScannerModal({ onDetected, onClose }: BarcodeScannerModal
     let cancelled = false;
     let stopped = false;
 
-    const reader = new BrowserMultiFormatReader();
+    // The library's default is 500ms between scan attempts — that alone
+    // made scanning feel slow, so this shortens the gap to 100ms. The
+    // installed @zxing/browser version takes an options object here
+    // (IBrowserCodeReaderOptions), not a plain number — confirmed by a
+    // real `npm run typecheck` run against it, which is what this exact
+    // shape reflects.
+    const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 100 });
 
     // Devices are enumerated (rather than left to the browser's default
     // choice) so a rear-facing camera can be preferred — the default on
     // most phones is the FRONT camera, which cannot usefully read a
     // barcode. Labels are only populated once camera permission has been
     // granted at least once for this origin; before that, every label is
-    // blank and this falls back to the last device in the list, which in
-    // practice is the rear camera on the large majority of phones. Worth
-    // naming plainly rather than glossing over: the very first scan on a
-    // brand-new install may pick the front camera on some devices: this
-    // corrects itself from the second attempt onward, once the browser
-    // has actually granted permission and reports real labels.
+    // blank, and picking a deviceId off an unlabelled list is a coin flip
+    // between front and rear on many phones. So when no device has a
+    // label yet, this asks the camera directly for the rear ("environment")
+    // facing camera via constraints instead of guessing a deviceId — a
+    // genuine improvement over blindly taking the last device in the list.
     BrowserMultiFormatReader.listVideoInputDevices()
       .then((devices) => {
         if (cancelled) return;
@@ -85,8 +90,27 @@ export function BarcodeScannerModal({ onDetected, onClose }: BarcodeScannerModal
           setError("No camera was found on this device.");
           return;
         }
-        const rear = devices.find((d) => /back|rear|environment/i.test(d.label)) ?? devices[devices.length - 1];
-        return reader.decodeFromVideoDevice(rear?.deviceId, videoRef.current ?? undefined, (result, err, controls) => {
+        const hasLabels = devices.some((d) => d.label);
+        const rear = hasLabels
+          ? devices.find((d) => /back|rear|environment/i.test(d.label)) ?? devices[devices.length - 1]
+          : undefined;
+
+        // Decoding runs faster per frame at a moderate resolution than at
+        // an unconstrained (often very high) native camera resolution —
+        // 1280x720 is still far more detail than a barcode needs. This
+        // switches from decodeFromVideoDevice (deviceId only) to
+        // decodeFromConstraints so a resolution hint — and, when no
+        // labelled device is known yet, a facingMode hint — can be passed
+        // alongside the camera choice. Unlike the constructor change
+        // above, this method was not exercised by the one successful
+        // typecheck run so far, so it carries a little more risk.
+        const constraints: MediaStreamConstraints = {
+          video: rear
+            ? { deviceId: { exact: rear.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        };
+
+        return reader.decodeFromConstraints(constraints, videoRef.current ?? undefined, (result, err, controls) => {
           controlsRef.current = controls;
           if (cancelled || stopped || !result) return;
           stopped = true;

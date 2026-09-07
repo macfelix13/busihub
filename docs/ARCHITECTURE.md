@@ -466,6 +466,28 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — "works but takes long for camera to scan bar codes,
+  especially when adding products" — a speed follow-up to the camera
+  barcode scanner, touching only the shared component both the till and
+  the product forms use (`components/ui/barcode-scanner-modal.tsx`), so
+  the fix applies everywhere scanning happens. Two changes: the scanning
+  library's default 500ms gap between decode attempts was shortened to
+  100ms (`new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts:
+  100 })` — the installed @zxing/browser version takes an options object
+  here, not a plain number, confirmed by `npm run typecheck`), and the camera
+  is now started at a moderate 1280x720 resolution instead of its
+  unconstrained (often much higher, and slower to decode per frame)
+  native resolution, by switching from `decodeFromVideoDevice` to
+  `decodeFromConstraints`. That switch also fixes a previously-disclosed
+  first-run rough edge: when no camera yet has a label (before this
+  origin has ever been granted camera permission), the component now
+  asks directly for the rear (`facingMode: "environment"`) camera instead
+  of guessing a device from an unlabelled list, so the very first scan on
+  a brand-new install should no longer risk opening the front camera. No
+  database, permission, or RLS surface — this is a client-side
+  timing/config change to an existing component — so no migration and no
+  security test changes.
+
 - 2026-09-07 — "we need to add scan barcode feature in the add products
   section (barcode) so barcode of products automatically scans into the
   field with either scanner or phone camera" — a direct follow-up reusing

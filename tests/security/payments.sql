@@ -1122,9 +1122,19 @@ reset role;
 reset request.jwt.claim.sub;
 
 -- ── 26. One shop cannot touch another shop's webhook identifier ─────────
+--
+-- Finding "business B" and its current webhook_identifier has to happen
+-- under a role that can actually see them. businesses_select (0009) and
+-- business_payment_settings_select (0022) both scope select to the
+-- caller's own business, so doing this lookup as business A — the way an
+-- earlier version of this section did — does not fail because the seed
+-- has one business, it fails because RLS hides every other one. Section
+-- 22 avoids the same trap by running its equivalent lookup as
+-- service_role; this does the same, then hands only the id (and the
+-- "before" value, to compare against afterwards) to business A's session
+-- the way section 22 stashes the victim sale id.
 
-set role authenticated;
-set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+set role service_role;
 
 do $$
 declare v_other uuid; v_before uuid;
@@ -1136,21 +1146,51 @@ begin
 
   select webhook_identifier into v_before from business_payment_settings where business_id = v_other;
 
+  perform set_config('busihub.test_other_business', v_other::text, false);
+  perform set_config('busihub.test_other_webhook_id', coalesce(v_before::text, ''), false);
+end $$;
+
+reset role;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
+
+do $$
+declare v_other uuid;
+begin
+  v_other := current_setting('busihub.test_other_business')::uuid;
+
   begin
     perform regenerate_paystack_webhook_identifier(v_other);
     raise exception 'TEST FAILED: business A regenerated business B''s webhook identifier' using errcode = 'ZZ999';
   exception when insufficient_privilege then
     raise notice 'PASS: a business.manage holder cannot regenerate another business''s webhook identifier';
   end;
-
-  if v_before is not null
-     and (select webhook_identifier from business_payment_settings where business_id = v_other) <> v_before then
-    raise exception 'TEST FAILED: business B''s webhook identifier changed anyway' using errcode = 'ZZ999';
-  end if;
 end $$;
 
 reset role;
 reset request.jwt.claim.sub;
+
+-- And re-check from a role that can actually see business B's row again —
+-- business A's session above cannot, so it cannot be the one to confirm
+-- nothing changed.
+set role service_role;
+
+do $$
+declare v_other uuid; v_before text; v_after uuid;
+begin
+  v_other := current_setting('busihub.test_other_business')::uuid;
+  v_before := nullif(current_setting('busihub.test_other_webhook_id'), '');
+
+  select webhook_identifier into v_after from business_payment_settings where business_id = v_other;
+
+  if v_before is not null and v_after::text <> v_before then
+    raise exception 'TEST FAILED: business B''s webhook identifier changed anyway' using errcode = 'ZZ999';
+  end if;
+  raise notice 'PASS: business B''s webhook identifier is unchanged';
+end $$;
+
+reset role;
 
 -- ── 27. A webhook with nobody behind it can still be audited ─────────────
 --

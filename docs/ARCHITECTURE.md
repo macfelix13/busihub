@@ -466,6 +466,31 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — Fixed a broken CI assertion in `tests/security/payments.sql`
+  section 26 ("One shop cannot touch another shop's webhook identifier"),
+  added alongside migration `0047` below. It looked up "business B" —
+  `select id into v_other from businesses where id <> biz_a limit 1` —
+  while already `set role authenticated` as business A, and got `null`
+  back. That is not the seed having only one business; `businesses_select`
+  (0009) and `business_payment_settings_select` (0022) both scope `select`
+  to the caller's own business, so RLS hid business B from business A's
+  own session before the test ever got to the thing it meant to check.
+  Section 22, right above it, does the equivalent lookup as `service_role`
+  for exactly this reason and was never affected. The fix follows that
+  same shape: look up business B and its current `webhook_identifier` as
+  `service_role`, stash both in session GUCs (`busihub.test_other_business`,
+  `busihub.test_other_webhook_id` — the same `set_config(..., false)` /
+  `current_setting(...)` pattern sections 3, 11, 16 and 22 already use to
+  carry a value across a role switch), then read them back once switched
+  to business A to attempt — and confirm the refusal of — the actual
+  cross-tenant `regenerate_paystack_webhook_identifier()` call. The
+  "nothing changed" recheck afterwards also moved to `service_role`, for
+  the same reason: business A's own session cannot see business B's row
+  to confirm it, changed or not. No application code changed; this was a
+  bug in the new test's own fixture-visibility assumption, caught by CI's
+  `psql`-run security suite exactly as intended (`npm test` never runs
+  these `.sql` files, so this could not have been caught locally).
+
 - 2026-09-07 — The three remaining additive Paystack items (migration
   `0047`): a webhook identifier separate from `business_id`, audit-log
   entries for payment-settings changes, and a live-mode confirmation

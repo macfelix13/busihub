@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useFormState } from "react-dom";
+import { PackageCheck } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { REFUND_METHODS } from "@/lib/validation/refunds";
@@ -63,11 +66,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
   const refundable = lines.filter((l) => l.sold - l.alreadyRefunded > 0);
 
   if (refundable.length === 0) {
-    return (
-      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
-        Everything on this sale has already been returned.
-      </p>
-    );
+    return <EmptyState icon={PackageCheck} title="Everything on this sale has already been returned." />;
   }
 
   return (
@@ -78,7 +77,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -95,7 +94,12 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
                 const outstanding = line.sold - line.alreadyRefunded;
                 const row = rows[line.saleItemId] ?? { quantity: "", restock: true };
                 return (
-                  <tr key={line.saleItemId} className={outstanding <= 0 ? "opacity-50" : ""}>
+                  <tr
+                    key={line.saleItemId}
+                    className={`transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 ${
+                      outstanding <= 0 ? "opacity-50" : ""
+                    }`}
+                  >
                     <td className="px-4 py-3">
                       <span className="font-medium">{line.description}</span>
                       {line.sku ? <span className="ml-2 text-neutral-500">{line.sku}</span> : null}
@@ -144,7 +148,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       <p className="text-sm text-neutral-500">
         Untick &ldquo;back on the shelf&rdquo; for damaged goods — the customer is still refunded, but the stock

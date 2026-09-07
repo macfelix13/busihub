@@ -1,10 +1,11 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatReceiptText, receiptWidth, type ReceiptData } from "@/lib/receipts/format";
 import { ReceiptControls } from "./receipt-controls";
 
@@ -147,17 +148,16 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-2xl font-semibold">Receipt</h1>
-          <p className="text-neutral-500">
-            {sale.receipt_number} · {paperSize.replace("thermal_", "").replace("a4", "A4")} · {width} characters wide
-          </p>
-        </div>
-        <Link href={`/sales/${sale.id}`}>
-          <Button variant="ghost">Back to the sale</Button>
-        </Link>
-      </div>
+      <PageHeader
+        className="print:hidden"
+        title="Receipt"
+        description={`${sale.receipt_number} · ${paperSize.replace("thermal_", "").replace("a4", "A4")} · ${width} characters wide`}
+        actions={
+          <Link href={`/sales/${sale.id}`}>
+            <Button variant="ghost">Back to the sale</Button>
+          </Link>
+        }
+      />
 
       <ReceiptControls text={text} />
 

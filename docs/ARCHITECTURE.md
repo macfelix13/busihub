@@ -466,6 +466,73 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 8 of N (Sales — detail, receipt,
+  and refund pages).
+  Continuing the phased redesign (phases 1-7 above/below), and the third
+  of the "detail/edit/new pages" sub-sequence across Products, Customers,
+  Sales, and Inventory: this phase is Sales' half (Inventory follows as
+  the final phase). Same rule as every phase touching a data-heavy
+  screen: presentation only. Every Supabase query (the sale/items/
+  payments/refunds lookups on the detail page, the sale-plus-business-
+  plus-settings lookups that build the receipt text, the sale-items/
+  already-refunded lookups on the return page), every permission check
+  (`SALES_PROCESS`, `REPORTS_VIEW`, `SALES_VOID`, `SALES_REFUND`), every
+  redirect/notFound call, every calculation (the refunded-total sum, the
+  net-after-returns figure, the per-unit refund basis derived from the
+  original line rather than the catalog, the refund preview total, the
+  receipt's `ReceiptData` assembly and its width-from-paper-size lookup),
+  and every bound server action (`voidSale`, `refundSale`,
+  `checkSalePayment`, `cancelSale`) is untouched, character for
+  character — confirmed by reviewing the complete final files against
+  the originals.
+  What changed, concretely: `sales/[id]/receipt/page.tsx` and
+  `sales/[id]/refund/page.tsx`'s plain `<h1>` + one-line description
+  headers now use the shared `PageHeader` (the receipt page's header
+  keeps its `print:hidden` class via `PageHeader`'s `className` prop, so
+  what actually comes out of the printer is unchanged).
+  `sales/[id]/page.tsx` (the sale detail page) keeps its existing custom
+  header layout rather than being forced into `PageHeader` — same
+  reasoning as `products/[id]/page.tsx` and `customers/[id]/page.tsx` in
+  phases 6 and 7: up to four status pills sit inline next to the title
+  alongside a separate date/branch/cashier line, a shape `PageHeader`'s
+  contract doesn't fit — but all four hand-rolled pills (the payment-
+  method tag, and the Voided/Waiting-for-payment/Cancelled status pills)
+  became the shared `Badge`. The Cancelled pill's neutral shade
+  normalizes slightly in the process (`bg-neutral-200` -> Badge's
+  `bg-neutral-100`), the same kind of disclosed one-shade normalization
+  made to Sales' list-page pills in phase 5. That page's items table,
+  its "How it was paid" box, and its "Returns against this sale" box —
+  three more hand-rolled `rounded-2xl border bg-white` boxes — became
+  `Card`s, and the items table's rows gained `transition-colors` on
+  hover (they had none before, matching every other data table
+  redesigned so far). `refund-form.tsx`'s items table got the same
+  `Card` and row-hover treatment, and its "everything already returned"
+  early-return message — previously a plain bordered sentence that
+  replaces the whole form, exactly the "genuinely empty full page" case
+  phase 5 built `EmptyState` for — became `EmptyState` (icon
+  `PackageCheck`).
+  Left deliberately alone: the receipt page's printed slip box
+  (`receipt-sheet`) keeps its own hand-rolled classes rather than
+  becoming `Card` — `Card` adds a `dark:bg-neutral-900` background that
+  would tint the printed-paper look dark in dark mode, which is not a
+  presentation-only swap for a component whose whole job is to look like
+  a physical receipt regardless of the app's theme. `receipt-controls.tsx`
+  was read and left untouched — it already uses `Button` and has nothing
+  hand-rolled to fix. `awaiting-payment.tsx`'s two colored notice boxes
+  (amber "waiting", red "declined") were read and left untouched — they
+  are meaningful semantic alerts with their own amber/red border-and-
+  background treatment, not generic list/card containers, the same
+  reasoning that already kept the sale detail page's voided/cancelled
+  notices as plain colored paragraphs rather than `Card`s.
+  `refund-form.tsx`'s "Roughly {amount}" strip stays a plain
+  `bg-neutral-100` notice for the same reason `account-entry-form.tsx`'s
+  balance label stayed one in phase 7 — an informational strip, not a
+  list/card container. `status-toggle-button.tsx` is untouched for the
+  same nine-call-site reasoning given in phase 6.
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 7 of N (Customers — detail,
   edit, new, charge, and payment pages).
   Continuing the phased redesign (phases 1-6 above/below), and the

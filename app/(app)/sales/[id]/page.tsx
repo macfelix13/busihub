@@ -4,7 +4,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { paymentMethodLabel, momoNetworkLabel } from "@/lib/validation/sales";
@@ -155,24 +157,10 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{sale.receipt_number}</h1>
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-              {paymentMethodLabel(sale.payment_method)}
-            </span>
-            {isVoided ? (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
-                Voided
-              </span>
-            ) : null}
-            {isAwaiting ? (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                Waiting for payment
-              </span>
-            ) : null}
-            {isCancelled ? (
-              <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                Cancelled
-              </span>
-            ) : null}
+            <Badge variant="success">{paymentMethodLabel(sale.payment_method)}</Badge>
+            {isVoided ? <Badge variant="danger">Voided</Badge> : null}
+            {isAwaiting ? <Badge variant="warning">Waiting for payment</Badge> : null}
+            {isCancelled ? <Badge variant="neutral">Cancelled</Badge> : null}
           </div>
           <p className="text-neutral-500">
             {new Date(sale.created_at).toLocaleString("en-GB", {
@@ -223,7 +211,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         />
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -236,7 +224,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {rows.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                   <td className="px-4 py-3">
                     <span className="font-medium">{item.description}</span>
                     {item.sku ? <span className="ml-2 text-neutral-500">{item.sku}</span> : null}
@@ -319,7 +307,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             </tfoot>
           </table>
         </div>
-      </div>
+      </Card>
 
       {isVoided ? (
         <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
@@ -331,7 +319,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       {payments.length > 0 ? (
         <div>
           <h2 className="font-semibold">How it was paid</h2>
-          <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <Card className="mt-3 overflow-hidden">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {payments.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
@@ -355,7 +343,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 </li>
               ))}
             </ul>
-          </div>
+          </Card>
         </div>
       ) : null}
 
@@ -368,7 +356,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       {refundRows.length > 0 ? (
         <div>
           <h2 className="font-semibold">Returns against this sale</h2>
-          <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+          <Card className="mt-3 overflow-hidden">
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {refundRows.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-sm">
@@ -389,7 +377,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 </span>
               </li>
             </ul>
-          </div>
+          </Card>
         </div>
       ) : null}
 

@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AlertCircle, Users } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { describeBalance } from "@/lib/validation/customers";
 
@@ -69,27 +73,27 @@ export default async function CustomersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Customers</h1>
-          <p className="text-neutral-500">
-            {totalOwed > 0
-              ? `${formatMoney(toMinorUnits(totalOwed), currencyCode)} owed across ${rows.filter((r) => r.balance > 0).length} customer(s).`
-              : "People who buy from you."}
-          </p>
-        </div>
-        {canEdit ? (
-          <Link href="/customers/new">
-            <Button>Add customer</Button>
-          </Link>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Customers"
+        description={
+          totalOwed > 0
+            ? `${formatMoney(toMinorUnits(totalOwed), currencyCode)} owed across ${rows.filter((r) => r.balance > 0).length} customer(s).`
+            : "People who buy from you."
+        }
+        actions={
+          canEdit ? (
+            <Link href="/customers/new">
+              <Button>Add customer</Button>
+            </Link>
+          ) : null
+        }
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
           <Link
             href={{ pathname: "/customers", query: { ...(q ? { q } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               activeStatus === "active" && !owingOnly ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
             }`}
           >
@@ -97,7 +101,7 @@ export default async function CustomersPage({
           </Link>
           <Link
             href={{ pathname: "/customers", query: { owing: "1", ...(q ? { q } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               owingOnly ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
             }`}
           >
@@ -105,7 +109,7 @@ export default async function CustomersPage({
           </Link>
           <Link
             href={{ pathname: "/customers", query: { status: "archived", ...(q ? { q } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
             }`}
           >
@@ -129,53 +133,58 @@ export default async function CustomersPage({
       </div>
 
       {error ? (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Couldn&apos;t load customers. Please refresh the page.
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Couldn&apos;t load customers. Please refresh the page.</span>
         </p>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title={
+            owingOnly
+              ? "Nobody owes anything right now"
+              : activeStatus === "archived"
+                ? "No archived customers"
+                : "No customers yet"
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="overflow-hidden">
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {rows.length > 0 ? (
-              rows.map(({ customer, balance }) => {
-                const state = describeBalance(balance);
-                return (
-                  <li key={customer.id}>
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+            {rows.map(({ customer, balance }) => {
+              const state = describeBalance(balance);
+              return (
+                <li key={customer.id}>
+                  <Link
+                    href={`/customers/${customer.id}`}
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                  >
+                    <div>
+                      <span className="font-medium">{customer.name}</span>
+                      <p className="mt-0.5 text-sm text-neutral-500">{customer.phone || "No phone"}</p>
+                    </div>
+                    <p
+                      className={`text-sm font-medium tabular-nums ${
+                        state.owing
+                          ? "text-red-600 dark:text-red-400"
+                          : state.inCredit
+                            ? "text-green-700 dark:text-green-400"
+                            : "text-neutral-500"
+                      }`}
                     >
-                      <div>
-                        <span className="font-medium">{customer.name}</span>
-                        <p className="mt-0.5 text-sm text-neutral-500">{customer.phone || "No phone"}</p>
-                      </div>
-                      <p
-                        className={`text-sm font-medium tabular-nums ${
-                          state.owing
-                            ? "text-red-600 dark:text-red-400"
-                            : state.inCredit
-                              ? "text-green-700 dark:text-green-400"
-                              : "text-neutral-500"
-                        }`}
-                      >
-                        {balance === 0
-                          ? "Settled"
-                          : `${formatMoney(toMinorUnits(Math.abs(balance)), currencyCode)} ${state.label}`}
-                      </p>
-                    </Link>
-                  </li>
-                );
-              })
-            ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">
-                {owingOnly
-                  ? "Nobody owes anything right now."
-                  : activeStatus === "archived"
-                    ? "No archived customers."
-                    : "No customers yet."}
-              </li>
-            )}
+                      {balance === 0
+                        ? "Settled"
+                        : `${formatMoney(toMinorUnits(Math.abs(balance)), currencyCode)} ${state.label}`}
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </Card>
       )}
     </div>
   );

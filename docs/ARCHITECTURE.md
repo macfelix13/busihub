@@ -466,6 +466,70 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-07 — UI/UX polish pass, phase 5 of N (Products, Customers,
+  Sales, and Inventory — the core list pages).
+  Continuing the phased redesign (phases 1-4 above/below): this phase
+  covers the four highest-traffic list pages after the till and
+  dashboard. Same rule as every phase touching a data-heavy screen:
+  presentation only. Every Supabase query and its filters (name/category/
+  type/price search on Products, name/phone search and the owing filter
+  on Customers, status/date-range/receipt-number search and pagination on
+  Sales, per-branch stock lookups on Inventory), every permission check
+  (`PRODUCTS_CREATE`, `CUSTOMERS_VIEW`/`CUSTOMERS_EDIT`, `SALES_PROCESS`/
+  `REPORTS_VIEW`, `INVENTORY_VIEW`/`INVENTORY_RECEIVE`/`INVENTORY_ADJUST`),
+  every redirect, and every calculation (price ranges, customer balances
+  and the "total owed" figure, the sales summary RPC totals, stock
+  quantities) is untouched, character for character — confirmed by
+  reviewing the complete final files against the originals. All four
+  pages' `loading.tsx` already used the shared `SkeletonBlock`/
+  `SkeletonPage` components from an earlier pass, so none of those needed
+  any change.
+  What changed, concretely, on all four: the ad-hoc `<h1>` + description +
+  action-button header became a `PageHeader`. The segmented filter tabs
+  (status/type/branch/owing) gained `transition-colors`. The "couldn't
+  load" error banner gained an `AlertCircle` icon and an explicit
+  `role="alert"` (Products, Customers, and Inventory's banner didn't have
+  one; the till and dashboard's already did). The list container (a
+  hand-rolled `rounded-2xl border bg-white` box on all four) became the
+  shared `Card`, and each list row's hover state gained `transition-colors`
+  (Inventory's table rows didn't have a hover state at all before this —
+  they do now, matching the dashboard's staff/branch tables from phase 3).
+  Products and Sales' small colored status pills — service/archived/
+  variant-count/hidden-from-till on Products, completed/waiting/voided/
+  cancelled on Sales — became the shared `Badge` component. Sales'
+  chip colors normalize a shade lighter in the process (e.g. completed's
+  `bg-green-100` -> Badge's `bg-green-50`) to match the one token set the
+  rest of the app already uses instead of keeping a second, slightly
+  darker green/amber/red/grey that existed only on that page — flagged
+  here rather than left for someone to notice on their own.
+  Products, Customers, and Sales' empty-list messages (a plain sentence,
+  sometimes with a button) became the shared `EmptyState` component added
+  in phase 1 but not yet wired into any page — its own header comment
+  flagged that as a page-by-page follow-up, and these three genuinely-
+  empty full-page lists are exactly the case it was built for (unlike the
+  dashboard's small inline panels in phase 3, which stayed plain sentences
+  because `EmptyState`'s icon-circle-plus-padding treatment would look
+  oversized there). Each keeps the exact same condition and copy the
+  original branch had (archived/filtered/no-results text, and the same
+  "Add Product"/"Add Service"/"Add customer" button gated behind the same
+  `canCreate`/`canEdit` check) — only the presentation wrapper changed.
+  The Sales KPI strip (Sales/Takings/Returned/Net) — four hand-rolled
+  `rounded-2xl border bg-white p-4` boxes, identical in every way to what
+  `Card` already provides — became `Card`s.
+  Left deliberately alone: Inventory's empty-table message stays a plain
+  centered table row (`<tr><td colSpan>`) rather than `EmptyState`, which
+  doesn't fit inside a table row's markup — same reasoning as leaving the
+  dashboard's tables alone in phase 3. None of the four pages' native
+  filter `<input>`/`<select>` elements were swapped for the `Field`/
+  `Select` client components — those are controlled inputs built for
+  client-side state, and these are plain GET-form filters whose values
+  live in the URL; forcing that onto a client component would be a real
+  behavior change, not a presentation one, so they keep their existing
+  (already-consistent) input styling instead.
+  No database, permission, or RLS surface changed, and no page's actual
+  numbers, visibility rules, or links changed — so no migration and no
+  security test changes.
+
 - 2026-09-07 — UI/UX polish pass, phase 4 of N (the till/POS screen).
   Continuing the phased redesign (phases 1-3 above/below): this is the
   app's single highest-traffic screen, reloaded after every sale, so the

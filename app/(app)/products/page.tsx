@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { AlertCircle, PackageOpen } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { categoryIconComponent } from "@/lib/ui/category-icons";
 
@@ -161,33 +166,33 @@ export default async function ProductsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{activeType === "service" ? "Services" : "Products"}</h1>
-          <p className="text-neutral-500">
-            {activeType === "service"
-              ? "Manage the services you offer through the POS."
-              : "Your catalog of sellable items and services."}
-          </p>
-        </div>
-        {canCreate ? (
-          <div className="flex gap-2">
-            <Link href="/products/new">
-              <Button>Add product</Button>
-            </Link>
-            <Link href="/products/new?type=service">
-              <Button variant="secondary">Add service</Button>
-            </Link>
-          </div>
-        ) : null}
-      </div>
+      <PageHeader
+        title={activeType === "service" ? "Services" : "Products"}
+        description={
+          activeType === "service"
+            ? "Manage the services you offer through the POS."
+            : "Your catalog of sellable items and services."
+        }
+        actions={
+          canCreate ? (
+            <>
+              <Link href="/products/new">
+                <Button>Add product</Button>
+              </Link>
+              <Link href="/products/new?type=service">
+                <Button variant="secondary">Add service</Button>
+              </Link>
+            </>
+          ) : null
+        }
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
             <Link
               href={{ pathname: "/products", query: statusQuery("active") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -195,7 +200,7 @@ export default async function ProductsPage({
             </Link>
             <Link
               href={{ pathname: "/products", query: statusQuery("archived") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -205,7 +210,7 @@ export default async function ProductsPage({
           <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
             <Link
               href={{ pathname: "/products", query: typeQuery("all") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 activeType === "all" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -213,7 +218,7 @@ export default async function ProductsPage({
             </Link>
             <Link
               href={{ pathname: "/products", query: typeQuery("product") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 activeType === "product" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -221,7 +226,7 @@ export default async function ProductsPage({
             </Link>
             <Link
               href={{ pathname: "/products", query: typeQuery("service") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 activeType === "service" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -292,91 +297,80 @@ export default async function ProductsPage({
       ) : null}
 
       {error ? (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Couldn&apos;t load products. Please refresh the page. If this keeps happening, contact support.
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Couldn&apos;t load products. Please refresh the page. If this keeps happening, contact support.</span>
         </p>
+      ) : isEmpty ? (
+        activeStatus === "archived" ? (
+          <EmptyState icon={PackageOpen} title="No archived items" />
+        ) : isFiltered ? (
+          <EmptyState icon={PackageOpen} title="Nothing matches those filters" />
+        ) : activeType === "service" ? (
+          <EmptyState
+            icon={PackageOpen}
+            title="No services yet"
+            description="Add your first service to start offering services through the POS."
+            action={
+              canCreate ? (
+                <Link href="/products/new?type=service">
+                  <Button>Add Service</Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={PackageOpen}
+            title={activeType === "product" ? "No products yet" : "No products or services yet"}
+            action={
+              canCreate ? (
+                <Link href="/products/new">
+                  <Button>Add Product</Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        )
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="overflow-hidden">
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {!isEmpty ? (
-              (products as unknown as ProductRow[]).map((product) => {
-                const Icon = categoryIconComponent(product.categories?.icon ?? null);
-                return (
-                  <li key={product.id}>
-                    <Link
-                      href={`/products/${product.id}`}
-                      className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{product.name}</span>
-                          {product.type === "service" ? (
-                            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
-                              Service
-                            </span>
-                          ) : null}
-                          {product.status === "archived" ? (
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                              Archived
-                            </span>
-                          ) : null}
-                          {product.has_variants ? (
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                              {product.product_variants.length} variants
-                            </span>
-                          ) : null}
-                          {!product.available_at_till ? (
-                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                              Hidden from till
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500">
-                          {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
-                          {product.categories?.name ?? "Uncategorized"}
-                          {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
-                        </p>
+            {(products as unknown as ProductRow[]).map((product) => {
+              const Icon = categoryIconComponent(product.categories?.icon ?? null);
+              return (
+                <li key={product.id}>
+                  <Link
+                    href={`/products/${product.id}`}
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{product.name}</span>
+                        {product.type === "service" ? <Badge variant="brand">Service</Badge> : null}
+                        {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
+                        {product.has_variants ? (
+                          <Badge variant="neutral">{product.product_variants.length} variants</Badge>
+                        ) : null}
+                        {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
                       </div>
-                      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                        {priceRangeLabel(product.product_variants, currencyCode)}
+                      <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500">
+                        {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+                        {product.categories?.name ?? "Uncategorized"}
+                        {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
                       </p>
-                    </Link>
-                  </li>
-                );
-              })
-            ) : (
-              <li className="flex flex-col items-center gap-3 px-5 py-10 text-center">
-                {activeStatus === "archived" ? (
-                  <p className="text-sm text-neutral-500">No archived items.</p>
-                ) : isFiltered ? (
-                  <p className="text-sm text-neutral-500">Nothing matches those filters.</p>
-                ) : activeType === "service" ? (
-                  <>
-                    <p className="text-sm text-neutral-500">
-                      No services yet. Add your first service to start offering services through the POS.
+                    </div>
+                    <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      {priceRangeLabel(product.product_variants, currencyCode)}
                     </p>
-                    {canCreate ? (
-                      <Link href="/products/new?type=service">
-                        <Button>Add Service</Button>
-                      </Link>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-neutral-500">
-                      {activeType === "product" ? "No products yet." : "No products or services yet."}
-                    </p>
-                    {canCreate ? (
-                      <Link href="/products/new">
-                        <Button>Add Product</Button>
-                      </Link>
-                    ) : null}
-                  </>
-                )}
-              </li>
-            )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </Card>
       )}
 
       {totalCount > PAGE_SIZE ? (

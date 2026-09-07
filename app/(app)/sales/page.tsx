@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AlertCircle, Receipt } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
 
@@ -20,11 +25,18 @@ const STATUS_TABS = [
   { value: "cancelled", label: "Cancelled" },
 ] as const;
 
-const STATUS_CLASSES: Record<string, string> = {
-  completed: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
-  awaiting_payment: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  voided: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  cancelled: "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+// The shared Badge component's variants — same green/amber/red/neutral
+// hues STATUS_CLASSES used to hand-roll, now the one token set the rest
+// of the app already uses (e.g. the dashboard's low-stock pills). The
+// chip background normalizes a shade lighter in the process (e.g.
+// completed's bg-green-100 -> Badge's bg-green-50) to match that shared
+// token exactly, rather than keeping a second, slightly darker green
+// pill that existed only on this page.
+const STATUS_BADGE: Record<string, BadgeVariant> = {
+  completed: "success",
+  awaiting_payment: "warning",
+  voided: "danger",
+  cancelled: "neutral",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -142,17 +154,17 @@ export default async function SalesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Sales</h1>
-          <p className="text-neutral-500">Every sale rung up, newest first.</p>
-        </div>
-        {canSell ? (
-          <Link href="/till">
-            <Button>Open the till</Button>
-          </Link>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Sales"
+        description="Every sale rung up, newest first."
+        actions={
+          canSell ? (
+            <Link href="/till">
+              <Button>Open the till</Button>
+            </Link>
+          ) : null
+        }
+      />
 
       {/* Takings for the filtered period. Voided and cancelled sales are
           deliberately absent from these figures — they are still listed
@@ -164,13 +176,10 @@ export default async function SalesPage({
           { label: "Returned", value: formatMoney(toMinorUnits(summary?.refunded_total ?? 0), currencyCode) },
           { label: "Net", value: formatMoney(toMinorUnits(summary?.net_total ?? 0), currencyCode) },
         ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
-          >
+          <Card key={card.label} className="p-4">
             <p className="text-xs uppercase text-neutral-500">{card.label}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{card.value}</p>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -179,7 +188,7 @@ export default async function SalesPage({
           <Link
             key={tab.value || "all"}
             href={{ pathname: "/sales", query: linkQuery(tab.value ? { status: tab.value } : {}) }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               (activeStatus ?? "") === tab.value
                 ? "bg-brand-600 text-white"
                 : "text-neutral-600 dark:text-neutral-300"
@@ -235,62 +244,60 @@ export default async function SalesPage({
       </form>
 
       {error ? (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Couldn&apos;t load sales. Please refresh the page.
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Couldn&apos;t load sales. Please refresh the page.</span>
         </p>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title={from || to || search || activeStatus ? "No sales match those filters" : "No sales yet"}
+          description={from || to || search || activeStatus ? undefined : "Ring one up at the till and it will appear here."}
+        />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="overflow-hidden">
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {rows.length > 0 ? (
-              rows.map((sale) => {
-                const cashier = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
-                return (
-                  <li key={sale.id}>
-                    <Link
-                      href={`/sales/${sale.id}`}
-                      className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{sale.receipt_number}</span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              STATUS_CLASSES[sale.status] ?? STATUS_CLASSES.cancelled
-                            }`}
-                          >
-                            {STATUS_LABELS[sale.status] ?? sale.status}
-                          </span>
-                          <span className="text-xs text-neutral-500">{paymentMethodLabel(sale.payment_method)}</span>
-                        </div>
-                        <p className="mt-0.5 text-sm text-neutral-500">
-                          {new Date(sale.created_at).toLocaleString("en-GB", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                          {sale.branches?.name ? ` · ${sale.branches.name}` : ""}
-                          {cashier ? ` · ${cashier}` : ""}
-                          {sale.customers?.name ? ` · ${sale.customers.name}` : ""}
-                        </p>
+            {rows.map((sale) => {
+              const cashier = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
+              return (
+                <li key={sale.id}>
+                  <Link
+                    href={`/sales/${sale.id}`}
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{sale.receipt_number}</span>
+                        <Badge variant={STATUS_BADGE[sale.status] ?? "neutral"}>
+                          {STATUS_LABELS[sale.status] ?? sale.status}
+                        </Badge>
+                        <span className="text-xs text-neutral-500">{paymentMethodLabel(sale.payment_method)}</span>
                       </div>
-                      <span className="text-lg font-semibold tabular-nums">
-                        {formatMoney(toMinorUnits(sale.total), currencyCode)}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })
-            ) : (
-              <li className="px-5 py-10 text-center text-neutral-500">
-                {from || to || search || activeStatus
-                  ? "No sales match those filters."
-                  : "No sales yet. Ring one up at the till and it will appear here."}
-              </li>
-            )}
+                      <p className="mt-0.5 text-sm text-neutral-500">
+                        {new Date(sale.created_at).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {sale.branches?.name ? ` · ${sale.branches.name}` : ""}
+                        {cashier ? ` · ${cashier}` : ""}
+                        {sale.customers?.name ? ` · ${sale.customers.name}` : ""}
+                      </p>
+                    </div>
+                    <span className="text-lg font-semibold tabular-nums">
+                      {formatMoney(toMinorUnits(sale.total), currencyCode)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </Card>
       )}
 
       {totalCount > PAGE_SIZE ? (

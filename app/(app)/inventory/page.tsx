@@ -1,10 +1,13 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AlertCircle } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatQuantity } from "@/lib/validation/inventory";
 
 export const metadata = { title: "Inventory" };
@@ -107,26 +110,24 @@ export default async function InventoryPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Inventory</h1>
-          <p className="text-neutral-500">
-            {activeBranch ? `Stock on hand at ${activeBranch.name}.` : "Stock on hand, per branch."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canReceive && activeBranchId ? (
-            <Link href={`/inventory/receive?branch=${activeBranchId}`}>
-              <Button>Receive stock</Button>
-            </Link>
-          ) : null}
-          {canAdjust && activeBranchId ? (
-            <Link href={`/inventory/count?branch=${activeBranchId}`}>
-              <Button variant="secondary">Stock count</Button>
-            </Link>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title="Inventory"
+        description={activeBranch ? `Stock on hand at ${activeBranch.name}.` : "Stock on hand, per branch."}
+        actions={
+          <>
+            {canReceive && activeBranchId ? (
+              <Link href={`/inventory/receive?branch=${activeBranchId}`}>
+                <Button>Receive stock</Button>
+              </Link>
+            ) : null}
+            {canAdjust && activeBranchId ? (
+              <Link href={`/inventory/count?branch=${activeBranchId}`}>
+                <Button variant="secondary">Stock count</Button>
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {branches && branches.length > 1 ? (
         <div className="flex flex-wrap gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
@@ -134,7 +135,7 @@ export default async function InventoryPage({
             <Link
               key={b.id}
               href={{ pathname: "/inventory", query: { branch: b.id, ...(q ? { q } : {}) } }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 b.id === activeBranchId ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
               }`}
             >
@@ -159,15 +160,19 @@ export default async function InventoryPage({
       </form>
 
       {loadFailed ? (
-        <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Couldn&apos;t load inventory. Please refresh the page.
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>Couldn&apos;t load inventory. Please refresh the page.</span>
         </p>
       ) : !activeBranchId ? (
         <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
           No active branches yet. Add a branch before tracking stock.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
@@ -181,7 +186,7 @@ export default async function InventoryPage({
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {rows.length > 0 ? (
                   rows.map(({ variant, quantity }) => (
-                    <tr key={variant.id}>
+                    <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                       <td className="px-4 py-3 font-medium">
                         <Link
                           href={`/inventory/${variant.id}?branch=${activeBranchId}`}
@@ -225,7 +230,7 @@ export default async function InventoryPage({
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

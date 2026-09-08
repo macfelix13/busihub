@@ -97,6 +97,9 @@ jobs:
       - name: Run categories tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/categories.sql
 
+      - name: Run products/product_variants direct cross-tenant tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/products_cross_tenant.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

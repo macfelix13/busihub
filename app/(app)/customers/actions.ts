@@ -125,6 +125,33 @@ export async function createCustomer(_prevState: FormState, formData: FormData):
   redirect("/customers");
 }
 
+/**
+ * Records a credit-limit change through the one sanctioned audit write
+ * path (log_audit_event, 0008) — security-audit Gap #5. Best-effort, same
+ * reasoning as logPaymentSettingsEvent in settings/payments/actions.ts:
+ * by the time this runs, the actual change has already succeeded, and a
+ * logging hiccup must never make that look like it failed.
+ */
+async function logCreditLimitChange(
+  supabase: SupabaseServerClient,
+  businessId: string,
+  customerId: string,
+  oldLimit: number,
+  newLimit: number
+): Promise<void> {
+  const { error } = await supabase.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: null,
+    p_action: "customer.credit_limit_changed",
+    p_resource_type: "customer",
+    p_resource_id: customerId,
+    p_metadata: { old_credit_limit: oldLimit, new_credit_limit: newLimit },
+  });
+  if (error) {
+    console.error("logCreditLimitChange: log_audit_event failed", error);
+  }
+}
+
 export async function updateCustomer(customerId: string, _prevState: FormState, formData: FormData): Promise<FormState> {
   const parsed = customerSchema.safeParse(customerFormValues(formData));
 
@@ -143,6 +170,17 @@ export async function updateCustomer(customerId: string, _prevState: FormState, 
     return { error: "Something went wrong. Please try again." };
   }
 
+  // Read the existing credit limit first so a change to it can be
+  // audit-logged (security-audit Gap #5) — a raised limit is a
+  // meaningful, fraud-relevant event, and this row is small enough that
+  // one extra round trip here is cheap.
+  const { data: existing } = await supabase
+    .from("customers")
+    .select("credit_limit")
+    .eq("id", customerId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("customers")
     .update(customerRow(parsed.data))
@@ -157,6 +195,10 @@ export async function updateCustomer(customerId: string, _prevState: FormState, 
       return { error: message ?? "", fieldErrors: { phone: "This phone number is already on another customer." } };
     }
     return { error: message ?? "Couldn't save changes. Please try again." };
+  }
+
+  if (existing && Number(existing.credit_limit) !== parsed.data.creditLimit) {
+    await logCreditLimitChange(supabase, businessId, customerId, Number(existing.credit_limit), parsed.data.creditLimit);
   }
 
   revalidatePath("/customers");

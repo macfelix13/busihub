@@ -449,10 +449,10 @@ one section of this document expected to change often.
 | 16 | Offline/PWA | pending |
 | 17 | Synchronization | pending |
 | 18 | Subscriptions & entitlements enforcement | pending |
-| 19 | Super Admin | pending |
-| 20 | Audit/security monitoring surfaces | pending |
+| 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
+| 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
 | 21 | Automated test suite hardening | pending |
-| 22 | Security review pass | pending |
+| 22 | Security review pass | **done — see docs/SECURITY_AUDIT_2026-09.md; both High-severity findings (auth rate limiting, refund/void audit logging) fixed in that pass, remaining items tracked there as backlog** |
 | 23 | Performance review pass | **partial, brought forward ahead of Phase 15 at request — see changelog** (parallel-safety fix, redundant-lookup fix, and pagination on 3 of 4 unbounded list pages are done and verified; customers.tsx pagination and a real sale_payments/RLS scaling limit are measured and documented, not fixed) |
 | 24 | Deployment prep & documentation | pending |
 
@@ -465,6 +465,55 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-07 — First remediation pass from the 2026-09 full-codebase
+  security review (`docs/SECURITY_AUDIT_2026-09.md`, Phase 22). Both
+  High-severity findings fixed:
+  - **Rate limiting / lockout** (migration `0048_auth_rate_limiting.sql`,
+    `lib/auth/rate-limit.ts`): `login()`, `switchTillUser()`, and
+    `requestPasswordReset()` previously called Supabase Auth directly with
+    no attempt counter or lockout at all. Now locked the same shape
+    cashier PIN entry already had (0039) — 8 failed attempts / 15-minute
+    lockout for real password sign-ins, a 3-request/15-minute limiter for
+    password-reset requests (which can't use success/failure, since that
+    endpoint must not reveal whether an email exists either way).
+  - **Refund/void audit logging** (migration
+    `0049_audit_log_gaps.sql`): `void_sale()` and `create_refund()` never
+    wrote to `audit_logs`, despite being the classic point-of-sale fraud
+    vector and every other sensitive action already being logged. Both
+    now write a `sale.voided` / `sale.refunded` row in the same
+    transaction as the reversal itself.
+
+  Several Medium-severity gaps fixed in the same pass: `void_expense()`
+  now logs `expense.voided`; `updateCustomer()`, `createBranch()`/
+  `updateBranch()`, and `updateBusinessProfile()`/`updateBusinessSettings()`
+  now log their respective events too (`app/(app)/customers/actions.ts`,
+  `app/(app)/branches/actions.ts`, `app/(app)/settings/business/actions.ts`);
+  and `tests/security/products_cross_tenant.sql` adds the direct
+  cross-tenant denial test `products`/`product_variants` previously only
+  had indirect coverage for.
+
+  Two items from the review were deliberately NOT auto-fixed here because
+  they are product/scope decisions, not bug fixes — see
+  `docs/SECURITY_AUDIT_2026-09.md` for both: whether to build real
+  sale-time enforcement for the discount-cap setting (or correct the
+  landing page's claims about it), and whether to wire up
+  `app_has_branch_permission()`/`requireBranchPermission()` or explicitly
+  document branch id as data-scoping-only. The CSP's `'unsafe-inline'` and
+  a couple of low-priority hygiene items also remain open, tracked in that
+  doc rather than fixed blind.
+
+  `lib/supabase/env.ts` was deliberately left WITHOUT an `import
+  "server-only"` guard despite the review suggesting one for it alongside
+  `lib/supabase/server.ts` (which did get the guard, since it really is
+  100% server-only code): `env.ts` also exports `supabaseUrl()`/
+  `supabaseAnonKey()`, which `lib/supabase/client.ts` — a `"use client"`
+  file — genuinely needs. Adding `server-only` there would break the
+  client bundle. `supabaseServiceRoleKey()`'s actual value was never
+  reachable from client code regardless, since only `NEXT_PUBLIC_`-
+  prefixed env vars are bundled to the browser — this was a documentation-
+  consistency nit, not an exploitable gap, and is noted here rather than
+  applied incorrectly.
 
 - 2026-09-07 — Fixed a broken CI assertion in `tests/security/payments.sql`
   section 26 ("One shop cannot touch another shop's webhook identifier"),

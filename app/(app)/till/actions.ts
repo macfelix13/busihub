@@ -12,6 +12,13 @@ import { checkoutSchema, normaliseMomoNumber } from "@/lib/validation/sales";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { loadPaystackCredentials, chargeMobileMoney, type MomoNetwork } from "@/lib/paystack/client";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
+import {
+  checkRateLimit,
+  recordRateLimitAttempt,
+  lockoutMessage,
+  LOGIN_MAX_ATTEMPTS,
+  LOGIN_LOCKOUT_MINUTES,
+} from "@/lib/auth/rate-limit";
 
 export interface FormState {
   error?: string;
@@ -103,7 +110,20 @@ export async function switchTillUser(_prevState: FormState, formData: FormData):
 
   const supabase = await createServerSupabaseClient();
 
+  // Security-audit Gap #1: this is a real password sign-in (see the
+  // doc comment above), so it needs the same lockout login() has —
+  // otherwise it is an unlimited second door to guess a colleague's
+  // password through, keyed by email since there is no profile row to
+  // attach a counter to before a login has succeeded.
+  const rateKey = `till_switch:${email.trim().toLowerCase()}`;
+  const rateStatus = await checkRateLimit(supabase, rateKey);
+  if (!rateStatus.allowed && rateStatus.retryAfter) {
+    return { error: lockoutMessage(rateStatus.retryAfter) };
+  }
+
   const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  await recordRateLimitAttempt(supabase, rateKey, !error, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES);
 
   if (error) {
     // Same generic message as the real login page, for the same reason —

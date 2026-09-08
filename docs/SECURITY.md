@@ -57,9 +57,12 @@ only *which business* is calling, the business id is passed down to
 
 Per Section 52 of the brief ("do not claim a feature works if it has not
 been verified"), here is what a "production readiness" pass still needs
-before real money moves through this system:
+before real money moves through this system. `docs/SECURITY_AUDIT_2026-09.md`
+is a fuller, file-and-line-cited review that found (and, where noted there,
+fixed) a few more gaps beyond this list — refunds/voids not being
+audit-logged chief among them.
 
-- **Application-level rate limiting.** Supabase Auth's built-in throttling covers the auth endpoints; login/PIN-entry/password-reset don't yet have an additional app-level limiter (e.g. Upstash Ratelimit). Needed before production launch.
+- ~~**Application-level rate limiting.**~~ **Fixed 2026-09** — `login()`, `switchTillUser()`, and `requestPasswordReset()` now go through a DB-enforced lockout/limiter (migration `0048_auth_rate_limiting.sql`, `lib/auth/rate-limit.ts`), the same shape cashier PIN entry already had (0039): 8 failed attempts / 15-minute lockout for real sign-ins, a 3-request/15-minute limiter for reset requests. See `docs/SECURITY_AUDIT_2026-09.md` for the full review this came out of.
 - **CSP `script-src`/`style-src` currently allow `'unsafe-inline'`** (`next.config.mjs`) because Next.js's default inline bootstrap script and Tailwind's injected styles need it in dev. Tightening this to a nonce-based policy is a pre-launch task, not done here because it needs to be verified against an actual build output, which this sandbox cannot produce (see `docs/DEPLOYMENT.md`).
 - **MFA, phone auth, Google OAuth** are supported by Supabase Auth but not yet wired into the Busihub UI (`docs/AUTH.md`).
 - **Security headers, RLS, and the tenant-isolation tests above** have been verified against a local Postgres instance standing in for Supabase (`tests/db-harness/00_stub_supabase.sql`) — not yet against a real Supabase project, Vercel deployment, or over real HTTPS with the headers actually observed in a response. That verification is the first thing to do once a real Supabase project and Vercel deployment exist (`docs/DEPLOYMENT.md`).

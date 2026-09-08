@@ -4,6 +4,13 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validation/auth";
 import { finishPendingRegistrationIfNeeded } from "@/lib/auth/finish-pending-registration";
+import {
+  checkRateLimit,
+  recordRateLimitAttempt,
+  lockoutMessage,
+  LOGIN_MAX_ATTEMPTS,
+  LOGIN_LOCKOUT_MINUTES,
+} from "@/lib/auth/rate-limit";
 
 export interface LoginFormState {
   error?: string;
@@ -37,7 +44,21 @@ export async function login(
 
   const supabase = await createServerSupabaseClient();
 
+  // Section 6 / security-audit Gap #1: unlimited password-guessing
+  // against a known email was otherwise possible from this code path
+  // alone. Locked the same shape PIN entry already has (0039) — 8
+  // attempts, 15-minute lockout — just keyed by email since there is no
+  // profile row to attach a counter to before a login has succeeded.
+  // loginSchema already trims + lowercases the email (lib/validation/auth.ts).
+  const rateKey = `login:${parsed.data.email}`;
+  const rateStatus = await checkRateLimit(supabase, rateKey);
+  if (!rateStatus.allowed && rateStatus.retryAfter) {
+    return { error: lockoutMessage(rateStatus.retryAfter) };
+  }
+
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
+
+  await recordRateLimitAttempt(supabase, rateKey, !error, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES);
 
   if (error) {
     // The message shown to the user is deliberately generic — do not

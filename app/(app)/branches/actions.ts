@@ -41,6 +41,32 @@ async function requireBranchManager(supabase: Awaited<ReturnType<typeof createSe
   return businessId;
 }
 
+/**
+ * Records a branch create/edit through the one sanctioned audit write
+ * path (log_audit_event, 0008) — security-audit Gap #5. Best-effort: the
+ * mutation has already succeeded by the time this runs, so a logging
+ * hiccup must never make that look like it failed.
+ */
+async function logBranchEvent(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  businessId: string,
+  branchId: string,
+  action: string,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  const { error } = await supabase.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: branchId,
+    p_action: action,
+    p_resource_type: "branch",
+    p_resource_id: branchId,
+    p_metadata: metadata,
+  });
+  if (error) {
+    console.error("logBranchEvent: log_audit_event failed", { action, error });
+  }
+}
+
 export async function createBranch(
   _prevState: BranchFormState,
   formData: FormData
@@ -66,18 +92,22 @@ export async function createBranch(
 
   const { name, addressLine1, addressLine2, city, region, phone, email, timezone, status } = parsed.data;
 
-  const { error } = await supabase.from("branches").insert({
-    business_id: businessId,
-    name,
-    address_line1: addressLine1 || null,
-    address_line2: addressLine2 || null,
-    city: city || null,
-    region: region || null,
-    phone: phone || null,
-    email: email || null,
-    timezone,
-    status,
-  });
+  const { data: inserted, error } = await supabase
+    .from("branches")
+    .insert({
+      business_id: businessId,
+      name,
+      address_line1: addressLine1 || null,
+      address_line2: addressLine2 || null,
+      city: city || null,
+      region: region || null,
+      phone: phone || null,
+      email: email || null,
+      timezone,
+      status,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("createBranch: insert failed", error);
@@ -90,6 +120,8 @@ export async function createBranch(
     }
     return { error: "Couldn't create the branch. Please try again." };
   }
+
+  await logBranchEvent(supabase, businessId, inserted.id, "branch.created", { name });
 
   revalidatePath("/branches");
   redirect("/branches");
@@ -151,6 +183,8 @@ export async function updateBranch(
     return { error: "Couldn't save changes. Please try again." };
   }
 
+  await logBranchEvent(supabase, businessId, branchId, "branch.updated", { name });
+
   revalidatePath("/branches");
   redirect("/branches");
 }
@@ -179,4 +213,3 @@ export async function setMainBranch(branchId: string): Promise<void> {
 
   revalidatePath("/branches");
 }
-

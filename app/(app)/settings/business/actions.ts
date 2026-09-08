@@ -24,6 +24,31 @@ async function requireBusinessManager(supabase: Awaited<ReturnType<typeof create
   return businessId;
 }
 
+/**
+ * Records a business profile/settings change through the one sanctioned
+ * audit write path (log_audit_event, 0008) — security-audit Gap #5.
+ * Best-effort: the mutation has already succeeded by the time this runs,
+ * so a logging hiccup must never make that look like it failed.
+ */
+async function logBusinessSettingsEvent(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  businessId: string,
+  action: string,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  const { error } = await supabase.rpc("log_audit_event", {
+    p_business_id: businessId,
+    p_branch_id: null,
+    p_action: action,
+    p_resource_type: "business",
+    p_resource_id: businessId,
+    p_metadata: metadata,
+  });
+  if (error) {
+    console.error("logBusinessSettingsEvent: log_audit_event failed", { action, error });
+  }
+}
+
 export async function updateBusinessProfile(
   _prevState: SettingsFormState,
   formData: FormData
@@ -76,6 +101,8 @@ export async function updateBusinessProfile(
     console.error("updateBusinessProfile: update failed", error);
     return { error: "Couldn't save changes. Please try again." };
   }
+
+  await logBusinessSettingsEvent(supabase, businessId, "business.profile_updated", { name });
 
   revalidatePath("/settings/business");
   return { success: true };
@@ -149,7 +176,8 @@ export async function updateBusinessSettings(
     return { error: "Couldn't save changes. Please try again." };
   }
 
+  await logBusinessSettingsEvent(supabase, businessId, "business.settings_updated");
+
   revalidatePath("/settings/business");
   return { success: true };
 }
-

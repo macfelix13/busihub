@@ -13,7 +13,7 @@ import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { ProductThumbnail } from "@/components/ui/product-thumbnail";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
-import { PAYMENT_METHODS, MOMO_NETWORKS } from "@/lib/validation/sales";
+import { PAYMENT_METHODS, MOMO_NETWORKS, normaliseMomoNumber, guessMomoNetwork } from "@/lib/validation/sales";
 import { completeSale, signOutCashier, openDrawerNoSale, type FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -136,6 +136,13 @@ export function Till({
   const [cashPart, setCashPart] = useState("");
   const [momoNumber, setMomoNumber] = useState("");
   const [momoNetwork, setMomoNetwork] = useState<string>(MOMO_NETWORKS[0].value);
+  // Whether the cashier has explicitly picked a network for THIS number,
+  // as opposed to it still being wherever guessMomoNetwork() (or the
+  // plain default) last left it. Once true, typing in the phone number
+  // field stops overriding their choice — this is what makes the
+  // auto-select below a convenience rather than something fighting a
+  // deliberate override (e.g. a number ported to a different network).
+  const [momoNetworkTouched, setMomoNetworkTouched] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -613,17 +620,42 @@ export function Till({
                 inputMode="tel"
                 placeholder="024 412 3456"
                 value={momoNumber}
-                onChange={(e) => setMomoNumber(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setMomoNumber(value);
+                  // Pre-select the likely network from the number as the
+                  // cashier types, so the network dropdown isn't just
+                  // sitting on whatever it defaulted to (usually MTN) for
+                  // a customer on a different network — the most likely
+                  // cause of a mobile money prompt being declined outright.
+                  // Never overrides a network the cashier already chose
+                  // for this number by hand.
+                  if (!momoNetworkTouched) {
+                    const normalised = normaliseMomoNumber(value);
+                    const guess = normalised ? guessMomoNetwork(normalised) : null;
+                    if (guess) setMomoNetwork(guess);
+                  }
+                }}
                 error={state.fieldErrors?.momoNumber}
               />
-              <Select
-                label="Network"
-                name="momoNetwork"
-                value={momoNetwork}
-                onChange={(e) => setMomoNetwork(e.target.value)}
-                error={state.fieldErrors?.momoNetwork}
-                options={MOMO_NETWORKS.map((n) => ({ value: n.value, label: n.label }))}
-              />
+              <div className="flex flex-col gap-1.5">
+                <Select
+                  label="Network"
+                  name="momoNetwork"
+                  value={momoNetwork}
+                  onChange={(e) => {
+                    setMomoNetwork(e.target.value);
+                    setMomoNetworkTouched(true);
+                  }}
+                  error={state.fieldErrors?.momoNetwork}
+                  options={MOMO_NETWORKS.map((n) => ({ value: n.value, label: n.label }))}
+                />
+                {!momoNetworkTouched && guessMomoNetwork(normaliseMomoNumber(momoNumber) ?? "") ? (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Guessed from the number — change it if this customer ported to another network.
+                  </p>
+                ) : null}
+              </div>
               <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-neutral-800">
                 <span className="text-sm text-neutral-600 dark:text-neutral-300">To charge their phone</span>
                 <span

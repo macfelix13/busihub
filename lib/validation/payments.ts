@@ -24,6 +24,45 @@ export function momoNetworkLabel(value: string): string {
   return MOMO_NETWORKS.find((n) => n.value === value)?.label ?? value;
 }
 
+/**
+ * A best-effort guess at a Ghanaian mobile number's network from its
+ * prefix — used to PRE-SELECT the network dropdown at the till so the
+ * cashier isn't guessing, not to decide anything on its own. This is NOT
+ * authoritative: Ghana has had Mobile Number Portability (the NCA's
+ * "Sunkwa" service, since 2011), so a subscriber can keep their number
+ * after moving to a different network — a "024" number could genuinely
+ * be on Telecel or AirtelTigo today. Every call site must keep the field
+ * editable and never block or silently override a cashier's explicit
+ * choice on this alone.
+ *
+ * Prefix source: the NCA's Dec 2022 ITU national numbering-plan
+ * notification, plus MTN's own public network-code announcements (053
+ * added Feb 2023; 0597-9/0256-7 added 2021). 025 and 059 are NOT
+ * monolithic MTN blocks — only 0256/0257 (of 025) have a confirmed
+ * public assignment, so bare "025" numbers outside that are deliberately
+ * left unguessed (null) rather than guessed with false confidence. Same
+ * for 023 (Glo), 028 and 029: smaller operators the three networks
+ * Busihub/Paystack support here don't cover at all.
+ *
+ * Expects `phone` already in normalised local form (0XXXXXXXXX) —
+ * normaliseMomoNumber() in lib/validation/sales.ts.
+ */
+export function guessMomoNetwork(phone: string): MomoNetworkValue | null {
+  const digits = phone.replace(/\D/g, "");
+  if (!/^0\d{9}$/.test(digits)) return null;
+
+  if (digits.startsWith("0256") || digits.startsWith("0257")) return "mtn";
+  if (digits.startsWith("025")) return null;
+
+  const prefix = digits.slice(0, 3);
+
+  if (["024", "053", "054", "055", "059"].includes(prefix)) return "mtn";
+  if (["020", "050"].includes(prefix)) return "vod";
+  if (["026", "027", "056", "057"].includes(prefix)) return "atl";
+
+  return null;
+}
+
 /** 'sk_live_…' / 'pk_live_…' means real money. Read, never asked. */
 export function keyMode(key: string): "live" | "test" | null {
   if (key.startsWith("sk_live_") || key.startsWith("pk_live_")) return "live";

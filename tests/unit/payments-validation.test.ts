@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paystackSettingsSchema, keyMode, momoNetworkLabel } from "@/lib/validation/payments";
+import { paystackSettingsSchema, keyMode, momoNetworkLabel, guessMomoNetwork } from "@/lib/validation/payments";
 
 /**
  * The one save on this page with a real financial consequence — pasting a
@@ -100,5 +100,56 @@ describe("momoNetworkLabel", () => {
   it("labels a known network and falls back to the raw value for an unknown one", () => {
     expect(momoNetworkLabel("mtn")).toBe("MTN MoMo");
     expect(momoNetworkLabel("something-else")).toBe("something-else");
+  });
+});
+
+/**
+ * A wrong network is the most likely reason a real mobile money charge
+ * gets declined outright (production incident, 2026-09) — the till's
+ * network dropdown used to default to MTN with no connection to the
+ * number actually typed in. This is a best-effort DEFAULT, never a
+ * guarantee (Mobile Number Portability means a prefix can be wrong), so
+ * every prefix here is checked against a known, confidently-assigned
+ * block, and anything uncertain (bare 025, 023/028/029, malformed
+ * numbers) must come back null rather than a guess dressed up as fact.
+ */
+describe("guessMomoNetwork", () => {
+  it("recognises MTN prefixes", () => {
+    expect(guessMomoNetwork("0244123456")).toBe("mtn");
+    expect(guessMomoNetwork("0544123456")).toBe("mtn");
+    expect(guessMomoNetwork("0534123456")).toBe("mtn");
+    expect(guessMomoNetwork("0554123456")).toBe("mtn");
+    expect(guessMomoNetwork("0594123456")).toBe("mtn");
+  });
+
+  it("recognises the confirmed MTN sub-blocks of 025, but not the rest of 025", () => {
+    expect(guessMomoNetwork("0256123456")).toBe("mtn");
+    expect(guessMomoNetwork("0257123456")).toBe("mtn");
+    expect(guessMomoNetwork("0251123456")).toBe(null);
+  });
+
+  it("recognises Telecel (formerly Vodafone) prefixes", () => {
+    expect(guessMomoNetwork("0204123456")).toBe("vod");
+    expect(guessMomoNetwork("0504123456")).toBe("vod");
+  });
+
+  it("recognises AirtelTigo prefixes", () => {
+    expect(guessMomoNetwork("0264123456")).toBe("atl");
+    expect(guessMomoNetwork("0274123456")).toBe("atl");
+    expect(guessMomoNetwork("0564123456")).toBe("atl");
+    expect(guessMomoNetwork("0574123456")).toBe("atl");
+  });
+
+  it("returns null for prefixes with no confident public assignment, rather than guessing", () => {
+    expect(guessMomoNetwork("0234123456")).toBe(null); // Glo
+    expect(guessMomoNetwork("0284123456")).toBe(null);
+    expect(guessMomoNetwork("0294123456")).toBe(null);
+  });
+
+  it("returns null for anything that isn't a well-formed local number", () => {
+    expect(guessMomoNetwork("")).toBe(null);
+    expect(guessMomoNetwork("123")).toBe(null);
+    expect(guessMomoNetwork("02441234567")).toBe(null); // 11 digits
+    expect(guessMomoNetwork("+233244123456")).toBe(null); // expects already-normalised local form
   });
 });

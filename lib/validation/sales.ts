@@ -3,7 +3,7 @@ import { decimalField } from "./numeric";
 // One definition of the networks, shared with the Paystack settings — two
 // lists would drift, and the one that drifted would be the one that
 // prompts the wrong provider.
-import { MOMO_NETWORKS, momoNetworkLabel } from "./payments";
+import { MOMO_NETWORKS, momoNetworkLabel, guessMomoNetwork } from "./payments";
 
 /**
  * Validation for the till (Phase 9, extended for payments in Phase 10).
@@ -168,4 +168,4 @@ export function paymentMethodLabel(value: string): string {
   return PAYMENT_METHODS.find((m) => m.value === value)?.label ?? value;
 }
 
-export { MOMO_NETWORKS, momoNetworkLabel };
+export { MOMO_NETWORKS, momoNetworkLabel, guessMomoNetwork };

@@ -446,7 +446,7 @@ one section of this document expected to change often.
 | 13 | Expenses | **done — verified, see tests/security/expenses.sql** (no approval workflow and no recurring expenses, both by decision; see 0031's header) |
 | 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
-| 16 | Offline/PWA | pending |
+| 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
 | 17 | Synchronization | pending |
 | 18 | Subscriptions & entitlements enforcement | pending |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
@@ -465,6 +465,45 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-10 — Phase 16 (Offline/PWA), installability only. Requested
+  directly, scoped down from the full Section 7 offline-sync design after
+  flagging the split: the roadmap already separates "Offline/PWA" (this)
+  from "Synchronization" (Phase 17, still pending) precisely because the
+  latter touches money and inventory integrity and needs its own DB
+  migration, new `/api/sync` route, and conflict handling — none of that
+  changed here.
+  `public/icons/README.md` had said outright that real app icons were
+  "generated in the PWA phase... once Busihub has real brand artwork" and
+  nothing had come back to do it; generated icon-192/512.png (regular)
+  and icon-maskable-192/512.png (full-bleed, safe-zone padded for
+  Android's adaptive-icon mask) plus `app/apple-icon.png` (Next's file
+  convention for iOS "Add to Home Screen"), all the same lime-on-
+  brand-950 "B" mark already used in the sidebar and marketing navbar.
+  `app/icon.tsx` (the dynamic favicon route) was still `bg-brand-600`
+  (`#158459`) with white text — the original pre-redesign color, missed
+  by both UI/UX polish passes since it renders as a route rather than
+  showing up in a grep for the old Tailwind class name — now matches the
+  same mark. `public/manifest.webmanifest`'s `background_color`/
+  `theme_color` updated from white/`#22a56d` to the redesign's
+  `#0a1a13`, and the two maskable icon entries added.
+  `public/sw.js` (new) is a small, hand-rolled service worker —
+  deliberately not workbox/next-pwa, since that would mean asking the
+  project to `npm install` a new dependency, and this session had
+  already hit one real build failure from a network-dependent build step
+  (`next/font/google`, see the redesign entries below). It caches the
+  Next.js build's own static assets (content-hashed, so cache-first is
+  safe) and serves a new `public/offline.html` instead of the browser's
+  own connection-error screen when a page navigation fails offline.
+  Every Supabase call, every Server Action (all POSTs — this only ever
+  looks at GETs), and every RSC data fetch passes straight through
+  untouched; nothing is cached or replayed. `components/pwa/register-
+  service-worker.tsx` registers it once on mount, production-only.
+  `components/ui/connection-status.tsx` (new) is a small banner shown
+  only while `navigator.onLine` is false, wired into the root layout so
+  it covers the app, auth, and marketing pages alike — worded narrowly
+  ("won't work until you reconnect") rather than implying queued work
+  will sync later, since that capability doesn't exist yet.
 
 - 2026-09-07 — First remediation pass from the 2026-09 full-codebase
   security review (`docs/SECURITY_AUDIT_2026-09.md`, Phase 22). Both

@@ -46,6 +46,17 @@ interface AwaitingPaymentProps {
 const POLL_MS = 4000;
 /** Paystack's own limit, plus a little slack for the last webhook to arrive. */
 const GIVE_UP_AFTER_MS = 200_000;
+/**
+ * A genuine OTP charge needs more real time than a plain approval tap: the
+ * SMS has to arrive, the customer has to read it out (often not the person
+ * holding the phone at the till), and the cashier has to type it in and
+ * submit it. Real report (2026-09): the entry form was disappearing well
+ * before a cashier could realistically do all of that. This window only
+ * controls how long the till keeps showing the entry form and polling for
+ * a webhook that settled it in the background — it does not change what
+ * Paystack itself allows on the customer's phone.
+ */
+const OTP_GIVE_UP_AFTER_MS = 300_000;
 
 export function AwaitingPayment({
   saleId,
@@ -108,7 +119,7 @@ export function AwaitingPayment({
 
     const poll = window.setInterval(async () => {
       if (cancelled || checking.current) return;
-      if (Date.now() - startedAt > GIVE_UP_AFTER_MS) return;
+      if (Date.now() - startedAt > (awaitingOtp ? OTP_GIVE_UP_AFTER_MS : GIVE_UP_AFTER_MS)) return;
 
       // A slow round trip must not stack up behind itself — otherwise a
       // few seconds of latency turns into a queue of duplicate checks.
@@ -143,10 +154,15 @@ export function AwaitingPayment({
       window.clearInterval(tick);
       window.clearInterval(poll);
     };
-  }, [saleId, router, declined]);
+    // awaitingOtp only decides which give-up window applies inside this
+    // same effect run; it isn't expected to change for a given sale's
+    // polling session (it reflects Paystack's initial answer to the
+    // charge), but listing it keeps that assumption honest instead of
+    // silently trusting a closure.
+  }, [saleId, router, declined, awaitingOtp]);
 
   const seconds = Math.floor(elapsed / 1000);
-  const expired = elapsed > GIVE_UP_AFTER_MS;
+  const expired = elapsed > (awaitingOtp ? OTP_GIVE_UP_AFTER_MS : GIVE_UP_AFTER_MS);
 
   if (declined) {
     return (

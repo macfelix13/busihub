@@ -165,12 +165,17 @@ export async function checkSalePayment(saleId: string): Promise<PaymentCheck> {
 
   const { data: paymentRow } = await supabase
     .from("sale_payments")
-    .select("id, status, failure_reason")
+    .select("id, status, failure_reason, awaiting_otp")
     .eq("sale_id", saleId)
     .eq("method", "momo")
     .maybeSingle();
 
-  const payment = paymentRow as { id: string; status: string; failure_reason: string | null } | null;
+  const payment = paymentRow as {
+    id: string;
+    status: string;
+    failure_reason: string | null;
+    awaiting_otp: boolean;
+  } | null;
   if (!payment) {
     return { status: sale.status };
   }
@@ -178,6 +183,23 @@ export async function checkSalePayment(saleId: string): Promise<PaymentCheck> {
     // Already settled — very often FAILED, because the customer declined
     // the prompt. The till needs to hear that, not just the sale status.
     return { status: sale.status, paymentStatus: payment.status, failureReason: payment.failure_reason };
+  }
+
+  if (payment.awaiting_otp) {
+    // Genuinely waiting on a code someone has to type into submitMomoOtp()
+    // — deliberately NOT calling verifyTransaction() here. A real report
+    // (2026-09): the OTP entry screen kept getting yanked away to
+    // "declined" seconds after appearing, well before a cashier could
+    // realistically read an SMS and type it in. verifyTransaction() is a
+    // fallback for a SLOW WEBHOOK on a charge that's otherwise already
+    // decided on the customer's phone — it was never meant to referee an
+    // OTP-gated charge where the actual deciding step is the cashier's own
+    // submission, and Paystack's own status can look abandoned-ish mid-flow
+    // in a way that doesn't mean a code can no longer be accepted. A real
+    // webhook-driven settlement is still caught immediately above (this
+    // function reads the DB first); only the extra outbound guess is
+    // skipped, so the cashier gets the whole window to actually try.
+    return { status: sale.status, paymentStatus: "pending" };
   }
 
   const credentials = await loadPaystackCredentials(businessId);

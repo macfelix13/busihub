@@ -136,8 +136,16 @@ export interface ChargeResult {
   ok: boolean;
   /** Paystack's own transaction id, kept so a charge can be traced later. */
   chargeId: string | null;
-  /** 'pending' while the customer has not answered the prompt yet. */
-  status: "pending" | "success" | "failed";
+  /** Paystack's own reference for this charge — required to submit an OTP against it. */
+  reference: string | null;
+  /**
+   * 'pending' while the customer has not answered the prompt yet.
+   * 'otp_required' is a distinct kind of pending: Paystack texted the
+   * customer a one-time code and is waiting on a SEPARATE submit_otp call
+   * before it will settle at all — a plain "still waiting" retry loop
+   * never resolves this one.
+   */
+  status: "pending" | "otp_required" | "success" | "failed";
   /** Paystack's wording for the customer, e.g. "Please approve on your phone". */
   displayText: string | null;
   message: string | null;
@@ -182,19 +190,33 @@ export async function chargeMobileMoney(params: {
     });
   } catch (err) {
     console.error("chargeMobileMoney: request failed", err);
-    return { ok: false, chargeId: null, status: "failed", displayText: null, message: "Couldn't reach Paystack." };
+    return {
+      ok: false,
+      chargeId: null,
+      reference: null,
+      status: "failed",
+      displayText: null,
+      message: "Couldn't reach Paystack.",
+    };
   }
 
   const body = (await response.json().catch(() => null)) as {
     status?: boolean;
     message?: string;
-    data?: { id?: number | string; status?: string; display_text?: string; gateway_response?: string };
+    data?: {
+      id?: number | string;
+      status?: string;
+      display_text?: string;
+      gateway_response?: string;
+      reference?: string;
+    };
   } | null;
 
   if (!response.ok || !body?.status) {
     return {
       ok: false,
       chargeId: null,
+      reference: null,
       status: "failed",
       displayText: null,
       message: body?.message ?? `Paystack refused the charge (HTTP ${response.status}).`,
@@ -204,6 +226,78 @@ export async function chargeMobileMoney(params: {
   return {
     ok: true,
     chargeId: body.data?.id != null ? String(body.data.id) : null,
+    reference: body.data?.reference ?? reference,
+    status: normaliseStatus(body.data?.status),
+    displayText: body.data?.display_text ?? null,
+    message: body.message ?? null,
+  };
+}
+
+/**
+ * The second half of the send_otp flow: the customer read the code off an
+ * SMS, the cashier typed it in, and this is the ONLY way Paystack will
+ * actually settle a charge that asked for one — polling verifyTransaction()
+ * or waiting for a webhook never resolves it, because Paystack is waiting
+ * on this call before it decides anything.
+ *
+ * Mirrors chargeMobileMoney()'s own fetch/timeout/error-handling shape
+ * exactly, on purpose: same 20s budget a till cannot hang past, same
+ * "anything not a clear yes/no is still pending" treatment via
+ * normaliseStatus(), same shape of result the caller already knows how to
+ * read.
+ */
+export async function submitChargeOtp(
+  credentials: PaystackCredentials,
+  reference: string,
+  otp: string
+): Promise<ChargeResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${API}/charge/submit_otp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${credentials.secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ otp, reference }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    console.error("submitChargeOtp: request failed", err);
+    return {
+      ok: false,
+      chargeId: null,
+      reference,
+      status: "failed",
+      displayText: null,
+      message: "Couldn't reach Paystack.",
+    };
+  }
+
+  const body = (await response.json().catch(() => null)) as {
+    status?: boolean;
+    message?: string;
+    data?: { id?: number | string; status?: string; display_text?: string; reference?: string };
+  } | null;
+
+  if (!response.ok || !body?.status) {
+    // A wrong or expired code lands here as a normal, retryable failure —
+    // not a terminal one. The caller decides whether to let the cashier
+    // try again; this function only reports what Paystack said.
+    return {
+      ok: false,
+      chargeId: null,
+      reference,
+      status: "failed",
+      displayText: null,
+      message: body?.message ?? `Paystack rejected the code (HTTP ${response.status}).`,
+    };
+  }
+
+  return {
+    ok: true,
+    chargeId: body.data?.id != null ? String(body.data.id) : null,
+    reference: body.data?.reference ?? reference,
     status: normaliseStatus(body.data?.status),
     displayText: body.data?.display_text ?? null,
     message: body.message ?? null,
@@ -245,8 +339,14 @@ export async function verifyTransaction(
     return null;
   }
 
+  const rawStatus = normaliseStatus(body.data.status);
   return {
-    status: normaliseStatus(body.data.status),
+    // verifyTransaction() has no OTP-collection UI of its own — it is
+    // strictly a "did this settle yet" poll — so an otp_required charge
+    // reads here the same as any other still-waiting one. The till only
+    // ever learns about otp_required from the initial charge response
+    // (or the webhook), never from this poll.
+    status: rawStatus === "otp_required" ? "pending" : rawStatus,
     chargeId: body.data.id != null ? String(body.data.id) : null,
     message: body.data.gateway_response ?? null,
   };
@@ -257,10 +357,14 @@ export async function verifyTransaction(
  * (`pay_offline`, `send_otp`, `ongoing`, …). Everything that is not a
  * definite yes or a definite no is treated as "still waiting", because
  * the alternative — guessing — either completes an unpaid sale or throws
- * away one the customer did approve.
+ * away one the customer did approve. `send_otp` is kept distinct from the
+ * rest of that bucket, because unlike a plain approval prompt it never
+ * resolves on its own — someone has to submit the code Paystack texted
+ * the customer.
  */
-function normaliseStatus(status: string | undefined): "pending" | "success" | "failed" {
+function normaliseStatus(status: string | undefined): "pending" | "otp_required" | "success" | "failed" {
   if (status === "success") return "success";
   if (status === "failed" || status === "abandoned" || status === "reversed") return "failed";
+  if (status === "send_otp") return "otp_required";
   return "pending";
 }

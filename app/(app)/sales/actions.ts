@@ -8,7 +8,7 @@ import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { refundSchema } from "@/lib/validation/refunds";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
-import { loadPaystackCredentials, verifyTransaction } from "@/lib/paystack/client";
+import { loadPaystackCredentials, verifyTransaction, submitChargeOtp } from "@/lib/paystack/client";
 
 export interface FormState {
   error?: string;
@@ -214,6 +214,128 @@ export async function checkSalePayment(saleId: string): Promise<PaymentCheck> {
     status: settled === "completed" ? "completed" : sale.status,
     paymentStatus: verified.status,
     failureReason: verified.status === "failed" ? (verified.message ?? "The customer did not approve it") : null,
+  };
+}
+
+/**
+ * Submits the one-time code Paystack texted the customer, for a momo
+ * tender that is specifically waiting on one (sale_payments.awaiting_otp).
+ *
+ * This is the piece that was entirely missing: Paystack can answer a
+ * charge with "I've texted the customer a code" instead of a direct
+ * approval prompt, and that charge then never settles — not by webhook,
+ * not by verifyTransaction() polling — until this exact call is made.
+ * Without it the charge just sits there until Paystack's own window runs
+ * out and it reads as an unexplained decline.
+ *
+ * Settles through the same settle_sale_payment() the webhook and
+ * checkSalePayment() use, so there is still exactly one place a sale
+ * becomes paid.
+ */
+export async function submitMomoOtp(saleId: string, otp: string): Promise<PaymentCheck> {
+  const supabase = await createServerSupabaseClient();
+
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+    await requirePermission(supabase, businessId, PERMISSIONS.SALES_PROCESS);
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { status: "unknown", error: err.message };
+    console.error("submitMomoOtp: permission lookup failed", err);
+    return { status: "unknown", error: "Something went wrong." };
+  }
+
+  const trimmedOtp = otp.trim();
+  if (!/^\d{3,10}$/.test(trimmedOtp)) {
+    return { status: "unknown", error: "Enter the code Paystack sent the customer." };
+  }
+
+  // Read through the caller's own client, so RLS decides whether this
+  // sale is theirs to look at. Everything after this point uses the
+  // service role, and would not.
+  const { data: saleRow, error: saleError } = await supabase
+    .from("sales")
+    .select("id, status")
+    .eq("id", saleId)
+    .maybeSingle();
+
+  const sale = saleRow as { id: string; status: string } | null;
+
+  if (saleError || !sale) {
+    return { status: "unknown", error: "That sale could not be found." };
+  }
+
+  if (sale.status !== "awaiting_payment") {
+    return { status: sale.status };
+  }
+
+  const { data: paymentRow } = await supabase
+    .from("sale_payments")
+    .select("id, status, failure_reason, awaiting_otp")
+    .eq("sale_id", saleId)
+    .eq("method", "momo")
+    .maybeSingle();
+
+  const payment = paymentRow as {
+    id: string;
+    status: string;
+    failure_reason: string | null;
+    awaiting_otp: boolean;
+  } | null;
+
+  if (!payment) {
+    return { status: sale.status };
+  }
+  if (payment.status !== "pending") {
+    return { status: sale.status, paymentStatus: payment.status, failureReason: payment.failure_reason };
+  }
+  if (!payment.awaiting_otp) {
+    // Nothing here is actually waiting on a code — either this charge
+    // never needed one, or it already settled between the till loading
+    // this screen and the cashier submitting the form. Report what's
+    // true rather than pretending the submission did something.
+    return { status: sale.status, paymentStatus: "pending" };
+  }
+
+  const credentials = await loadPaystackCredentials(businessId);
+  if (!credentials) {
+    return { status: sale.status, error: "This shop's Paystack account is no longer connected." };
+  }
+
+  const result = await submitChargeOtp(credentials, payment.id, trimmedOtp);
+
+  if (!result.ok || result.status === "pending" || result.status === "otp_required") {
+    // A wrong code, a network hiccup, or Paystack still deciding — none of
+    // these are the payment failing, so the tender stays pending and the
+    // cashier can have the customer try again.
+    return {
+      status: sale.status,
+      paymentStatus: "pending",
+      error: result.message ?? "That code wasn't accepted. Please check it and try again.",
+    };
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: settled, error: settleError } = await admin.rpc("settle_sale_payment", {
+    p_business_id: businessId,
+    p_payment_id: payment.id,
+    p_status: result.status,
+    p_provider_charge_id: result.chargeId,
+    p_failure_reason: result.status === "failed" ? (result.message ?? "Payment failed") : null,
+  });
+
+  if (settleError) {
+    console.error("submitMomoOtp: settlement failed", settleError);
+    return { status: sale.status, paymentStatus: "pending", error: "Couldn't confirm that payment. Please try again." };
+  }
+
+  revalidatePath(`/sales/${saleId}`);
+  revalidatePath("/inventory");
+
+  return {
+    status: settled === "completed" ? "completed" : sale.status,
+    paymentStatus: result.status,
+    failureReason: result.status === "failed" ? (result.message ?? "The code was not accepted") : null,
   };
 }
 

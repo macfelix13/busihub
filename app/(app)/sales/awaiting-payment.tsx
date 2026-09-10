@@ -1,10 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { StatusToggleButton } from "../products/status-toggle-button";
-import { checkSalePayment, cancelSale } from "./actions";
+import { checkSalePayment, cancelSale, submitMomoOtp } from "./actions";
 
 /**
  * The window between the customer approving a prompt on their phone and
@@ -24,18 +24,64 @@ interface AwaitingPaymentProps {
   networkLabel: string;
   amount: string;
   canCancel: boolean;
+  /**
+   * True when Paystack answered the initial charge with "send_otp" — it
+   * texted the customer a code instead of (or before) a direct approval
+   * prompt, and nothing settles until that code is submitted back. The
+   * plain "waiting for approval" polling loop never resolves this on its
+   * own, so this switches the panel to an entry form for the code.
+   */
+  awaitingOtp: boolean;
+  /** Paystack's own wording for what to tell the customer/cashier. */
+  otpPromptText: string | null;
 }
 
 const POLL_MS = 4000;
 /** Paystack's own limit, plus a little slack for the last webhook to arrive. */
 const GIVE_UP_AFTER_MS = 200_000;
 
-export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canCancel }: AwaitingPaymentProps) {
+export function AwaitingPayment({
+  saleId,
+  momoNumber,
+  networkLabel,
+  amount,
+  canCancel,
+  awaitingOtp,
+  otpPromptText,
+}: AwaitingPaymentProps) {
   const router = useRouter();
   const [elapsed, setElapsed] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [declined, setDeclined] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const checking = useRef(false);
+
+  async function handleSubmitOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (otpSubmitting) return;
+    setOtpSubmitting(true);
+    setOtpError(null);
+    try {
+      const result = await submitMomoOtp(saleId, otp);
+      if (result.paymentStatus === "failed" || result.paymentStatus === "cancelled") {
+        setDeclined(result.failureReason ?? "The customer did not approve it");
+        return;
+      }
+      if (result.status === "completed") {
+        router.refresh();
+        return;
+      }
+      // Wrong code, or Paystack is still thinking about it — the server
+      // action already reports which, in result.error.
+      setOtpError(result.error ?? "That code wasn't accepted. Please try again.");
+    } catch {
+      setOtpError("Couldn't reach the server. Please try again.");
+    } finally {
+      setOtpSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     // Once the charge has definitely failed there is nothing left to
@@ -131,7 +177,11 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
           aria-hidden="true"
         />
         <h2 className="font-semibold text-amber-900 dark:text-amber-200">
-          {expired ? "No answer from the customer" : "Waiting for the customer to approve"}
+          {expired
+            ? "No answer from the customer"
+            : awaitingOtp
+              ? "Enter the code Paystack texted the customer"
+              : "Waiting for the customer to approve"}
         </h2>
       </div>
 
@@ -141,6 +191,8 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
             The prompt to {momoNumber ?? "their phone"} has expired. Nothing has been charged. Cancel this sale to put
             the items back on the shelf, then try again.
           </>
+        ) : awaitingOtp ? (
+          otpPromptText ?? "Paystack sent a one-time code by SMS instead of a direct approval prompt. Ask the customer for it."
         ) : (
           <>
             {amount} was sent to {momoNumber ?? "their phone"} on {networkLabel}. They have about three minutes to
@@ -148,6 +200,33 @@ export function AwaitingPayment({ saleId, momoNumber, networkLabel, amount, canC
           </>
         )}
       </p>
+
+      {!expired && awaitingOtp ? (
+        <form onSubmit={handleSubmitOtp} className="mt-3 flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="momo-otp" className="text-xs font-medium text-amber-900/80 dark:text-amber-200/80">
+              OTP code
+            </label>
+            <input
+              id="momo-otp"
+              name="otp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              disabled={otpSubmitting}
+              className="w-36 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm tracking-widest text-amber-950 outline-none focus:border-amber-500 disabled:opacity-60 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100"
+              placeholder="123456"
+            />
+          </div>
+          <Button type="submit" disabled={otpSubmitting || otp.trim().length === 0}>
+            {otpSubmitting ? "Submitting…" : "Submit code"}
+          </Button>
+        </form>
+      ) : null}
+
+      {otpError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{otpError}</p> : null}
 
       {!expired ? (
         <p className="mt-1 text-sm text-amber-900/70 dark:text-amber-200/70" aria-live="polite">

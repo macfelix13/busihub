@@ -510,5 +510,23 @@ async function promptCustomerPhone(
     return result.message ?? "That charge was declined.";
   }
 
+  if (result.status === "otp_required") {
+    // Paystack texted the customer a code instead of (or before) a direct
+    // approval prompt. Nothing settles until someone submits it, so record
+    // that this tender is waiting on one and what to show the cashier —
+    // the till reads this back and switches to an OTP-entry form instead
+    // of the plain "waiting for approval" screen.
+    const admin = createServiceRoleClient();
+    const { error: flagError } = await admin.rpc("mark_momo_payment_awaiting_otp", {
+      p_business_id: businessId,
+      p_payment_id: payment.id,
+      p_prompt_text: result.displayText ?? "Ask the customer for the OTP code Paystack just texted them.",
+    });
+    if (flagError) {
+      console.error("promptCustomerPhone: could not flag payment as awaiting OTP", flagError);
+    }
+    return null;
+  }
+
   return null;
 }

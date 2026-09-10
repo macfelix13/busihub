@@ -100,6 +100,9 @@ jobs:
       - name: Run products/product_variants direct cross-tenant tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/products_cross_tenant.sql
 
+      - name: Run mobile money OTP tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/momo_otp.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

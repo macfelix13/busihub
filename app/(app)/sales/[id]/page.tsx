@@ -100,7 +100,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       .eq("sale_id", id),
     supabase
       .from("sale_payments")
-      .select("id, method, amount, status, momo_number, momo_network, failure_reason")
+      .select("id, method, amount, status, momo_number, momo_network, failure_reason, awaiting_otp, otp_prompt_text")
       .eq("sale_id", id)
       .order("created_at"),
     supabase
@@ -149,6 +149,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     momo_number: string | null;
     momo_network: string | null;
     failure_reason: string | null;
+    awaiting_otp: boolean;
+    otp_prompt_text: string | null;
   }[];
   const refundedTotal = refundRows.reduce((sum, r) => sum + Number(r.total), 0);
   const isVoided = sale.status === "voided";
@@ -214,6 +216,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           networkLabel={momoNetworkLabel(pendingMomo.momo_network ?? "")}
           amount={formatMoney(toMinorUnits(pendingMomo.amount), currencyCode)}
           canCancel={canSell}
+          awaitingOtp={pendingMomo.awaiting_otp}
+          otpPromptText={pendingMomo.otp_prompt_text}
         />
       ) : null}
 

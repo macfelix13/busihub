@@ -19,7 +19,7 @@ const FLOW = [
  */
 export function PaymentsSection() {
   return (
-    <section id="payments" className="border-t border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+    <section id="payments" className="border-t border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
         <SectionHeading
           eyebrow="Payments"

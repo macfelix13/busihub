@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paidFromLabel } from "@/lib/validation/expenses";
 
@@ -221,23 +222,24 @@ export default async function ExpensesPage({
         ) : null}
       </form>
 
-      <div className="flex flex-wrap gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        <Link
-          href={{ pathname: "/expenses", query: linkQuery({ status: undefined, page: undefined }) }}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            !showVoided ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Recorded
-        </Link>
-        <Link
-          href={{ pathname: "/expenses", query: linkQuery({ status: "voided", page: undefined }) }}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            showVoided ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Voided
-        </Link>
+      <div className="flex flex-wrap items-center gap-1">
+        <SegmentedControl
+          className="self-start"
+          options={[
+            {
+              key: "recorded",
+              label: "Recorded",
+              active: !showVoided,
+              href: { pathname: "/expenses", query: linkQuery({ status: undefined, page: undefined }) },
+            },
+            {
+              key: "voided",
+              label: "Voided",
+              active: showVoided,
+              href: { pathname: "/expenses", query: linkQuery({ status: "voided", page: undefined }) },
+            },
+          ]}
+        />
         {categories.length > 0 ? (
           <span className="mx-1 self-center text-neutral-300 dark:text-neutral-700" aria-hidden="true">
             |

@@ -29,7 +29,7 @@ export function MobileMoneySection() {
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, i) => (
           <div key={step.title} className="relative rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <span className="absolute -top-3 left-5 flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+            <span className="absolute -top-3 left-5 flex h-6 w-6 items-center justify-center rounded-full bg-lime-400 text-xs font-semibold text-brand-950">
               {i + 1}
             </span>
             <div className="mt-2 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">

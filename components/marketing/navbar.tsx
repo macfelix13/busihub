@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
  * Every link here lands somewhere real. The public pages the rest of
@@ -36,10 +37,10 @@ export function Navbar() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:border-neutral-800/80 dark:bg-neutral-950/85 dark:supports-[backdrop-filter]:bg-neutral-950/70">
+    <header className="sticky top-0 z-40 border-b border-neutral-200/80 bg-canvas/90 backdrop-blur-sm dark:border-neutral-800/80 dark:bg-canvas-dark/90">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6" aria-label="Primary">
         <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-lime-400 text-sm font-bold text-brand-950">
             B
           </span>
           <span className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">Busihub</span>
@@ -58,6 +59,7 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <ThemeToggle />
           <Link href="/login" className="rounded-xl px-4 py-2.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-900">
             Sign in
           </Link>
@@ -66,16 +68,19 @@ export function Navbar() {
           </Link>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="mobile-menu"
-          aria-label={open ? "Close menu" : "Open menu"}
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-900 lg:hidden"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-1 lg:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            aria-label={open ? "Close menu" : "Open menu"}
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-900"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </nav>
 
       {open ? (

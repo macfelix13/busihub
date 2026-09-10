@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { categoryIconComponent } from "@/lib/ui/category-icons";
 import { signProductPhotoUrls } from "@/lib/storage/product-photos";
@@ -200,50 +201,44 @@ export default async function ProductsPage({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-            <Link
-              href={{ pathname: "/products", query: statusQuery("active") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Active
-            </Link>
-            <Link
-              href={{ pathname: "/products", query: statusQuery("archived") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Archived
-            </Link>
-          </div>
-          <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-            <Link
-              href={{ pathname: "/products", query: typeQuery("all") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeType === "all" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              All
-            </Link>
-            <Link
-              href={{ pathname: "/products", query: typeQuery("product") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeType === "product" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Products
-            </Link>
-            <Link
-              href={{ pathname: "/products", query: typeQuery("service") }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeType === "service" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Services
-            </Link>
-          </div>
+          <SegmentedControl
+            options={[
+              {
+                key: "active",
+                label: "Active",
+                active: activeStatus === "active",
+                href: { pathname: "/products", query: statusQuery("active") },
+              },
+              {
+                key: "archived",
+                label: "Archived",
+                active: activeStatus === "archived",
+                href: { pathname: "/products", query: statusQuery("archived") },
+              },
+            ]}
+          />
+          <SegmentedControl
+            options={[
+              {
+                key: "all",
+                label: "All",
+                active: activeType === "all",
+                href: { pathname: "/products", query: typeQuery("all") },
+              },
+              {
+                key: "product",
+                label: "Products",
+                active: activeType === "product",
+                href: { pathname: "/products", query: typeQuery("product") },
+              },
+              {
+                key: "service",
+                label: "Services",
+                active: activeType === "service",
+                href: { pathname: "/products", query: typeQuery("service") },
+              },
+            ]}
+          />
         </div>
         <form className="flex flex-wrap items-center gap-2" action="/products">
           {activeStatus === "archived" ? <input type="hidden" name="status" value="archived" /> : null}

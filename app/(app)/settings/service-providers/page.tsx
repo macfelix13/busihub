@@ -6,6 +6,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusToggleButton } from "@/app/(app)/products/status-toggle-button";
 import { signServiceProviderPhotoUrls } from "@/lib/storage/service-provider-photos";
 import { setServiceProviderStatus } from "./actions";
@@ -72,24 +73,18 @@ export default async function ServiceProvidersPage({
         </Link>
       </div>
 
-      <div className="flex gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        <Link
-          href="/settings/service-providers"
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Active
-        </Link>
-        <Link
-          href={{ pathname: "/settings/service-providers", query: { status: "archived" } }}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Archived
-        </Link>
-      </div>
+      <SegmentedControl
+        className="self-start"
+        options={[
+          { key: "active", label: "Active", active: activeStatus === "active", href: "/settings/service-providers" },
+          {
+            key: "archived",
+            label: "Archived",
+            active: activeStatus === "archived",
+            href: { pathname: "/settings/service-providers", query: { status: "archived" } },
+          },
+        ]}
+      />
 
       {error ? (
         <p

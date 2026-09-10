@@ -3,10 +3,11 @@
 import { useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "./sidebar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { NavPermissions } from "./nav-items";
 
 const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-950";
 
 /** "Jane Doe" -> "JD"; a lone name -> its first letter. Purely a small
  *  visual touch for the header's profile chip — falls back gracefully to
@@ -62,6 +63,7 @@ export function AppShell({
           </button>
           <span className="truncate font-semibold md:hidden">{businessName}</span>
           <div className="ml-auto flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
+            <ThemeToggle />
             {notificationSlot}
             <div className="hidden h-6 w-px bg-neutral-300/60 dark:bg-white/10 sm:block" aria-hidden="true" />
             <div className="hidden items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm shadow-neutral-900/5 dark:bg-neutral-900 sm:flex">

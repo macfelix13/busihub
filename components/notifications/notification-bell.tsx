@@ -13,7 +13,7 @@ import { SkeletonBlock } from "@/components/ui/skeleton";
 // file previously had no explicit focus ring anywhere, relying on browser
 // default outlines instead.
 const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-950";
 
 // Every 45s while a tab has this open. Not Realtime (see 0034's header for
 // why that is deliberately deferred) — slower, but everything from RLS to
@@ -158,7 +158,7 @@ export function NotificationBell() {
                         onClick={() => handleItemClick(n)}
                         className={cn(
                           "flex gap-2.5 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
-                          "focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-600",
+                          "focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-950",
                           !n.is_read && "bg-brand-50/60 dark:bg-brand-950/20"
                         )}
                       >

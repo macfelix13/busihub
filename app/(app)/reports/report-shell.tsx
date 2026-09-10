@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RANGES, type Period } from "@/lib/reports/period";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ReportControls } from "./report-controls";
 
 /**
@@ -66,13 +67,6 @@ export function ReportShell({
     return query;
   };
 
-  const tabClass = (active: boolean) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${
-      active
-        ? "bg-brand-600 text-white"
-        : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
-    }`;
-
   return (
     <div className="flex flex-col gap-6">
       <div className="print:hidden">
@@ -90,37 +84,33 @@ export function ReportShell({
 
       <div className="flex flex-wrap items-center gap-3 print:hidden">
         {showPeriod ? (
-          <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-            {RANGES.map((option) => (
-              <Link
-                key={option.value}
-                href={{ pathname, query: linkQuery({ range: option.value }) }}
-                className={tabClass(period.range === option.value)}
-              >
-                {option.label}
-              </Link>
-            ))}
-          </div>
+          <SegmentedControl
+            options={RANGES.map((option) => ({
+              key: option.value,
+              label: option.label,
+              active: period.range === option.value,
+              href: { pathname, query: linkQuery({ range: option.value }) },
+            }))}
+          />
         ) : null}
 
         {branches.length > 1 ? (
-          <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-            <Link
-              href={{ pathname, query: linkQuery({ branch: undefined }) }}
-              className={tabClass(branchId === null)}
-            >
-              All branches
-            </Link>
-            {branches.map((branch) => (
-              <Link
-                key={branch.id}
-                href={{ pathname, query: linkQuery({ branch: branch.id }) }}
-                className={tabClass(branchId === branch.id)}
-              >
-                {branch.name}
-              </Link>
-            ))}
-          </div>
+          <SegmentedControl
+            options={[
+              {
+                key: "__all__",
+                label: "All branches",
+                active: branchId === null,
+                href: { pathname, query: linkQuery({ branch: undefined }) },
+              },
+              ...branches.map((branch) => ({
+                key: branch.id,
+                label: branch.name,
+                active: branchId === branch.id,
+                href: { pathname, query: linkQuery({ branch: branch.id }) },
+              })),
+            ]}
+          />
         ) : null}
       </div>
 

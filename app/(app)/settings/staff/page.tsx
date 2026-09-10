@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 export const metadata = { title: "Staff" };
 
@@ -105,11 +106,6 @@ export default async function StaffPage({
     ...overrides,
   });
 
-  const tabClass = (active: boolean) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${
-      active ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-    }`;
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -123,17 +119,14 @@ export default async function StaffPage({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-          {(["active", "inactive", "all"] as const).map((option) => (
-            <Link
-              key={option}
-              href={{ pathname: "/settings/staff", query: { ...(q ? { q } : {}), status: option } }}
-              className={tabClass(activeStatus === option)}
-            >
-              {option === "all" ? "All" : option.charAt(0).toUpperCase() + option.slice(1)}
-            </Link>
-          ))}
-        </div>
+        <SegmentedControl
+          options={(["active", "inactive", "all"] as const).map((option) => ({
+            key: option,
+            label: option === "all" ? "All" : option.charAt(0).toUpperCase() + option.slice(1),
+            active: activeStatus === option,
+            href: { pathname: "/settings/staff", query: { ...(q ? { q } : {}), status: option } },
+          }))}
+        />
         <form className="flex flex-wrap gap-2" action="/settings/staff">
           {activeStatus !== "active" ? <input type="hidden" name="status" value={activeStatus} /> : null}
           <input

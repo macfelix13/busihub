@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { categoryIconComponent } from "@/lib/ui/category-icons";
 import { setCategoryStatus } from "./actions";
 import { StatusToggleButton } from "../status-toggle-button";
@@ -74,24 +75,18 @@ export default async function CategoriesPage({
         }
       />
 
-      <div className="flex gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        <Link
-          href="/products/categories"
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Active
-        </Link>
-        <Link
-          href={{ pathname: "/products/categories", query: { status: "archived" } }}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          Archived
-        </Link>
-      </div>
+      <SegmentedControl
+        className="self-start"
+        options={[
+          { key: "active", label: "Active", active: activeStatus === "active", href: "/products/categories" },
+          {
+            key: "archived",
+            label: "Archived",
+            active: activeStatus === "archived",
+            href: { pathname: "/products/categories", query: { status: "archived" } },
+          },
+        ]}
+      />
 
       {error ? (
         <p

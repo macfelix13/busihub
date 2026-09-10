@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
 
@@ -183,21 +184,15 @@ export default async function SalesPage({
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        {STATUS_TABS.map((tab) => (
-          <Link
-            key={tab.value || "all"}
-            href={{ pathname: "/sales", query: linkQuery(tab.value ? { status: tab.value } : {}) }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              (activeStatus ?? "") === tab.value
-                ? "bg-brand-600 text-white"
-                : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
+      <SegmentedControl
+        className="self-start"
+        options={STATUS_TABS.map((tab) => ({
+          key: tab.value || "all",
+          label: tab.label,
+          active: (activeStatus ?? "") === tab.value,
+          href: { pathname: "/sales", query: linkQuery(tab.value ? { status: tab.value } : {}) },
+        }))}
+      />
 
       {/* A plain GET form: the filters end up in the URL, so a particular
           day's takings can be bookmarked or sent to someone. */}

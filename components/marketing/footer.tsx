@@ -52,12 +52,12 @@ function FooterColumn({ title, links }: { title: string; links: { href: string; 
 
 export function Footer() {
   return (
-    <footer className="border-t border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+    <footer className="border-t border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
       <div className="mx-auto max-w-6xl px-5 py-12 sm:px-6">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-lime-400 text-xs font-bold text-brand-950">
                 B
               </span>
               <span className="text-base font-semibold text-neutral-900 dark:text-white">Busihub</span>
@@ -79,7 +79,7 @@ export function Footer() {
             <Link href="/login" className="text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200">
               Sign in
             </Link>
-            <Link href="/register" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">
+            <Link href="/register" className="text-xs font-medium text-brand-950 hover:underline dark:text-brand-400">
               Get started
             </Link>
           </div>

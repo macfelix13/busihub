@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 export const metadata = { title: "Audit log" };
 
@@ -208,19 +209,15 @@ export default async function AuditLogPage({
         <p className="text-neutral-500">A record of sensitive actions taken on your business, {totalCount} total.</p>
       </div>
 
-      <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        {(["all", ...Object.keys(ACTION_LABELS)] as const).map((option) => (
-          <Link
-            key={option}
-            href={{ pathname: "/settings/audit-log", query: { action: option } }}
-            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
-              (action ?? "all") === option ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            {option === "all" ? "All" : actionLabel(option)}
-          </Link>
-        ))}
-      </div>
+      <SegmentedControl
+        options={(["all", ...Object.keys(ACTION_LABELS)] as const).map((option) => ({
+          key: option,
+          label: option === "all" ? "All" : actionLabel(option),
+          active: (action ?? "all") === option,
+          href: { pathname: "/settings/audit-log", query: { action: option } },
+          className: "whitespace-nowrap",
+        }))}
+      />
 
       {error ? (
         <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

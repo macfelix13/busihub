@@ -43,6 +43,37 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Applies the dark/light class to <html> BEFORE the rest of the page
+ * paints — a plain inline script, not a React effect, because an effect
+ * only runs after the first paint and would show the wrong theme for one
+ * visible frame on every load. This is the same "first child of body"
+ * technique most no-flash theme scripts use (next-themes included): a
+ * script here runs synchronously as the browser reaches it, ahead of
+ * every element after it, so `dark` is already set (or not) before
+ * anything below has a chance to render in the wrong theme.
+ *
+ * Per-device preference, deliberately not a per-user account setting or a
+ * business-wide setting: `localStorage` is what a browser on a shared
+ * till terminal actually is — the choice sticks to that terminal,
+ * regardless of which staff member is signed in, which is normally
+ * exactly what a shop wants (nobody has to re-set it every shift change).
+ * `components/ui/theme-toggle.tsx` is what writes to the same key.
+ *
+ * Falls back to the OS/browser's prefers-color-scheme ONLY when nothing
+ * has been explicitly chosen on this device yet; the first real click of
+ * the toggle overrides that permanently (for this device) either way.
+ */
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var stored = localStorage.getItem('busihub-theme');
+    var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (dark) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -51,6 +82,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-canvas font-sans antialiased dark:bg-canvas-dark">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

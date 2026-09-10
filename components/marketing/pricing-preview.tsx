@@ -14,7 +14,7 @@ import { SectionHeading } from "./section-heading";
  */
 export function PricingPreview() {
   return (
-    <section id="pricing" className="border-t border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+    <section id="pricing" className="border-t border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
         <SectionHeading
           eyebrow="Pricing"
@@ -23,7 +23,7 @@ export function PricingPreview() {
         />
 
         <div className="mx-auto mt-10 max-w-md rounded-2xl border border-neutral-200 bg-white p-8 text-center dark:border-neutral-800 dark:bg-neutral-900">
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand-950 dark:text-brand-400">
             Free trial
           </p>
           <p className="mt-2 text-3xl font-semibold text-neutral-900 dark:text-white">14 days</p>

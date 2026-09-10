@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 export const metadata = { title: "Suppliers" };
 
@@ -76,24 +77,22 @@ export default async function SuppliersPage({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-          <Link
-            href={{ pathname: "/suppliers", query: { ...(q ? { q } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeStatus === "active" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Active
-          </Link>
-          <Link
-            href={{ pathname: "/suppliers", query: { status: "archived", ...(q ? { q } : {}) } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeStatus === "archived" ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Archived
-          </Link>
-        </div>
+        <SegmentedControl
+          options={[
+            {
+              key: "active",
+              label: "Active",
+              active: activeStatus === "active",
+              href: { pathname: "/suppliers", query: { ...(q ? { q } : {}) } },
+            },
+            {
+              key: "archived",
+              label: "Archived",
+              active: activeStatus === "archived",
+              href: { pathname: "/suppliers", query: { status: "archived", ...(q ? { q } : {}) } },
+            },
+          ]}
+        />
         <form className="flex flex-wrap gap-2" action="/suppliers">
           {activeStatus === "archived" ? <input type="hidden" name="status" value="archived" /> : null}
           <input

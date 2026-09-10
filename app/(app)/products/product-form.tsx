@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { CategoryCombobox } from "@/components/ui/category-combobox";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { UNITS_OF_MEASURE, TAX_CATEGORIES } from "@/lib/validation/products";
@@ -124,26 +125,14 @@ export function ProductForm({
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">What is this?</span>
-        <div className="flex gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-          <button
-            type="button"
-            onClick={() => setType("product")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              !isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Product
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("service")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              isService ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            Service
-          </button>
-        </div>
+        <SegmentedControl
+          className="self-start"
+          size="md"
+          options={[
+            { key: "product", label: "Product", active: !isService, onClick: () => setType("product") },
+            { key: "service", label: "Service", active: isService, onClick: () => setType("service") },
+          ]}
+        />
         {isService ? (
           <p className="text-sm text-neutral-500">
             A service (braiding, sewing, barbering...) is sold just like a product, but it never carries stock, and

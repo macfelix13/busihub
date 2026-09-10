@@ -8,6 +8,7 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { formatQuantity } from "@/lib/validation/inventory";
 
 export const metadata = { title: "Inventory" };
@@ -130,19 +131,15 @@ export default async function InventoryPage({
       />
 
       {branches && branches.length > 1 ? (
-        <div className="flex flex-wrap gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-          {branches.map((b) => (
-            <Link
-              key={b.id}
-              href={{ pathname: "/inventory", query: { branch: b.id, ...(q ? { q } : {}) } }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                b.id === activeBranchId ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              {b.name}
-            </Link>
-          ))}
-        </div>
+        <SegmentedControl
+          className="self-start"
+          options={branches.map((b) => ({
+            key: b.id,
+            label: b.name,
+            active: b.id === activeBranchId,
+            href: { pathname: "/inventory", query: { branch: b.id, ...(q ? { q } : {}) } },
+          }))}
+        />
       ) : null}
 
       <form className="flex flex-wrap gap-2" action="/inventory">

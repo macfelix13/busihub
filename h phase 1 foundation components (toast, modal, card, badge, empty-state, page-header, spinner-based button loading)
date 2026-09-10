@@ -1,0 +1,11 @@
+warning: in the working copy of 'app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/layout.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/ui/button.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ARCHITECTURE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tailwind.config.ts', LF will be replaced by CRLF the next time Git touches it
+ app/globals.css          | 17 [32m+++++++++++[m
+ app/layout.tsx           |  7 [32m+++[m[31m--[m
+ components/ui/button.tsx | 31 [32m++++++++++++++++[m[31m----[m
+ docs/ARCHITECTURE.md     | 76 [32m++++++++++++++++++++++++++++++++++++++++++++++++[m
+ tailwind.config.ts       | 25 [32m+++++++++++++++[m[31m-[m
+ 5 files changed, 147 insertions(+), 9 deletions(-)

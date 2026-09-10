@@ -17,7 +17,7 @@ const CATEGORIES = [
  */
 export function TrustBar() {
   return (
-    <section className="border-y border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40">
+    <section className="border-y border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-5 py-8 text-center sm:px-6">
         <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
           One platform for your everyday business operations

@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PURCHASE_ORDER_STATUSES, purchaseOrderStatusLabel } from "@/lib/validation/purchasing";
 
 export const metadata = { title: "Purchase orders" };
@@ -87,27 +88,18 @@ export default async function PurchaseOrdersPage({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-1 self-start rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
-        <Link
-          href="/purchase-orders"
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            activeStatus === null ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-          }`}
-        >
-          All
-        </Link>
-        {PURCHASE_ORDER_STATUSES.map((s) => (
-          <Link
-            key={s.value}
-            href={{ pathname: "/purchase-orders", query: { status: s.value } }}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              activeStatus === s.value ? "bg-brand-600 text-white" : "text-neutral-600 dark:text-neutral-300"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
+      <SegmentedControl
+        className="self-start"
+        options={[
+          { key: "__all__", label: "All", active: activeStatus === null, href: "/purchase-orders" },
+          ...PURCHASE_ORDER_STATUSES.map((s) => ({
+            key: s.value,
+            label: s.label,
+            active: activeStatus === s.value,
+            href: { pathname: "/purchase-orders", query: { status: s.value } },
+          })),
+        ]}
+      />
 
       {error ? (
         <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/ui/toast";
+import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
+import { ConnectionStatus } from "@/components/ui/connection-status";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -87,7 +89,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-canvas font-sans antialiased dark:bg-canvas-dark">
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <RegisterServiceWorker />
         <ToastProvider>{children}</ToastProvider>
+        <ConnectionStatus />
       </body>
     </html>
   );

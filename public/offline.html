@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>You're offline · Busihub</title>
+<style>
+  /* Deliberately self-contained: this file is served by the service
+     worker straight from cache while there is no network at all, so it
+     cannot load a font, a stylesheet, or anything else from the network
+     either. */
+  :root {
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #0a1a13;
+    color: #f7f6f2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    text-align: center;
+  }
+  .card {
+    max-width: 380px;
+  }
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #b0d840;
+    color: #06271c;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  p {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #c8d6cd;
+    margin: 0 0 24px;
+  }
+  button {
+    appearance: none;
+    border: none;
+    border-radius: 10px;
+    background: #b0d840;
+    color: #06271c;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 10px 20px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #c7e468;
+  }
+  button:focus-visible {
+    outline: 2px solid #b0d840;
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo" aria-hidden="true">B</div>
+    <h1>You're offline</h1>
+    <p>
+      Busihub needs an internet connection for sales, inventory, and
+      everything else that reads or writes your business data. Check your
+      connection, then try again.
+    </p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

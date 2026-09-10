@@ -46,3 +46,4 @@ supabase/.temp
 # not application code, shouldn't accumulate in history
 apply-*.ps1
 fix-*.ps1
+busihub-security-audit.md

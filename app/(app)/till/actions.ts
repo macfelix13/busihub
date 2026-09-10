@@ -511,21 +511,43 @@ async function promptCustomerPhone(
   }
 
   if (result.status === "otp_required") {
-    // Paystack texted the customer a code instead of (or before) a direct
-    // approval prompt. Nothing settles until someone submits it, so record
-    // that this tender is waiting on one and what to show the cashier —
-    // the till reads this back and switches to an OTP-entry form instead
-    // of the plain "waiting for approval" screen.
+    // Vodafone/Telecel: Paystack texted the customer a code instead of a
+    // direct approval prompt. Nothing settles until someone submits it, so
+    // record that this tender is waiting on one and what to show the
+    // cashier — the till reads this back and switches to an OTP-entry form
+    // instead of the plain "waiting for approval" screen.
     const admin = createServiceRoleClient();
-    const { error: flagError } = await admin.rpc("mark_momo_payment_awaiting_otp", {
+    const { error: promptError } = await admin.rpc("record_momo_provider_prompt", {
       p_business_id: businessId,
       p_payment_id: payment.id,
       p_prompt_text: result.displayText ?? "Ask the customer for the OTP code Paystack just texted them.",
+      p_awaiting_otp: true,
     });
-    if (flagError) {
-      console.error("promptCustomerPhone: could not flag payment as awaiting OTP", flagError);
+    if (promptError) {
+      console.error("promptCustomerPhone: could not flag payment as awaiting OTP", promptError);
     }
     return null;
+  }
+
+  // Still pending, and not something a cashier types anywhere — most
+  // commonly MTN/AirtelTigo's "pay_offline": the customer approves
+  // entirely on their own phone (a USSD prompt or their Mobile Money
+  // PIN). Record Paystack's own wording for this specific charge so the
+  // waiting screen shows real, network-appropriate instructions instead
+  // of a generic guess — this is exactly the gap a 2026-09 support report
+  // turned out to be: nothing was wrong with the charge, but nobody could
+  // tell the cashier what the customer actually needed to do.
+  if (result.displayText) {
+    const admin = createServiceRoleClient();
+    const { error: promptError } = await admin.rpc("record_momo_provider_prompt", {
+      p_business_id: businessId,
+      p_payment_id: payment.id,
+      p_prompt_text: result.displayText,
+      p_awaiting_otp: false,
+    });
+    if (promptError) {
+      console.error("promptCustomerPhone: could not record the provider's prompt text", promptError);
+    }
   }
 
   return null;

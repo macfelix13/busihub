@@ -223,6 +223,15 @@ export async function chargeMobileMoney(params: {
     };
   }
 
+  // Not sensitive (a Paystack status enum, never the phone number or the
+  // amount) and cheap — but it's exactly what would have made the
+  // send_otp/pay_offline mix-up from 2026-09 obvious immediately instead
+  // of three rounds of guessing. Kept unconditional rather than only on an
+  // "unrecognised" branch, so the raw value is always there in Vercel's
+  // logs to check a hunch against, not just when normaliseStatus() is
+  // already known to be confused.
+  console.log(`chargeMobileMoney: Paystack raw status "${body.data?.status}" for ${network}`);
+
   return {
     ok: true,
     chargeId: body.data?.id != null ? String(body.data.id) : null,

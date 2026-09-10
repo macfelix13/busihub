@@ -32,7 +32,14 @@ interface AwaitingPaymentProps {
    * own, so this switches the panel to an entry form for the code.
    */
   awaitingOtp: boolean;
-  /** Paystack's own wording for what to tell the customer/cashier. */
+  /**
+   * Paystack's own wording for what to tell the customer/cashier about
+   * THIS specific pending charge — set whenever we have it, whether or
+   * not awaitingOtp is true. For MTN/AirtelTigo ("pay_offline") this is
+   * informational only: the customer approves on their own phone and
+   * there is nothing to type here. Falls back to a generic message when
+   * Paystack didn't give us any wording to show.
+   */
   otpPromptText: string | null;
 }
 
@@ -195,11 +202,24 @@ export function AwaitingPayment({
           otpPromptText ?? "Paystack sent a one-time code by SMS instead of a direct approval prompt. Ask the customer for it."
         ) : (
           <>
-            {amount} was sent to {momoNumber ?? "their phone"} on {networkLabel}. They have about three minutes to
-            approve it on their own handset.
+            {amount} was sent to {momoNumber ?? "their phone"} on {networkLabel}.{" "}
+            {/* Paystack's own wording for this specific charge, when we have
+                it, rather than a generic guess — the exact instructions
+                differ by network (a PIN prompt, a USSD code to dial), and
+                showing the real ones is what tells a cashier what to say
+                to a confused customer. */}
+            {otpPromptText ?? "They have about three minutes to approve it on their own handset."}
           </>
         )}
       </p>
+
+      {!expired && !awaitingOtp ? (
+        <p className="mt-1 text-sm text-amber-900/70 dark:text-amber-200/70">
+          There is nothing to type here — {networkLabel} confirms this directly with the customer on their own
+          phone, not through the till. If they mention getting a text or a code, that&apos;s for them to act on
+          themselves, not something to read out to you.
+        </p>
+      ) : null}
 
       {!expired && awaitingOtp ? (
         <form onSubmit={handleSubmitOtp} className="mt-3 flex flex-wrap items-end gap-2">

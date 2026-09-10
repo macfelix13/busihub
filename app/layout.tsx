@@ -37,10 +37,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f6f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a1a13" },
-  ],
+  // Dark green is Busihub's standard look now (see THEME_INIT_SCRIPT below),
+  // so the browser chrome matches that by default rather than following the
+  // device's own light/dark setting — a single color, not the light/dark
+  // media-query pair this used to be.
+  themeColor: "#0a1a13",
 };
 
 /**
@@ -60,15 +61,18 @@ export const viewport: Viewport = {
  * exactly what a shop wants (nobody has to re-set it every shift change).
  * `components/ui/theme-toggle.tsx` is what writes to the same key.
  *
- * Falls back to the OS/browser's prefers-color-scheme ONLY when nothing
- * has been explicitly chosen on this device yet; the first real click of
- * the toggle overrides that permanently (for this device) either way.
+ * Dark green is now Busihub's standard, initial look — for the app and
+ * the marketing site alike — not something hidden behind a toggle: a
+ * first-time visitor sees it immediately, regardless of their OS/browser's
+ * own light/dark setting. The toggle still exists for anyone who genuinely
+ * prefers a lighter screen; the first real click of it is what's
+ * remembered on this device from then on, same as before.
  */
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = localStorage.getItem('busihub-theme');
-    var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var dark = stored ? stored === 'dark' : true;
     if (dark) document.documentElement.classList.add('dark');
   } catch (e) {}
 })();

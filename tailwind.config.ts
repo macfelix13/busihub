@@ -22,9 +22,34 @@ const config: Config = {
           900: "#104533",
           950: "#06271c",
         },
+        // A second, brighter green used ONLY as an accent — an active nav
+        // icon, a small highlight, a chart's second series — never as a
+        // large fill. brand-950 already carries the dark sidebar/hero-card
+        // role on its own; lime is what sits on top of it.
+        lime: {
+          50: "#f8fce9",
+          100: "#eef7c8",
+          200: "#ddef98",
+          300: "#c7e468",
+          400: "#b0d840",
+          500: "#94bf29",
+          600: "#749a1f",
+          700: "#587a1b",
+          800: "#48611c",
+          900: "#3d521c",
+        },
+        // The page background behind cards — distinct from card white and
+        // from brand-950 (sidebar/hero cards), so the two don't have to
+        // share one token doing two jobs.
+        canvas: {
+          DEFAULT: "#f7f6f2",
+          dark: "#0a1a13",
+        },
       },
       borderRadius: {
         xl: "0.875rem",
+        "2xl": "1.25rem",
+        "3xl": "1.75rem",
       },
       // Shared entrance animations for toasts, modals, and anything else
       // that appears rather than always being on screen — kept inside the

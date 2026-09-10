@@ -3,13 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  /* A soft off-white rather than paper-white — cards (still pure white)
+     read as raised surfaces sitting on this, instead of blending into an
+     identically-white page the way they did before this pass. Values
+     below are the real HSL decomposition of the hex colors named in each
+     comment (checked with a script, not eyeballed), so they stay exact if
+     anyone edits them later. */
+  --background: 48 24% 96%; /* #f7f6f2 */
+  --foreground: 160 73% 9%; /* #06271c, i.e. brand-950 */
 }
 
 .dark {
-  --background: 222 47% 8%;
-  --foreground: 210 20% 96%;
+  --background: 154 44% 7%; /* #0a1a13 */
+  --foreground: 80 21% 95%; /* #f2f4ee */
 }
 
 body {

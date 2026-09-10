@@ -21,7 +21,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600",
+  // brand-950 rather than brand-600: the same dark green as the sidebar
+  // and the dashboard's hero card, so the app's one "do the main thing"
+  // color reads as a single deliberate choice instead of three different
+  // greens competing for attention.
+  primary: "bg-brand-950 text-white hover:bg-brand-900 focus-visible:outline-brand-950",
   secondary:
     "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus-visible:outline-neutral-400 dark:bg-neutral-900 dark:text-white dark:border-neutral-700",
   danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600",

@@ -24,7 +24,12 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-neutral-200 bg-white transition-shadow duration-150 dark:border-neutral-800 dark:bg-neutral-900",
+        // A soft shadow instead of relying on the border alone — the
+        // border stays (some pages count on it for a hairline division
+        // between adjacent cards) but is now the quieter of the two,
+        // since the canvas behind every card is no longer the same white
+        // as the card itself.
+        "rounded-2xl border border-neutral-200/70 bg-white shadow-sm shadow-neutral-900/[0.03] transition-shadow duration-150 dark:border-neutral-800 dark:bg-neutral-900",
         hoverable && "hover:shadow-md hover:shadow-neutral-900/5 dark:hover:shadow-black/30",
         className
       )}

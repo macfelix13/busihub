@@ -77,7 +77,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const whatsappDigits = phone.replace(/[^0-9]/g, "");
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
         <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
           <h1 className="text-lg font-semibold">
             {business.status === "suspended" ? "Account suspended" : "Account closed"}
@@ -118,7 +118,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // tells the person), before anything else in (app) renders.
   if (profile.status !== "active") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 dark:bg-neutral-950">
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
         <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
           <h1 className="text-lg font-semibold">Account deactivated</h1>
           <p className="mt-2 text-sm text-neutral-500">

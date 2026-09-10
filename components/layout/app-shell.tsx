@@ -42,7 +42,7 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-neutral-50 dark:bg-neutral-950">
+    <div className="flex min-h-screen bg-canvas dark:bg-canvas-dark">
       <Sidebar
         permissions={permissions}
         businessName={businessName}
@@ -51,21 +51,21 @@ export function AppShell({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:px-6">
+        <header className="sticky top-0 z-20 flex items-center gap-2 bg-canvas/90 px-4 py-4 backdrop-blur-sm dark:bg-canvas-dark/90 sm:px-6">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
-            className={`-ml-1.5 flex-shrink-0 rounded-lg p-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 md:hidden ${FOCUS_RING}`}
+            className={`-ml-1.5 flex-shrink-0 rounded-lg p-1.5 text-neutral-600 transition-colors hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10 md:hidden ${FOCUS_RING}`}
           >
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
           <span className="truncate font-semibold md:hidden">{businessName}</span>
           <div className="ml-auto flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
             {notificationSlot}
-            <div className="hidden h-6 w-px bg-neutral-200 dark:bg-neutral-800 sm:block" aria-hidden="true" />
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 dark:bg-brand-950/50 dark:text-brand-300">
+            <div className="hidden h-6 w-px bg-neutral-300/60 dark:bg-white/10 sm:block" aria-hidden="true" />
+            <div className="hidden items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm shadow-neutral-900/5 dark:bg-neutral-900 sm:flex">
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-lime-400 text-xs font-semibold text-brand-950">
                 {initialsFor(userLabel)}
               </span>
               <span className="max-w-[10rem] truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">

@@ -9,6 +9,7 @@ import {
   Clock,
   ArrowRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
@@ -356,7 +357,7 @@ export default async function DashboardPage({
               href={{ pathname: "/dashboard", query: linkQuery({ range: option.value, from: undefined, to: undefined }) }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 period.range === option.value
-                  ? "bg-brand-600 text-white"
+                  ? "bg-brand-950 text-white"
                   : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
               }`}
             >
@@ -371,7 +372,7 @@ export default async function DashboardPage({
               href={{ pathname: "/dashboard", query: linkQuery({ branch: undefined }) }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 branchId === null
-                  ? "bg-brand-600 text-white"
+                  ? "bg-brand-950 text-white"
                   : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
               }`}
             >
@@ -383,7 +384,7 @@ export default async function DashboardPage({
                 href={{ pathname: "/dashboard", query: linkQuery({ branch: branch.id }) }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   branchId === branch.id
-                    ? "bg-brand-600 text-white"
+                    ? "bg-brand-950 text-white"
                     : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
                 }`}
               >
@@ -474,20 +475,54 @@ export default async function DashboardPage({
                   sub: Number(summary?.refunded_total ?? 0) > 0 ? "off these takings" : "nothing back",
                   icon: Undo2,
                 },
-              ].map((card) => {
+              ].map((card, index) => {
                 const Icon = card.icon;
+                // The first card only — the period's headline number — gets
+                // the dark hero treatment instead of blending in as one of
+                // four identical white tiles. Still the exact same
+                // money(summary?.net_total) value as before this pass, just
+                // given the visual weight that number actually has.
+                const isHero = index === 0;
                 return (
-                  <Card key={card.label} hoverable className="p-4">
+                  <Card
+                    key={card.label}
+                    hoverable
+                    className={cn(
+                      "p-4",
+                      isHero && "border-transparent bg-brand-950 shadow-none dark:border-transparent"
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{card.label}</p>
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                      <p
+                        className={cn(
+                          "text-xs font-medium uppercase tracking-wide",
+                          isHero ? "text-brand-200" : "text-neutral-500"
+                        )}
+                      >
+                        {card.label}
+                      </p>
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg",
+                          isHero
+                            ? "bg-lime-400 text-brand-950"
+                            : "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
+                        )}
+                      >
                         <Icon className="h-4 w-4" aria-hidden="true" />
                       </span>
                     </div>
-                    <p className="mt-2 text-2xl font-semibold tabular-nums text-neutral-900 dark:text-white">
+                    <p
+                      className={cn(
+                        "mt-2 text-2xl font-semibold tabular-nums",
+                        isHero ? "text-white" : "text-neutral-900 dark:text-white"
+                      )}
+                    >
                       {card.value}
                     </p>
-                    <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
+                    <p className={cn("mt-0.5 text-xs", isHero ? "text-brand-200" : "text-neutral-500")}>
+                      {card.sub}
+                    </p>
                   </Card>
                 );
               })}

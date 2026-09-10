@@ -132,7 +132,7 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
                   width={barWidth * 0.5}
                   height={Math.max(profitHeight, profit === 0 ? 0 : 1)}
                   rx="0.4"
-                  className={profit < 0 ? "fill-red-700 dark:fill-red-300" : "fill-brand-800 dark:fill-brand-300"}
+                  className={profit < 0 ? "fill-red-700 dark:fill-red-300" : "fill-lime-500 dark:fill-lime-400"}
                   opacity="0.85"
                 />
               ) : null}
@@ -159,11 +159,8 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
             <span className="h-2.5 w-2.5 rounded-sm bg-brand-500" aria-hidden="true" /> Net sales
           </span>
           <span className="flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-2.5 rounded-sm bg-brand-800 dark:bg-brand-300"
-              aria-hidden="true"
-            />{" "}
-            Gross profit
+            <span className="h-2.5 w-2.5 rounded-sm bg-lime-500 dark:bg-lime-400" aria-hidden="true" /> Gross
+            profit
           </span>
         </div>
       ) : null}

@@ -23,8 +23,10 @@ function isLeafActive(pathname: string, href: string): boolean {
 // Every interactive nav element gets the same explicit focus ring
 // (matching components/ui/button.tsx's own focus-visible treatment)
 // rather than relying on the browser's default outline, which varies by
-// browser and didn't previously appear anywhere in this file.
-const FOCUS_RING = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
+// browser and didn't previously appear anywhere in this file. Lime, not
+// brand-600, because brand-600 barely shows up against this sidebar's own
+// dark green background — the whole point of a focus ring is contrast.
+const FOCUS_RING = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400";
 
 export function Sidebar({ permissions, businessName, open, onClose }: SidebarProps) {
   const pathname = usePathname();
@@ -63,7 +65,7 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden border-r border-neutral-200 bg-white transition-transform duration-200 ease-in-out dark:border-neutral-800 dark:bg-neutral-900",
+          "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden bg-brand-950 text-brand-50 transition-transform duration-200 ease-in-out",
           // At md+ the drawer becomes a normal, in-flow column: sticky (not
           // fixed) so it takes up real width in the parent flex row and
           // pushes the content beside it, instead of floating over it.
@@ -71,18 +73,18 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-neutral-200 px-4 py-4 dark:border-neutral-800">
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 py-5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-sm">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-lime-400 text-sm font-bold text-brand-950 shadow-sm">
               B
             </span>
-            <span className="truncate font-semibold">{businessName}</span>
+            <span className="truncate font-semibold text-white">{businessName}</span>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close menu"
-            className="flex-shrink-0 rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-neutral-400 dark:hover:bg-neutral-800 md:hidden"
+            className="flex-shrink-0 rounded-lg p-1.5 text-brand-200 transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400 md:hidden"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -105,8 +107,8 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                         FOCUS_RING,
                         active
-                          ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                          : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                          ? "bg-white/10 text-lime-300"
+                          : "text-brand-100 hover:bg-white/5 hover:text-white"
                       )}
                     >
                       <Icon className="h-[18px] w-[18px] flex-shrink-0" aria-hidden="true" />
@@ -131,8 +133,8 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
                       FOCUS_RING,
                       hasActiveChild
-                        ? "text-brand-700 dark:text-brand-300"
-                        : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        ? "text-lime-300"
+                        : "text-brand-100 hover:bg-white/5 hover:text-white"
                     )}
                   >
                     <GroupIcon className="h-[18px] w-[18px] flex-shrink-0" aria-hidden="true" />
@@ -143,7 +145,7 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                     />
                   </button>
                   {isExpanded ? (
-                    <ul className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-neutral-200 pl-4 dark:border-neutral-800">
+                    <ul className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-4">
                       {entry.children.map((child) => {
                         if (!isLeafVisible(child, permissions)) return null;
                         const ChildIcon = child.icon;
@@ -158,8 +160,8 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                                 FOCUS_RING,
                                 active
-                                  ? "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
-                                  : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                                  ? "bg-white/10 text-lime-300"
+                                  : "text-brand-200 hover:bg-white/5 hover:text-white"
                               )}
                             >
                               <ChildIcon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />

@@ -292,7 +292,15 @@ export async function submitChargeOtp(
   if (!response.ok || !body?.status) {
     // A wrong or expired code lands here as a normal, retryable failure —
     // not a terminal one. The caller decides whether to let the cashier
-    // try again; this function only reports what Paystack said.
+    // try again; this function only reports what Paystack said. Logged for
+    // the same reason as the success path below: this exact branch is
+    // where a real report of "submitted the OTP and nothing happened"
+    // could actually be landing, and there is no way to tell from here
+    // whether that's a wrong code, an expired one, or something else
+    // without seeing what Paystack itself said.
+    console.log(
+      `submitChargeOtp: Paystack rejected the OTP — HTTP ${response.status}, message "${body?.message}"`
+    );
     return {
       ok: false,
       chargeId: null,
@@ -302,6 +310,14 @@ export async function submitChargeOtp(
       message: body?.message ?? `Paystack rejected the code (HTTP ${response.status}).`,
     };
   }
+
+  // Same reasoning as the matching line in chargeMobileMoney(): Paystack's
+  // own docs don't describe what submit_otp returns for a mobile money
+  // charge at all (only the card-OTP case is documented), so this is the
+  // only way to find out what actually happens after a real OTP submission
+  // — including whether Paystack expects a FURTHER approval step on the
+  // customer's phone rather than settling right here.
+  console.log(`submitChargeOtp: Paystack raw status "${body.data?.status}", message "${body.message}"`);
 
   return {
     ok: true,

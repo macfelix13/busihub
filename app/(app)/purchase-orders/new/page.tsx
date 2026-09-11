@@ -68,7 +68,7 @@ export default async function NewPurchaseOrderPage({
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">New purchase order</h1>
-        <p className="text-neutral-500">Order stock from a supplier.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Order stock from a supplier.</p>
       </div>
       <PurchaseOrderForm
         suppliers={suppliers ?? []}

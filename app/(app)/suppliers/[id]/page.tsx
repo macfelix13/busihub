@@ -59,12 +59,12 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{supplier.name}</h1>
             {supplier.status === "archived" ? (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-surface dark:text-ink-muted">
                 Archived
               </span>
             ) : null}
           </div>
-          <p className="text-neutral-500">{supplier.contact_name || "No contact person set"}</p>
+          <p className="text-neutral-500 dark:text-ink-muted">{supplier.contact_name || "No contact person set"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canCreateOrder && supplier.status === "active" ? (
@@ -88,8 +88,8 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+        <dl className="divide-y divide-neutral-100 dark:divide-surface-line">
           {[
             ["Phone", supplier.phone],
             ["Email", supplier.email],
@@ -98,8 +98,8 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             ["Notes", supplier.notes],
           ].map(([label, value]) => (
             <div key={label as string} className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-              <dt className="text-sm font-medium text-neutral-500">{label}</dt>
-              <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+              <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">{label}</dt>
+              <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-ink sm:col-span-2">
                 {(value as string) || "—"}
               </dd>
             </div>
@@ -109,22 +109,22 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
 
       <div>
         <h2 className="font-semibold">Purchase orders</h2>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {orders && orders.length > 0 ? (
               orders.map((order) => (
                 <li key={order.id}>
                   <Link
                     href={`/purchase-orders/${order.id}`}
-                    className="flex items-center justify-between px-5 py-3.5 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    className="flex items-center justify-between px-5 py-3.5 text-sm hover:bg-neutral-50 dark:hover:bg-surface/60"
                   >
                     <span className="font-medium">{order.reference}</span>
-                    <span className="text-neutral-500">{purchaseOrderStatusLabel(order.status)}</span>
+                    <span className="text-neutral-500 dark:text-ink-muted">{purchaseOrderStatusLabel(order.status)}</span>
                   </Link>
                 </li>
               ))
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">No orders for this supplier yet.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">No orders for this supplier yet.</li>
             )}
           </ul>
         </div>

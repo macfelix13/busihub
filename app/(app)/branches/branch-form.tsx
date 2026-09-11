@@ -75,4 +75,3 @@ export function BranchForm({ action, defaultValues, submitLabel, pendingLabel, s
     </form>
   );
 }
-

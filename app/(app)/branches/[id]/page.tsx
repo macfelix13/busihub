@@ -54,12 +54,12 @@ export default async function BranchDetailPage({ params }: { params: Promise<{ i
               </span>
             ) : null}
             {branch.status === "inactive" ? (
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-surface dark:text-ink-muted">
                 Inactive
               </span>
             ) : null}
           </div>
-          <p className="text-neutral-500">{addressLabel(branch)}</p>
+          <p className="text-neutral-500 dark:text-ink-muted">{addressLabel(branch)}</p>
         </div>
         <div className="flex items-center gap-2">
           {canManage ? (
@@ -71,36 +71,36 @@ export default async function BranchDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+        <dl className="divide-y divide-neutral-100 dark:divide-surface-line">
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Phone</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">{branch.phone || "—"}</dd>
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Phone</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">{branch.phone || "—"}</dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Email</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">{branch.email || "—"}</dd>
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Email</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">{branch.email || "—"}</dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Address</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Address</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {branch.address_line1 || "—"}
               {branch.address_line2 ? `, ${branch.address_line2}` : ""}
             </dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">City / Region</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">City / Region</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {[branch.city, branch.region].filter(Boolean).join(", ") || "—"}
             </dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Timezone</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">{branch.timezone}</dd>
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Timezone</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">{branch.timezone}</dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Status</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Status</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {branch.status === "active" ? "Active" : "Inactive"}
             </dd>
           </div>

@@ -466,6 +466,46 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 6 of N (Operations:
+  purchase orders, suppliers, expenses & branches). Scope named
+  directly by the user ("operations page next"), matching the
+  "Operations" nav group in `components/layout/nav-items.tsx` (Orders,
+  Suppliers, Customers, Expenses, Branches) minus Customers, already
+  retuned in phase 4.
+
+  **What this phase touched**:
+
+  - Purchase orders: `page.tsx`, `[id]/page.tsx`, `[id]/receive/page.tsx`,
+    `new/page.tsx`, `purchase-order-form.tsx`, `receive-form.tsx`.
+  - Suppliers: `page.tsx`, `[id]/page.tsx`, `[id]/edit/page.tsx`,
+    `new/page.tsx`, `supplier-form.tsx` (read, needed no changes).
+  - Expenses: `page.tsx`, `[id]/page.tsx`, `new/page.tsx`,
+    `expense-form.tsx`, `void-form.tsx`.
+  - Branches: `page.tsx`, `[id]/page.tsx`, `[id]/edit/page.tsx`,
+    `new/page.tsx`, `branch-form.tsx` (read, needed no changes),
+    `set-main-branch-button.tsx` (read, needed no changes).
+
+  Same treatment as phases 1-5: status badges (draft/inactive/archived/
+  voided pills), borders, dividers, row hovers, table headers, muted
+  text, and card backgrounds moved onto the `surface`/`ink` tokens. No
+  queries, RPCs, validation, or permission checks changed anywhere —
+  confirmed by reading every file in full before editing; only
+  className strings were touched.
+
+  **One new judgment call**: the voided-expense amount
+  (`text-neutral-400 line-through dark:text-neutral-600`, in both
+  `expenses/page.tsx` and `expenses/[id]/page.tsx`) and the decorative
+  segmented-control separator (`text-neutral-300 dark:text-neutral-700`
+  in `expenses/page.tsx`) both used the same "deliberately very faint"
+  dark shade with no equivalent in the `surface`/`ink` system — the
+  same situation as the receivables zero-value column in phase 4. Both
+  were mapped to `dark:text-ink-muted`, consistent with that earlier
+  call, rather than introducing a new one-off faint token.
+
+  Untouched: everything already covered by phases 1-5 (customers,
+  sales, reports, settings, staff, the admin console), plus the
+  landing page, auth screens, and the marketing site.
+
 - 2026-09-11 — Busihub brand identity pass, phase 5 of N (settings,
   staff & the admin console). Scope named directly by the user
   ("settings/staff/the admin console next").

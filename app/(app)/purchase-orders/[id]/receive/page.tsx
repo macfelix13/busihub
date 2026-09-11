@@ -83,7 +83,7 @@ export default async function ReceivePurchaseOrderPage({ params }: { params: Pro
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Receive delivery</h1>
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-ink-muted">
           {order.reference} · {supplierName ?? "Unknown supplier"} · into {branchName ?? "unknown branch"}
         </p>
       </div>

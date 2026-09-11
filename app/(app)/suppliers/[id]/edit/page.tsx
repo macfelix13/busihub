@@ -36,7 +36,7 @@ export default async function EditSupplierPage({ params }: { params: Promise<{ i
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit supplier</h1>
-        <p className="text-neutral-500">{supplier.name}</p>
+        <p className="text-neutral-500 dark:text-ink-muted">{supplier.name}</p>
       </div>
       <SupplierForm
         action={updateSupplier.bind(null, supplier.id)}

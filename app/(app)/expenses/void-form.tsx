@@ -49,7 +49,7 @@ export function VoidExpenseForm({ action }: VoidExpenseFormProps) {
         placeholder="Recorded twice, wrong amount, paid by someone else"
         error={state.fieldErrors?.reason}
       />
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-500 dark:text-ink-muted">
         It stops counting against profit straight away, and stays on this page with your reason attached.
       </p>
 

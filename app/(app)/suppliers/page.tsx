@@ -67,7 +67,7 @@ export default async function SuppliersPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Suppliers</h1>
-          <p className="text-neutral-500">Businesses you buy stock from.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Businesses you buy stock from.</p>
         </div>
         {canManage ? (
           <Link href="/suppliers/new">
@@ -100,7 +100,7 @@ export default async function SuppliersPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-56"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-56"
           />
           <Button type="submit" variant="secondary">
             Search
@@ -113,27 +113,27 @@ export default async function SuppliersPage({
           Couldn&apos;t load suppliers. Please refresh the page.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {suppliers && suppliers.length > 0 ? (
               suppliers.map((supplier) => (
                 <li key={supplier.id}>
                   <Link
                     href={`/suppliers/${supplier.id}`}
-                    className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                    className="flex flex-col gap-1 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                   >
                     <div>
                       <span className="font-medium">{supplier.name}</span>
-                      <p className="mt-0.5 text-sm text-neutral-500">
+                      <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
                         {[supplier.contact_name, supplier.phone].filter(Boolean).join(" · ") || "No contact details"}
                       </p>
                     </div>
-                    <p className="text-sm text-neutral-500">{supplier.payment_terms || ""}</p>
+                    <p className="text-sm text-neutral-500 dark:text-ink-muted">{supplier.payment_terms || ""}</p>
                   </Link>
                 </li>
               ))
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                 {activeStatus === "archived" ? "No archived suppliers." : "No suppliers yet."}
               </li>
             )}
@@ -143,7 +143,7 @@ export default async function SuppliersPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} suppliers
           </span>
           <div className="flex gap-2">

@@ -132,7 +132,7 @@ export default async function ExpensesPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Expenses</h1>
-          <p className="text-neutral-500">Money that has left the business.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Money that has left the business.</p>
         </div>
         {canCreate ? (
           <Link href="/expenses/new">
@@ -157,17 +157,17 @@ export default async function ExpensesPage({
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+            className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-surface-line dark:bg-surface-card"
           >
-            <p className="text-xs uppercase text-neutral-500">{card.label}</p>
+            <p className="text-xs uppercase text-neutral-500 dark:text-ink-muted">{card.label}</p>
             <p className="mt-1 truncate text-xl font-semibold tabular-nums">{card.value}</p>
-            <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
+            <p className="mt-0.5 text-xs text-neutral-500 dark:text-ink-muted">{card.sub}</p>
           </div>
         ))}
       </div>
 
       {byCategory.length > 0 ? (
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
           <h2 className="font-semibold">Where the money went</h2>
           <ul className="mt-4 flex flex-col gap-3">
             {byCategory.map((row) => {
@@ -179,7 +179,7 @@ export default async function ExpensesPage({
                     <span className="min-w-0 truncate font-medium">{row.category_name}</span>
                     <span className="flex-shrink-0 tabular-nums">{money(amount)}</span>
                   </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-surface">
                     <div className="h-full rounded-full bg-brand-500" style={{ width: `${share}%` }} />
                   </div>
                 </li>
@@ -195,21 +195,21 @@ export default async function ExpensesPage({
         {activeCategory ? <input type="hidden" name="category" value={activeCategory} /> : null}
         {showVoided ? <input type="hidden" name="status" value="voided" /> : null}
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">From</span>
+          <span className="font-medium text-neutral-800 dark:text-ink">From</span>
           <input
             type="date"
             name="from"
             defaultValue={fromDate ?? ""}
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-900"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-surface-line dark:bg-surface"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">To</span>
+          <span className="font-medium text-neutral-800 dark:text-ink">To</span>
           <input
             type="date"
             name="to"
             defaultValue={toDate ?? ""}
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-900"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-surface-line dark:bg-surface"
           />
         </label>
         <Button type="submit" variant="secondary">
@@ -241,27 +241,27 @@ export default async function ExpensesPage({
           ]}
         />
         {categories.length > 0 ? (
-          <span className="mx-1 self-center text-neutral-300 dark:text-neutral-700" aria-hidden="true">
+          <span className="mx-1 self-center text-neutral-300 dark:text-ink-muted" aria-hidden="true">
             |
           </span>
         ) : null}
         {activeCategory ? (
           <Link
             href={{ pathname: "/expenses", query: linkQuery({ category: undefined, page: undefined }) }}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-ink-muted"
           >
             All categories
           </Link>
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
         {error ? (
-          <p className="px-5 py-10 text-center text-neutral-500">
+          <p className="px-5 py-10 text-center text-neutral-500 dark:text-ink-muted">
             These expenses couldn&rsquo;t be loaded. Reload the page, or try again in a moment.
           </p>
         ) : expenses.length > 0 ? (
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {expenses.map((expense) => {
               const recorder = [expense.recorder?.first_name, expense.recorder?.last_name]
                 .filter(Boolean)
@@ -270,18 +270,18 @@ export default async function ExpensesPage({
                 <li key={expense.id}>
                   <Link
                     href={`/expenses/${expense.id}`}
-                    className="flex items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    className="flex items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-neutral-50 dark:hover:bg-surface/60"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">
                         {expense.description}
                         {expense.status === "voided" ? (
-                          <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                          <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-surface dark:text-ink-muted">
                             Voided
                           </span>
                         ) : null}
                       </span>
-                      <span className="block truncate text-xs text-neutral-500">
+                      <span className="block truncate text-xs text-neutral-500 dark:text-ink-muted">
                         {new Date(`${expense.expense_date}T00:00:00`).toLocaleDateString("en-GB", {
                           day: "numeric",
                           month: "short",
@@ -298,12 +298,12 @@ export default async function ExpensesPage({
                     <span className="whitespace-nowrap text-right">
                       <span
                         className={`block font-medium tabular-nums ${
-                          expense.status === "voided" ? "text-neutral-400 line-through dark:text-neutral-600" : ""
+                          expense.status === "voided" ? "text-neutral-400 line-through dark:text-ink-muted" : ""
                         }`}
                       >
                         {money(expense.amount)}
                       </span>
-                      <span className="text-xs text-neutral-500">{expense.reference_number}</span>
+                      <span className="text-xs text-neutral-500 dark:text-ink-muted">{expense.reference_number}</span>
                     </span>
                   </Link>
                 </li>
@@ -311,7 +311,7 @@ export default async function ExpensesPage({
             })}
           </ul>
         ) : (
-          <p className="px-5 py-12 text-center text-neutral-500">
+          <p className="px-5 py-12 text-center text-neutral-500 dark:text-ink-muted">
             {showVoided
               ? "No voided expenses."
               : fromDate || toDate || activeCategory
@@ -323,14 +323,14 @@ export default async function ExpensesPage({
 
       {lastPage > 1 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} expenses
           </span>
           <div className="flex gap-2">
             {pageNumber > 1 ? (
               <Link
                 href={{ pathname: "/expenses", query: linkQuery({ page: String(pageNumber - 1) }) }}
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 dark:border-neutral-800"
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 dark:border-surface-line"
               >
                 Previous
               </Link>
@@ -338,7 +338,7 @@ export default async function ExpensesPage({
             {pageNumber < lastPage ? (
               <Link
                 href={{ pathname: "/expenses", query: linkQuery({ page: String(pageNumber + 1) }) }}
-                className="rounded-lg border border-neutral-200 px-3 py-1.5 dark:border-neutral-800"
+                className="rounded-lg border border-neutral-200 px-3 py-1.5 dark:border-surface-line"
               >
                 Next
               </Link>

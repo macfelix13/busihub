@@ -49,16 +49,16 @@ export function ReceiveForm({ action, lines }: ReceiveFormProps) {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-neutral-500">Enter how much of each item actually arrived. Leave a line blank if none did.</p>
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">Enter how much of each item actually arrived. Leave a line blank if none did.</p>
         <Button type="button" variant="secondary" onClick={fillOutstanding}>
           Receive all outstanding
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
                 <th className="px-4 py-3 text-right font-medium">Ordered</th>
@@ -67,14 +67,14 @@ export function ReceiveForm({ action, lines }: ReceiveFormProps) {
                 <th className="px-4 py-3 font-medium">Receiving now</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
               {lines.map((line, index) => {
                 const outstanding = line.ordered - line.received;
                 return (
                   <tr key={line.itemId}>
                     <td className="px-4 py-3 font-medium">{line.label}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatQuantity(line.ordered)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{formatQuantity(line.received)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 dark:text-ink-muted">{formatQuantity(line.received)}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatQuantity(outstanding)}</td>
                     <td className="px-4 py-3">
                       <Field

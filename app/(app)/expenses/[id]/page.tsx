@@ -98,11 +98,11 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">{expense.description}</h1>
-            <p className="text-neutral-500">{expense.reference_number}</p>
+            <p className="text-neutral-500 dark:text-ink-muted">{expense.reference_number}</p>
           </div>
           <p
             className={`text-2xl font-semibold tabular-nums ${
-              expense.status === "voided" ? "text-neutral-400 line-through dark:text-neutral-600" : ""
+              expense.status === "voided" ? "text-neutral-400 line-through dark:text-ink-muted" : ""
             }`}
           >
             {money(expense.amount)}
@@ -111,9 +111,9 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {expense.status === "voided" ? (
-        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 dark:border-surface-line dark:bg-surface-card">
           <h2 className="font-semibold">Voided</h2>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-1 text-sm text-neutral-600 dark:text-ink-muted">
             {expense.void_reason}
             {voider ? ` — ${voider}` : ""}
             {expense.voided_at
@@ -124,34 +124,34 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
                 })}`
               : ""}
           </p>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
             It no longer counts against profit. It stays here so the month can still be explained.
           </p>
         </div>
       ) : null}
 
-      <dl className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <dl className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
         {rows.map((row) => (
           <div
             key={row.label}
-            className="flex items-baseline justify-between gap-4 border-b border-neutral-100 px-5 py-3 text-sm last:border-b-0 dark:border-neutral-800"
+            className="flex items-baseline justify-between gap-4 border-b border-neutral-100 px-5 py-3 text-sm last:border-b-0 dark:border-surface-line"
           >
-            <dt className="flex-shrink-0 text-neutral-500">{row.label}</dt>
+            <dt className="flex-shrink-0 text-neutral-500 dark:text-ink-muted">{row.label}</dt>
             <dd className="min-w-0 break-words text-right font-medium">{row.value}</dd>
           </div>
         ))}
       </dl>
 
       {expense.note ? (
-        <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
           <h2 className="font-semibold">Note</h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-600 dark:text-neutral-400">{expense.note}</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-600 dark:text-ink-muted">{expense.note}</p>
         </section>
       ) : null}
 
       {expense.status === "recorded" && canVoid ? (
-        <div className="border-t border-neutral-200 pt-5 dark:border-neutral-800">
-          <p className="mb-3 text-sm text-neutral-500">
+        <div className="border-t border-neutral-200 pt-5 dark:border-surface-line">
+          <p className="mb-3 text-sm text-neutral-500 dark:text-ink-muted">
             An expense cannot be edited — the amount and date are fixed once recorded, so the ledger can be trusted. To
             correct one, void it and record the right one.
           </p>

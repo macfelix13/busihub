@@ -75,7 +75,7 @@ export function PurchaseOrderForm({
 
   if (suppliers.length === 0 || variants.length === 0 || branches.length === 0) {
     return (
-      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
+      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-surface-line dark:text-ink-muted">
         {suppliers.length === 0
           ? "Add a supplier before raising a purchase order."
           : variants.length === 0
@@ -116,7 +116,7 @@ export function PurchaseOrderForm({
       <div className="flex flex-col gap-4">
         <h3 className="font-semibold">Items</h3>
         {lines.map((line, index) => (
-          <div key={index} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+          <div key={index} className="rounded-xl border border-neutral-200 p-4 dark:border-surface-line">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
               <Select
                 label="Product"
@@ -156,7 +156,7 @@ export function PurchaseOrderForm({
           <Button type="button" variant="secondary" onClick={() => setLines((r) => [...r, emptyLine()])}>
             + Add line
           </Button>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="text-sm text-neutral-600 dark:text-ink-muted">
             Estimated total:{" "}
             <span className="font-medium tabular-nums">
               {currencyCode} {total.toFixed(2)}
@@ -185,7 +185,7 @@ export function PurchaseOrderForm({
         )}
       />
 
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-500 dark:text-ink-muted">
         The order is created as a draft. It has to be approved before stock can be received against it.
       </p>
 

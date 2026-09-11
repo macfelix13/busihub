@@ -40,7 +40,7 @@ export default async function EditBranchPage({ params }: { params: Promise<{ id:
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit branch</h1>
-        <p className="text-neutral-500">{branch.name}</p>
+        <p className="text-neutral-500 dark:text-ink-muted">{branch.name}</p>
       </div>
       <BranchForm
         action={boundUpdateBranch}
@@ -62,4 +62,3 @@ export default async function EditBranchPage({ params }: { params: Promise<{ id:
     </div>
   );
 }
-

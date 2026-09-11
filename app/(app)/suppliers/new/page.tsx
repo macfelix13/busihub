@@ -21,7 +21,7 @@ export default async function NewSupplierPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Add supplier</h1>
-        <p className="text-neutral-500">Someone you buy stock from.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Someone you buy stock from.</p>
       </div>
       <SupplierForm action={createSupplier} submitLabel="Create supplier" pendingLabel="Creating…" />
     </div>

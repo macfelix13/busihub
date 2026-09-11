@@ -22,7 +22,7 @@ export default async function NewBranchPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Add branch</h1>
-        <p className="text-neutral-500">New branches start active — deactivate one later from its Edit page if needed.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">New branches start active — deactivate one later from its Edit page if needed.</p>
       </div>
       <BranchForm
         action={createBranch}
@@ -33,4 +33,3 @@ export default async function NewBranchPage() {
     </div>
   );
 }
-

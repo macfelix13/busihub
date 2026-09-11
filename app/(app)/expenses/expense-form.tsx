@@ -89,7 +89,7 @@ export function ExpenseForm({ action, branches, categories, currencyCode, today 
         />
       </div>
 
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         Cash comes out of the till, so the drawer will be short by this amount at closing — which is exactly what you
         want it to say.
       </p>

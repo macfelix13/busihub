@@ -13,7 +13,7 @@ import { formatQuantity } from "@/lib/validation/inventory";
 export const metadata = { title: "Purchase order" };
 
 const STATUS_CLASSES: Record<string, string> = {
-  draft: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  draft: "bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted",
   approved: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   partially_received: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   received: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
@@ -153,7 +153,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
               {purchaseOrderStatusLabel(order.status)}
             </span>
           </div>
-          <p className="text-neutral-500">
+          <p className="text-neutral-500 dark:text-ink-muted">
             {supplier ? (
               <Link href={`/suppliers/${supplier.id}`} className="hover:underline">
                 {supplier.name}
@@ -194,27 +194,27 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+        <dl className="divide-y divide-neutral-100 dark:divide-surface-line">
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Expected</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">{order.expected_date || "—"}</dd>
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Expected</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">{order.expected_date || "—"}</dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Raised by</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Raised by</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {[raisedBy?.first_name, raisedBy?.last_name].filter(Boolean).join(" ") || "—"}
             </dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Approved by</dt>
-            <dd className="text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Approved by</dt>
+            <dd className="text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {[approvedBy?.first_name, approvedBy?.last_name].filter(Boolean).join(" ") || "Not yet approved"}
             </dd>
           </div>
           <div className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-            <dt className="text-sm font-medium text-neutral-500">Notes</dt>
-            <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+            <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Notes</dt>
+            <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-ink sm:col-span-2">
               {order.notes || "—"}
             </dd>
           </div>
@@ -223,10 +223,10 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
 
       <div>
         <h2 className="font-semibold">Items</h2>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
                 <tr>
                   <th className="px-4 py-3 font-medium">Product</th>
                   <th className="px-4 py-3 text-right font-medium">Ordered</th>
@@ -235,7 +235,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                   <th className="px-4 py-3 text-right font-medium">Line total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {rows.map((item) => {
                   const ordered = Number(item.quantity_ordered);
                   const received = Number(item.quantity_received);
@@ -257,7 +257,7 @@ export default async function PurchaseOrderDetailPage({ params }: { params: Prom
                   );
                 })}
               </tbody>
-              <tfoot className="border-t border-neutral-200 dark:border-neutral-800">
+              <tfoot className="border-t border-neutral-200 dark:border-surface-line">
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-right text-sm font-medium">
                     Order total

@@ -69,7 +69,7 @@ export default async function NewExpensePage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Record expense</h1>
-        <p className="text-neutral-500">Money that has left the business. It counts against profit straight away.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Money that has left the business. It counts against profit straight away.</p>
       </div>
 
       {branches.length === 0 ? (

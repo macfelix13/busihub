@@ -12,4 +12,3 @@ export function SetMainBranchButton({ branchId }: { branchId: string }) {
     </form>
   );
 }
-

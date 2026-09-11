@@ -29,7 +29,7 @@ export default async function BranchesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Branches</h1>
-          <p className="text-neutral-500">Locations your business operates from.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Locations your business operates from.</p>
         </div>
         {canManage ? (
           <Link href="/branches/new">
@@ -43,8 +43,8 @@ export default async function BranchesPage() {
           Couldn&apos;t load branches. Please refresh the page.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {branches && branches.length > 0 ? (
               branches.map((branch) => (
                 <li key={branch.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -57,12 +57,12 @@ export default async function BranchesPage() {
                         </span>
                       ) : null}
                       {branch.status === "inactive" ? (
-                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-surface dark:text-ink-muted">
                           Inactive
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 text-sm text-neutral-500">
+                    <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
                       {[branch.city, branch.region].filter(Boolean).join(", ") || "No location set"}
                       {branch.phone ? ` · ${branch.phone}` : ""}
                     </p>
@@ -78,7 +78,7 @@ export default async function BranchesPage() {
                 </li>
               ))
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">No branches yet.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">No branches yet.</li>
             )}
           </ul>
         </div>

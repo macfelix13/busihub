@@ -125,7 +125,7 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         className={cn(
-          "relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-ink-muted dark:hover:bg-surface",
           FOCUS_RING
         )}
       >
@@ -146,8 +146,8 @@ export function NotificationBell() {
         // header's own height (h-11 button + py-3 padding, plus a small
         // gap) — update it if the header's size ever changes. From `sm:`
         // up there is enough room for the original bell-relative popover.
-        <div className="fixed inset-x-4 top-[4.5rem] z-20 animate-slide-down overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-neutral-800 dark:bg-neutral-900 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[90vw]">
-          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+        <div className="fixed inset-x-4 top-[4.5rem] z-20 animate-slide-down overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg dark:border-surface-line dark:bg-surface-card sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-[90vw]">
+          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-surface-line">
             <span className="text-sm font-semibold">Notifications</span>
             {unreadCount > 0 ? (
               <button
@@ -174,9 +174,9 @@ export function NotificationBell() {
             ) : error ? (
               <p className="px-4 py-8 text-center text-sm text-red-600 dark:text-red-400">{error}</p>
             ) : notifications.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-neutral-500">You&apos;re all caught up.</p>
+              <p className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">You&apos;re all caught up.</p>
             ) : (
-              <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {notifications.map((n) => {
                   const { title, body, href } = formatNotification(n, currencyCode);
                   return (
@@ -185,17 +185,17 @@ export function NotificationBell() {
                         href={href}
                         onClick={() => handleItemClick(n)}
                         className={cn(
-                          "flex gap-2.5 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50",
+                          "flex gap-2.5 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60",
                           "focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-brand-950",
                           !n.is_read && "bg-brand-50/60 dark:bg-brand-950/20"
                         )}
                       >
                         <span className={cn("mt-1.5 h-2 w-2 flex-shrink-0 rounded-full", SEVERITY_DOT[n.severity])} />
                         <span className="flex flex-col gap-0.5">
-                          <span className={cn("font-medium", !n.is_read && "text-neutral-900 dark:text-white")}>
+                          <span className={cn("font-medium", !n.is_read && "text-neutral-900 dark:text-ink")}>
                             {title}
                           </span>
-                          <span className="text-neutral-500">{body}</span>
+                          <span className="text-neutral-500 dark:text-ink-muted">{body}</span>
                         </span>
                       </Link>
                     </li>

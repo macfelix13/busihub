@@ -59,15 +59,15 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
             <Users className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-semibold">Switch user</h1>
-          <p className="text-neutral-500">Pick who&apos;s taking over the till.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Pick who&apos;s taking over the till.</p>
         </div>
         {colleagues.length === 0 ? (
-          <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
+          <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-surface-line dark:text-ink-muted">
             There&apos;s nobody else active on this account to switch to.
           </p>
         ) : (
           <Card className="overflow-hidden">
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
               {colleagues.map((c) => (
                 <li key={c.id}>
                   <button
@@ -77,7 +77,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
                       setPassword("");
                       setMode("switch-password");
                     }}
-                    className="min-h-[56px] w-full px-5 py-4 text-left font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    className="min-h-[56px] w-full px-5 py-4 text-left font-medium transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60"
                   >
                     {c.name}
                   </button>
@@ -107,7 +107,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
             <Lock className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-semibold">{colleague.name}</h1>
-          <p className="text-neutral-500">Enter their password to switch.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Enter their password to switch.</p>
         </div>
 
         {switchFormState.error ? (
@@ -164,7 +164,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
             <KeyRound className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className="text-xl font-semibold">You don&apos;t have a PIN yet</h1>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
             The till confirms it&apos;s really you with a short PIN before you can start selling. Set one under{" "}
             <span className="font-medium">My PIN</span>, then come back here.
           </p>
@@ -187,7 +187,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
           <KeyRound className="h-6 w-6" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-semibold">{cashier.name}</h1>
-        <p className="text-neutral-500">Enter your PIN to start serving.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Enter your PIN to start serving.</p>
       </div>
 
       {pinFormState.error ? (
@@ -209,7 +209,7 @@ export function PinPad({ cashier, colleagues }: { cashier: TillCashier; colleagu
           <span
             key={i}
             className={`h-3 w-3 rounded-full ${
-              i < pin.length ? "bg-brand-600" : "bg-neutral-200 dark:bg-neutral-700"
+              i < pin.length ? "bg-brand-600" : "bg-neutral-200 dark:bg-surface-line"
             }`}
           />
         ))}

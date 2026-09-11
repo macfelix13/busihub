@@ -78,11 +78,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
-        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-surface-line dark:bg-surface-card">
           <h1 className="text-lg font-semibold">
             {business.status === "suspended" ? "Account suspended" : "Account closed"}
           </h1>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
             {business.status === "suspended"
               ? "This business's Busihub account has been suspended. Contact Busihub support for help."
               : "This business's Busihub account is no longer active. Contact Busihub support if you believe this is a mistake."}
@@ -119,9 +119,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (profile.status !== "active") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
-        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-surface-line dark:bg-surface-card">
           <h1 className="text-lg font-semibold">Account deactivated</h1>
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
             Your access to {businessName ?? "this business"} has been deactivated. Contact your business owner or
             manager if you think this is a mistake — Busihub support can&apos;t reactivate a staff account on your
             behalf.

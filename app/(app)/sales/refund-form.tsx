@@ -80,7 +80,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-surface-line">
+            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-surface-line dark:text-ink-muted">
               <tr>
                 <th className="px-4 py-3 font-medium">Item</th>
                 <th className="px-4 py-3 text-right font-medium">Sold</th>

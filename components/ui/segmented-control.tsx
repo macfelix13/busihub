@@ -58,7 +58,7 @@ export function SegmentedControl({ options, className, size = "sm" }: SegmentedC
   return (
     <div
       className={cn(
-        "flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800",
+        "flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-surface-line",
         className
       )}
     >
@@ -68,7 +68,7 @@ export function SegmentedControl({ options, className, size = "sm" }: SegmentedC
           SIZE_CLASSES[size],
           option.active
             ? "bg-brand-950 text-white"
-            : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white",
+            : "text-neutral-600 hover:text-neutral-900 dark:text-ink-muted dark:hover:text-ink",
           option.disabled && "pointer-events-none opacity-50",
           option.className
         );

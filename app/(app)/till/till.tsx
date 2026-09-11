@@ -559,11 +559,11 @@ export function Till({
                           <span>
                             <span className="font-medium">{p.label}</span>
                             {p.type === "product" ? (
-                              <span className="ml-2 text-sm text-neutral-500">
+                              <span className="ml-2 text-sm text-neutral-500 dark:text-ink-muted">
                                 {formatQuantity(adjustedOnHand(p))} {p.unit} left
                               </span>
                             ) : (
-                              <span className="ml-2 text-sm text-neutral-500">
+                              <span className="ml-2 text-sm text-neutral-500 dark:text-ink-muted">
                                 Service{p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
                               </span>
                             )}
@@ -574,7 +574,7 @@ export function Till({
                     </li>
                   ))
                 ) : (
-                  <li className="px-4 py-6 text-center text-sm text-neutral-500">Nothing matches that.</li>
+                  <li className="px-4 py-6 text-center text-sm text-neutral-500 dark:text-ink-muted">Nothing matches that.</li>
                 )}
               </ul>
             </Card>
@@ -595,7 +595,7 @@ export function Till({
                   >
                     <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-neutral-500 dark:text-ink-muted">
                       {p.type === "product"
                         ? `${formatQuantity(adjustedOnHand(p))} ${p.unit} left`
                         : `Service${p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}`}
@@ -608,7 +608,7 @@ export function Till({
               </div>
             </Card>
           ) : (
-            <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-surface-line">
+            <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-surface-line dark:text-ink-muted">
               Nothing is set to show at the till yet. Turn on &ldquo;Show at till&rdquo; from a product or
               service&apos;s page.
             </p>
@@ -646,7 +646,7 @@ export function Till({
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{p.label}</p>
-                          <p className="text-sm text-neutral-500">
+                          <p className="text-sm text-neutral-500 dark:text-ink-muted">
                             {formatMoney(toMinorUnits(p.price), currencyCode)} each
                             {isService && p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
                             {short ? (
@@ -718,7 +718,7 @@ export function Till({
                   );
                 })
               ) : (
-                <li className="px-4 py-10 text-center text-sm text-neutral-500">
+                <li className="px-4 py-10 text-center text-sm text-neutral-500 dark:text-ink-muted">
                   Nothing on this sale yet. Scan or search above.
                 </li>
               )}
@@ -744,7 +744,7 @@ export function Till({
                 ? ` · Change ${formatMoney(toMinorUnits(queuedConfirmation.change), currencyCode)}`
                 : ""}
             </p>
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">
               Saved on this device — there&apos;s no receipt number yet. It will sync automatically once you&apos;re
               back online, or you can watch it from the banner at the bottom of the screen.
             </p>
@@ -775,12 +775,12 @@ export function Till({
 
           <Card className="p-5">
             <div className="flex items-baseline justify-between">
-              <span className="text-neutral-500">Total</span>
+              <span className="text-neutral-500 dark:text-ink-muted">Total</span>
               <span className="text-3xl font-semibold tabular-nums">
                 {formatMoney(toMinorUnits(total), currencyCode)}
               </span>
             </div>
-            <p className="mt-1 text-right text-xs text-neutral-500">
+            <p className="mt-1 text-right text-xs text-neutral-500 dark:text-ink-muted">
               Tax included. Confirmed by the server when you take payment.
             </p>
           </Card>
@@ -920,14 +920,14 @@ export function Till({
                   {formatMoney(toMinorUnits(Math.max(momoPart, 0)), currencyCode)}
                 </span>
               </div>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-neutral-500 dark:text-ink-muted">
                 They approve it on their own phone and have about three minutes. The sale stays open until they do.
               </p>
             </>
           ) : null}
 
           {paymentMethod === "credit" && selectedCustomer ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">
               This will be added to {selectedCustomer.name}&apos;s account. It is refused if it takes them over their
               credit limit.
             </p>

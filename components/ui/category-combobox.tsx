@@ -69,7 +69,7 @@ export function CategoryCombobox({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+      <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-ink">
         {label}
       </label>
       <div className="relative">
@@ -92,8 +92,8 @@ export function CategoryCombobox({
           aria-describedby={error ? errorId : undefined}
           className={cn(
             "min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 pr-9 text-base text-neutral-900",
-            "focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30",
-            "dark:border-neutral-700 dark:bg-neutral-900 dark:text-white",
+            "focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40",
+            "dark:border-surface-line dark:bg-surface dark:text-ink",
             error && "border-red-500 focus:border-red-500 focus:ring-red-500/30"
           )}
         />
@@ -102,14 +102,14 @@ export function CategoryCombobox({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setText("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-neutral-400 hover:text-neutral-600 dark:text-ink-muted dark:hover:text-ink"
             aria-label="Clear category"
           >
             ✕
           </button>
         ) : null}
         {open && matches.length > 0 ? (
-          <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+          <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg dark:border-surface-line dark:bg-surface-card">
             {matches.map((c) => {
               const Icon = categoryIconComponent(c.icon);
               return (
@@ -121,7 +121,7 @@ export function CategoryCombobox({
                       setText(c.name);
                       setOpen(false);
                     }}
-                    className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-surface/60"
                   >
                     {Icon ? <Icon className="h-4 w-4 text-neutral-400" aria-hidden="true" /> : null}
                     {c.name}
@@ -134,7 +134,7 @@ export function CategoryCombobox({
       </div>
       {willCreate ? (
         canCreate ? (
-          <p className="text-xs text-neutral-500">&ldquo;{text.trim()}&rdquo; will be added as a new category.</p>
+          <p className="text-xs text-neutral-500 dark:text-ink-muted">&ldquo;{text.trim()}&rdquo; will be added as a new category.</p>
         ) : (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             No category matches &ldquo;{text.trim()}&rdquo; — choose one from the list, or ask an admin to add it.

@@ -94,15 +94,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={toast.id}
               role={toast.type === "error" ? "alert" : "status"}
-              className="pointer-events-auto flex w-full items-start gap-3 rounded-xl border border-neutral-200 bg-white p-3.5 shadow-lg animate-slide-down dark:border-neutral-800 dark:bg-neutral-900 sm:w-full sm:max-w-sm"
+              className="pointer-events-auto flex w-full items-start gap-3 rounded-xl border border-neutral-200 bg-white p-3.5 shadow-lg animate-slide-down dark:border-surface-line dark:bg-surface-card sm:w-full sm:max-w-sm"
             >
               <Icon className={cn("mt-0.5 h-5 w-5 flex-shrink-0", ICON_CLASSES[toast.type])} aria-hidden="true" />
-              <p className="min-w-0 flex-1 text-sm text-neutral-700 dark:text-neutral-200">{toast.message}</p>
+              <p className="min-w-0 flex-1 text-sm text-neutral-700 dark:text-ink">{toast.message}</p>
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 aria-label="Dismiss notification"
-                className="flex-shrink-0 rounded-lg p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+                className="flex-shrink-0 rounded-lg p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:text-ink-muted dark:hover:bg-surface dark:hover:text-ink"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>

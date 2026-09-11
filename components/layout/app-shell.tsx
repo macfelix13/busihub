@@ -62,7 +62,7 @@ export function AppShell({
             type="button"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
-            className={`-ml-1.5 flex-shrink-0 rounded-lg p-1.5 text-neutral-600 transition-colors hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10 md:hidden ${FOCUS_RING}`}
+            className={`-ml-1.5 flex-shrink-0 rounded-lg p-1.5 text-neutral-600 transition-colors hover:bg-black/5 dark:text-ink-muted dark:hover:bg-white/10 md:hidden ${FOCUS_RING}`}
           >
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
@@ -71,11 +71,11 @@ export function AppShell({
             <ThemeToggle />
             {notificationSlot}
             <div className="hidden h-6 w-px bg-neutral-300/60 dark:bg-white/10 sm:block" aria-hidden="true" />
-            <div className="hidden items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm shadow-neutral-900/5 dark:bg-neutral-900 sm:flex">
+            <div className="hidden items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm shadow-neutral-900/5 dark:bg-surface-card sm:flex">
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-lime-400 text-xs font-semibold text-brand-950">
                 {initialsFor(userLabel)}
               </span>
-              <span className="max-w-[10rem] truncate text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              <span className="max-w-[10rem] truncate text-sm font-medium text-neutral-700 dark:text-ink">
                 {userLabel}
               </span>
             </div>

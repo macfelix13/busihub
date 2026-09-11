@@ -18,13 +18,13 @@ export function Checkbox({ label, description, className, id, ...props }: Checkb
       <input
         id={inputId}
         type="checkbox"
-        className="mt-0.5 h-5 w-5 shrink-0 rounded border-neutral-300 text-brand-950 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+        className="mt-0.5 h-5 w-5 shrink-0 rounded border-neutral-300 text-brand-950 focus:ring-2 focus:ring-brand-500/30 dark:border-surface-line dark:bg-surface"
         {...props}
       />
       <label htmlFor={inputId} className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{label}</span>
+        <span className="text-sm font-medium text-neutral-800 dark:text-ink">{label}</span>
         {description ? (
-          <span className="text-sm text-neutral-500 dark:text-neutral-400">{description}</span>
+          <span className="text-sm text-neutral-500 dark:text-ink-muted">{description}</span>
         ) : null}
       </label>
     </div>

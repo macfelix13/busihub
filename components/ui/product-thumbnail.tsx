@@ -37,7 +37,7 @@ export function ProductThumbnail({
   return (
     <span
       className={cn(
-        "flex flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800",
+        "flex flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-surface",
         SIZE_CLASSES[size],
         className
       )}

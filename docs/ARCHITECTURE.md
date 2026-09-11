@@ -466,6 +466,81 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 8 of N (final
+  end-to-end sweep). Requested directly by the user ("final end-to-end
+  dark-mode pass") after phase 7 closed out the last *named* area from
+  the original spec. Rather than taking that as "done," this phase
+  re-audited the entire repository with the same greps used to scope
+  every earlier phase (`dark:*-neutral-(300|400|700|800|900|950)` and
+  bare `text-neutral-500` with no dark variant, across every `.tsx`/`.ts`
+  file, not just the directories a phase had already named) — and found
+  real gaps. The most significant: **the Till itself** — the screen
+  every cashier's workday actually runs through — had never been touched
+  by any phase. Neither had `app/(app)/layout.tsx` (the authenticated shell's own
+  suspended/deactivated-account screens) or `components/layout/app-shell.tsx`
+  (the header wrapping every single page in the app). This means the
+  previous seven phases, while each individually verified, did not add
+  up to the "every screen" claim implied by treating phase 7 as the
+  finish line — this sweep is what actually earns that claim.
+
+  **What this phase touched**:
+
+  - The Till: `app/(app)/till/page.tsx`, `pin-pad.tsx` (the lock-screen/
+    switch-user flow), and `till.tsx` itself (the till.tsx file was
+    already partially on the surface/ink tokens from unrelated prior
+    work — the offline-sync banner phase — but still had a dozen bare
+    `text-neutral-500` instances with no dark variant).
+  - The app shell: `app/(app)/layout.tsx` (suspended/deactivated business
+    and staff screens) and `components/layout/app-shell.tsx` (the header:
+    mobile menu button, the profile chip, its name text).
+  - A genuine gap in already-"completed" phase 4 work:
+    `app/(app)/sales/refund-form.tsx` had one table header
+    (`<thead>`) with a bare `text-neutral-500` that the phase 4 pass
+    missed.
+  - Shared UI components used throughout the app that were never part of
+    the phase 1 foundational set (`button.tsx`, `field.tsx`, `badge.tsx`,
+    `card.tsx` were; these weren't): `checkbox.tsx`, `confirm-dialog.tsx`,
+    `empty-state.tsx`, `product-thumbnail.tsx`, `segmented-control.tsx`,
+    `theme-toggle.tsx`, `toast.tsx`, `category-combobox.tsx`, and
+    `components/notifications/notification-bell.tsx`.
+  - `app/privacy/page.tsx` and `app/terms/page.tsx` — deliberately
+    excluded from phase 7 because the user hadn't named them, but in
+    scope now that the request is explicitly "end-to-end."
+
+  Same treatment as every prior phase: status/icon badges, borders,
+  dividers, row hovers, dropdown/popover/toast/dialog backgrounds, and
+  muted text moved onto the `surface`/`ink` tokens. No queries, actions,
+  cart logic, or offline-sync behavior changed anywhere — confirmed by
+  reading every file in full before editing; only className strings were
+  touched. The severity-dot color map in `notification-bell.tsx`
+  (`info: "bg-neutral-400"`, alongside amber/red for warning/critical)
+  was deliberately left alone — it's a three-way semantic status color,
+  not grey chrome that needs a surface token, the same reasoning that
+  already excludes the amber/red entries.
+
+  **New judgment call — interactive icon-only dismiss/clear buttons with
+  no dark variant at all.** `toast.tsx`'s dismiss ✕ and
+  `category-combobox.tsx`'s clear ✕ both had a light-mode-only resting
+  state (`text-neutral-400`) that darkens on hover
+  (`hover:text-neutral-600`) with no dark-mode treatment whatsoever —
+  distinct from the established "bare decorative icon, leave it alone"
+  precedent (phase 3's product photo icon, this phase's own
+  `product-thumbnail.tsx` fallback), because these two are interactive
+  controls a user actually clicks, not decoration. Mapped using the same
+  relationship phase 7 established for the footer's hover-to-emphasis
+  links: resting state gets `dark:text-ink-muted`, hover gets
+  `dark:hover:text-ink` — the muted-to-primary jump light mode already
+  makes, expressed with the two tokens that exist for exactly that.
+
+  Untouched: everything already covered by phases 1-7, the PWA/offline
+  UI, and the inverted "Platform" badge in `app/admin/layout.tsx`
+  (confirmed still the one deliberate exception, not a miss — its
+  `dark:bg-white dark:text-neutral-900` is a real contrast design, not
+  grey chrome). A final repo-wide grep for
+  `dark:*-neutral-(300|400|700|800|900|950)` and bare `text-neutral-500`
+  after this phase's edits returns exactly one match — that same
+  Platform badge — confirming there is nothing left to retune.
+
 - 2026-09-11 — Busihub brand identity pass, phase 7 of N (the public
   landing page and auth screens). Scope named directly by the user
   ("landing page and auth screens (login, register, password reset,

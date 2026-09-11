@@ -169,7 +169,7 @@ export default async function TillPage({
 
   if (!activeBranch) {
     return (
-      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
+      <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-surface-line dark:text-ink-muted">
         No active branch to sell from. Add one under Branches first.
       </p>
     );

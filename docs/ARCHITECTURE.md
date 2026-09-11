@@ -447,7 +447,7 @@ one section of this document expected to change often.
 | 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
-| 17 | Synchronization | **partial — backend only, see changelog** (`create_sale()` accepts an idempotent `client_transaction_id`, a synced sale is allowed to oversell and records a notification instead of being refused, mobile money is blocked for a synced sale, and `/api/sync` exists to receive a batch of them; there is no offline sale queue in the browser yet — no IndexedDB outbox, no till-UI restriction to cash/credit while offline, no service worker `sync` event, nothing queues a sale for this endpoint to receive) |
+| 17 | Synchronization | **partial — mid-session resilience only, see changelog** (a cash/credit sale rung up at the till while the connection drops mid-session queues on the device via IndexedDB and syncs automatically to `/api/sync` once reconnected, idempotently; opening or reloading `/till` from a cold start with no connection still doesn't work — that needs a whole separate offline catalog cache, deliberately scoped out — and there is no service-worker-driven Background Sync retry, by deliberate choice, not oversight, see changelog) |
 | 18 | Subscriptions & entitlements enforcement | pending |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
 | 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
@@ -465,6 +465,79 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-11 — Phase 17 (Synchronization), client half — scoped to
+  "mid-session resilience," not full offline support, after weighing two
+  options directly with the business owner: either the till survives a
+  connection drop while it's already open (using the catalog already
+  loaded in the browser), or the till works from a cold start with no
+  connection at all (which would mean caching the whole product/customer
+  catalog client-side and reworking how the till page fetches its data —
+  a much larger change to the core money-handling screen). The narrower
+  option was chosen; opening or reloading `/till` still needs a live
+  connection exactly as before, unchanged by anything in this entry.
+  `lib/offline/queue.ts` (new) is an IndexedDB-backed outbox for sales
+  rung up while offline, keyed on the same `client_transaction_id`
+  `create_sale()`'s idempotency check (0052) is keyed on.
+  `lib/offline/sync.ts` (new) drains it into `/api/sync` in one batch, reconciling per
+  item: a sale the server confirms is removed, one it rejects keeps its
+  place with the server's own message attached, and a request that never
+  gets a response leaves the whole queue untouched (so this is always
+  safe to call speculatively). `lib/offline/use-online-status.ts` and
+  `lib/offline/use-pending-sync.ts` (new) are the two hooks that drive
+  it: a shared `online`/`offline` listener (till.tsx and the connection
+  banner both use it now instead of each keeping their own), and the one
+  place that decides when to try flushing the queue — once on mount, and
+  again every time the browser fires `online`.
+  `app/(app)/till/till.tsx` (updated): while offline, the Payment picker
+  drops mobile money and split (0052 refuses these for a synced sale
+  too, for the same underlying reason — a phone can't be prompted for a
+  charge on a sale that hasn't reached a server yet), a stale momo/split
+  selection made before the connection dropped resets to cash
+  automatically, and submitting queues the sale locally instead of
+  calling completeSale() — with the same "not enough cash tendered" and
+  "credit needs a customer" checks the server would otherwise catch,
+  since there's no round trip left to catch them for it. A
+  `queuedThisSession` map subtracts each tab's own not-yet-synced quantities from
+  the stock figures it displays, so ringing up several offline sales in
+  a row doesn't keep showing stock that's already spoken for — a
+  courtesy display only, not a real reservation (another till, or a
+  reload of this one, has no way to know about it, and the server itself
+  still lets a synced sale oversell rather than refuse it).
+  `components/ui/connection-status.tsx` (updated): no longer renders
+  nothing while online — if the queue isn't empty it now shows how many
+  sales are waiting, syncing, or stuck, with a manual "Sync now" button.
+  The offline copy also changed to say how many sales are saved on the
+  device when the queue isn't empty, instead of the previous blanket
+  "won't work until you reconnect," which stopped being fully true the
+  moment this shipped.
+  Left out, on purpose: a Background Sync API `sync` event registration
+  in `public/sw.js`, which would let a queued sale retry even with every
+  tab closed. Building it properly would mean a second copy of the same
+  queue/flush logic hand-written in plain, unbundled JS (a service
+  worker can't import this app's TypeScript module graph), for a
+  browser API with no support in Safari/iOS at all. A till isn't
+  normally closed mid-shift, so retrying when a tab notices it's back
+  online (or a cashier taps "Sync now") covers the realistic case — the
+  harder, riskier mechanism was deliberately left out rather than half-
+  built. There is also still no way to edit or discard a sale stuck in
+  the queue from the UI — if a queued sale keeps failing to sync (an
+  item deleted since, say), it sits there showing its error until the
+  underlying problem is fixed or a developer clears it directly; a
+  management view for the queue is a reasonable follow-up, not something
+  this pass built.
+  `lib/validation/offline-sync.ts` gained no new fields (unchanged from
+  the backend pass) but `tests/unit/offline-sync-validation.test.ts`
+  (new) is the first automated coverage for it — the pure zod schema
+  logic is testable under Vitest's node environment; the IndexedDB/fetch
+  code in lib/offline/*.ts is not (no jsdom/fake-indexeddb in this
+  project's test setup, and none was added for this — consistent with
+  this codebase's general reluctance to reach for a new dependency), so
+  that half was verified by hand-reviewing every import against the
+  files it actually calls, the same way app/api/sync/route.ts was in the
+  backend pass. It still needs the same real-browser verification (throt-
+  tling the network in DevTools, ringing up an offline sale, watching it
+  sync) that automated tests can't reach here.
 
 - 2026-09-10 — Phase 17 (Synchronization), backend half only. Migration
   `0052_offline_sync.sql` extends `create_sale()` with a trailing

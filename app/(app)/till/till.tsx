@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormState } from "react-dom";
 import { AlertCircle, Minus, Plus } from "lucide-react";
 import { Button, SubmitButton } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { ProductThumbnail } from "@/components/ui/product-thumbnail";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { PAYMENT_METHODS, MOMO_NETWORKS, normaliseMomoNumber, guessMomoNetwork } from "@/lib/validation/sales";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
+import { enqueueSale } from "@/lib/offline/queue";
 import { completeSale, signOutCashier, openDrawerNoSale, type FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -128,6 +130,7 @@ export function Till({
   canOpenDrawer,
 }: TillProps) {
   const [state, formAction] = useFormState(completeSale, initialState);
+  const isOnline = useOnlineStatus();
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -135,6 +138,27 @@ export function Till({
   const [tendered, setTendered] = useState("");
   const [cashPart, setCashPart] = useState("");
   const [momoNumber, setMomoNumber] = useState("");
+  // Phase 17 (Synchronization), client half — "mid-session resilience"
+  // only (see docs/ARCHITECTURE.md): if the connection drops while this
+  // page is already open, a cash/credit sale queues locally instead of
+  // being refused outright. Reopening /till from a cold start still needs
+  // a live connection, exactly as before — nothing here changes that.
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [queuedConfirmation, setQueuedConfirmation] = useState<{
+    itemCount: number;
+    total: number;
+    paymentMethod: "cash" | "credit";
+    change: number | null;
+  } | null>(null);
+  // How much of each variant THIS TAB has already queued this session but
+  // not yet synced — subtracted from the server-reported onHand for
+  // display and the short-stock check, so ringing up several offline
+  // sales in a row doesn't keep showing stock that's already spoken for.
+  // Deliberately per-tab, not a real reservation: another till, or this
+  // same one after a reload, has no way to know about it, and the server
+  // itself still allows a synced sale to oversell rather than refuse it
+  // (0052) — this is a courtesy display, not a correctness guarantee.
+  const [queuedThisSession, setQueuedThisSession] = useState<Record<string, number>>({});
   const [momoNetwork, setMomoNetwork] = useState<string>(MOMO_NETWORKS[0].value);
   // Whether the cashier has explicitly picked a network for THIS number,
   // as opposed to it still being wherever guessMomoNetwork() (or the
@@ -153,6 +177,29 @@ export function Till({
   const [noSalePending, startNoSaleTransition] = useTransition();
 
   const byId = useMemo(() => new Map(products.map((p) => [p.variantId, p])), [products]);
+
+  function adjustedOnHand(p: TillProduct): number {
+    return p.onHand - (queuedThisSession[p.variantId] ?? 0);
+  }
+
+  // Mobile money can't be prompted for a charge that already happened by
+  // the time a connection returns (0052 refuses it server-side too for a
+  // synced sale), so a selection made while online is no longer valid the
+  // moment the connection drops mid-session.
+  //
+  // The setState is deferred a tick (rather than called straight in the
+  // effect body) so this doesn't trip react-hooks/set-state-in-effect: a
+  // direct, synchronous setState here would force a second render in the
+  // same commit as the isOnline flip. Letting the browser reach idle
+  // first, then applying the reset, is the same one-line-of-lag fix the
+  // rule's own docs point at — imperceptible here since going offline is
+  // itself an async, user-visible event, not something rendered mid-frame.
+  useEffect(() => {
+    if (!isOnline && (paymentMethod === "momo" || paymentMethod === "split")) {
+      const timeoutId = setTimeout(() => setPaymentMethod("cash"), 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOnline, paymentMethod]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -268,7 +315,7 @@ export function Till({
   // it never counts toward a stock warning, only a product does.
   const shortLines = cart.filter((line) => {
     const p = byId.get(line.variantId);
-    return p && p.type === "product" ? line.quantity > p.onHand : false;
+    return p && p.type === "product" ? line.quantity > adjustedOnHand(p) : false;
   });
 
   // The database refuses a service line with no rendered_by anyway, but
@@ -280,6 +327,90 @@ export function Till({
   });
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
+
+  /**
+   * The offline path. Left untouched (no onSubmit at all, `<form
+   * action={formAction}>` submits exactly as before) whenever the
+   * browser reports it's online — this function's whole body only runs
+   * once there is genuinely no connection to try the server with.
+   *
+   * There is no server round trip here to validate anything, so the two
+   * checks below (payment method, credit needs a customer) are the real
+   * gate for this path — the UI already steers around both (the Payment
+   * picker hides momo/split while offline, and nothing disables the
+   * customer field for credit) but neither is trusted alone, the same
+   * way the till never trusts its own disabled-button state as the only
+   * thing stopping a bad submission.
+   */
+  function handleOfflineSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (isOnline) return;
+    e.preventDefault();
+    setQueueError(null);
+
+    if (cart.length === 0 || missingRenderedBy) return;
+
+    if (paymentMethod !== "cash" && paymentMethod !== "credit") {
+      setQueueError("Only cash or on-account sales can be taken while offline.");
+      return;
+    }
+    if (paymentMethod === "credit" && !customerId) {
+      setQueueError("Choose a customer to put this sale on account while offline.");
+      return;
+    }
+    // create_sale() still checks this for a synced sale exactly as it
+    // does online (0052 only exempts the stock and mobile-money checks
+    // for reason = sale_synced) — with no server round trip to catch it
+    // now, a short cash tender would otherwise sit in the queue and only
+    // fail once it finally reaches the server.
+    if (paymentMethod === "cash" && !(tenderedNumber >= total)) {
+      setQueueError("Not enough cash tendered.");
+      return;
+    }
+
+    // Captured as its own binding, typed to just the two offline-eligible
+    // methods, rather than relying on the checks above to keep narrowing
+    // `paymentMethod` itself all the way into the .then() callback below.
+    const offlinePaymentMethod: "cash" | "credit" = paymentMethod === "credit" ? "credit" : "cash";
+    const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
+    const saleTotal = total;
+    const saleChange = offlinePaymentMethod === "cash" ? change : null;
+
+    enqueueSale({
+      clientTransactionId: crypto.randomUUID(),
+      branchId,
+      customerId: customerId || undefined,
+      paymentMethod: offlinePaymentMethod,
+      amountTendered: offlinePaymentMethod === "cash" ? tenderedNumber : 0,
+      items: cart.map((line) => {
+        const renderer = decodeRenderer(line.renderedBy);
+        return {
+          variantId: line.variantId,
+          quantity: line.quantity,
+          renderedByStaffId: renderer?.kind === "staff" ? renderer.id : undefined,
+          renderedByProviderId: renderer?.kind === "provider" ? renderer.id : undefined,
+        };
+      }),
+      queuedAt: new Date().toISOString(),
+      summary: { itemCount, total: saleTotal, branchName, cashierName },
+    })
+      .then(() => {
+        setQueuedThisSession((prev) => {
+          const next = { ...prev };
+          for (const line of cart) {
+            next[line.variantId] = (next[line.variantId] ?? 0) + line.quantity;
+          }
+          return next;
+        });
+        setQueuedConfirmation({ itemCount, total: saleTotal, paymentMethod: offlinePaymentMethod, change: saleChange });
+        setCart([]);
+        setTendered("");
+        setCustomerId("");
+      })
+      .catch((err) => {
+        console.error("Till: could not queue offline sale", err);
+        setQueueError("Couldn't save this sale for later on this device. Please try again.");
+      });
+  }
 
   return (
     <>
@@ -316,13 +447,13 @@ export function Till({
         }
       />
 
-      {state.error ? (
+      {state.error || queueError ? (
         <p
           role="alert"
           className="flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          <span>{state.error}</span>
+          <span>{state.error || queueError}</span>
         </p>
       ) : null}
 
@@ -375,7 +506,7 @@ export function Till({
                             <span className="font-medium">{p.label}</span>
                             {p.type === "product" ? (
                               <span className="ml-2 text-sm text-neutral-500">
-                                {formatQuantity(p.onHand)} {p.unit} left
+                                {formatQuantity(adjustedOnHand(p))} {p.unit} left
                               </span>
                             ) : (
                               <span className="ml-2 text-sm text-neutral-500">
@@ -412,7 +543,7 @@ export function Till({
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
                     <span className="text-xs text-neutral-500">
                       {p.type === "product"
-                        ? `${formatQuantity(p.onHand)} ${p.unit} left`
+                        ? `${formatQuantity(adjustedOnHand(p))} ${p.unit} left`
                         : `Service${p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}`}
                     </span>
                     <span className="tabular-nums text-sm font-medium">
@@ -436,7 +567,7 @@ export function Till({
                   const p = byId.get(line.variantId);
                   if (!p) return null;
                   const isService = p.type === "service";
-                  const short = !isService && line.quantity > p.onHand;
+                  const short = !isService && line.quantity > adjustedOnHand(p);
                   return (
                     <li key={line.key} className="flex flex-col gap-2 px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -447,7 +578,7 @@ export function Till({
                             {isService && p.durationMinutes ? ` · ${p.durationMinutes} min` : ""}
                             {short ? (
                               <span className="ml-2 text-red-600 dark:text-red-400">
-                                only {formatQuantity(p.onHand)} in stock
+                                only {formatQuantity(adjustedOnHand(p))} in stock
                               </span>
                             ) : null}
                           </p>
@@ -512,7 +643,33 @@ export function Till({
         </div>
 
         {/* ── right: take payment ── */}
-        <form action={formAction} className="flex flex-col gap-4" noValidate>
+        {queuedConfirmation ? (
+          // The offline equivalent of completeSale()'s redirect to
+          // /sales/[id]: there is no receipt page to send anyone to yet
+          // (the sale doesn't exist server-side until this syncs), so
+          // this stands in as "you're done, here's what happened" until
+          // "New sale" clears it and starts the next one.
+          <Card className="flex flex-col gap-3 p-5">
+            <p className="text-lg font-semibold">
+              Sale queued — {formatMoney(toMinorUnits(queuedConfirmation.total), currencyCode)}
+            </p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+              {queuedConfirmation.itemCount} item{queuedConfirmation.itemCount === 1 ? "" : "s"} ·{" "}
+              {queuedConfirmation.paymentMethod === "cash" ? "Cash" : "On account"}
+              {queuedConfirmation.change !== null
+                ? ` · Change ${formatMoney(toMinorUnits(queuedConfirmation.change), currencyCode)}`
+                : ""}
+            </p>
+            <p className="text-sm text-neutral-500">
+              Saved on this device — there&apos;s no receipt number yet. It will sync automatically once you&apos;re
+              back online, or you can watch it from the banner at the bottom of the screen.
+            </p>
+            <Button type="button" onClick={() => setQueuedConfirmation(null)}>
+              New sale
+            </Button>
+          </Card>
+        ) : (
+        <form action={formAction} onSubmit={handleOfflineSubmit} className="flex flex-col gap-4" noValidate>
           <input type="hidden" name="branchId" value={branchId} />
           <input
             type="hidden"
@@ -542,6 +699,13 @@ export function Till({
             </p>
           </Card>
 
+          {!isOnline ? (
+            <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              You&apos;re offline. Cash and on-account sales are still saved here and sync automatically once you
+              reconnect — mobile money isn&apos;t available until then.
+            </p>
+          ) : null}
+
           <Select
             label="Payment"
             name="paymentMethod"
@@ -550,8 +714,12 @@ export function Till({
             error={state.fieldErrors?.paymentMethod}
             options={PAYMENT_METHODS.filter(
               // Offering mobile money without a connected Paystack account
-              // would be a button that can only fail at the counter.
-              (m) => momoEnabled || (m.value !== "momo" && m.value !== "split")
+              // would be a button that can only fail at the counter — and
+              // so would offering it with no connection at all: a phone
+              // can't be prompted for a charge on a sale that hasn't
+              // reached the server yet (0052 refuses it server-side too,
+              // for the same reason, if this ever got through anyway).
+              (m) => (momoEnabled && isOnline) || (m.value !== "momo" && m.value !== "split")
             ).map((m) => ({ value: m.value, label: m.label }))}
           />
 
@@ -719,6 +887,7 @@ export function Till({
             </Button>
           ) : null}
         </form>
+        )}
       </div>
     </div>
 

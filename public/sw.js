@@ -1,5 +1,5 @@
 /**
- * Busihub's service worker — Phase 16 (Offline/PWA) scope only.
+ * Busihub's service worker.
  *
  * This is deliberately narrow. It does two things and nothing else:
  *
@@ -9,15 +9,25 @@
  *   2. Serves a branded /offline.html instead of the browser's own
  *      connection-error page when a page navigation fails while offline.
  *
- * It does NOT queue sales, cache API/data responses, or intercept
- * anything that isn't a plain same-origin GET — that is Phase 17
- * (Synchronization), a separate, much bigger piece of work that touches
- * money and inventory integrity and hasn't been built yet. Every
- * Supabase call, every Server Action (POST), every RSC data fetch passes
- * straight through to the network untouched here. If there's no
- * network, those simply fail the same way they would with no service
- * worker installed at all — which is the honest behavior, since nothing
- * here can actually complete a sale offline yet.
+ * It does NOT cache API/data responses, or intercept anything that isn't
+ * a plain same-origin GET. Every Supabase call, every Server Action
+ * (POST), every RSC data fetch passes straight through to the network
+ * untouched here. If there's no network, those simply fail the same way
+ * they would with no service worker installed at all.
+ *
+ * Offline sales (Phase 17, Synchronization) are handled entirely by
+ * ordinary page JavaScript instead — lib/offline/*, driving an IndexedDB
+ * outbox and components/ui/connection-status.tsx's "Sync now" — NOT by
+ * this file. That was a deliberate choice, not an oversight: a service
+ * worker can't import this app's TypeScript module graph (it would mean
+ * a second, hand-duplicated copy of the same sync logic in plain JS,
+ * with the two able to quietly drift apart), and the obvious reason to
+ * put it here anyway — the Background Sync API's `sync` event, so a
+ * queued sale could retry even with every tab closed — has no support in
+ * Safari/iOS at all. A till isn't normally closed mid-shift, so retrying
+ * when a tab notices it's back online (or a cashier taps "Sync now")
+ * covers the realistic case; see docs/ARCHITECTURE.md's Phase 17
+ * changelog entry for the fuller reasoning.
  *
  * Bump CACHE_VERSION whenever PRECACHE_URLS changes, so old clients drop
  * the stale cache on their next activate rather than serving it forever.

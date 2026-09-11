@@ -15,8 +15,8 @@ export function HowItWorks() {
         {STEPS.map((step) => (
           <div key={step.number} className="flex flex-col gap-2">
             <span className="text-sm font-semibold text-brand-600 dark:text-brand-400">{step.number}</span>
-            <h3 className="text-base font-semibold text-neutral-900 dark:text-white">{step.title}</h3>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">{step.description}</p>
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-ink">{step.title}</h3>
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">{step.description}</p>
           </div>
         ))}
       </div>

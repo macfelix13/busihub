@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 
 export function FinalCta() {
   return (
-    <section className="border-t border-neutral-200 dark:border-neutral-800">
+    <section className="border-t border-neutral-200 dark:border-surface-line">
       <div className="mx-auto max-w-4xl px-5 py-16 text-center sm:px-6 sm:py-24">
-        <h2 className="text-balance text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
+        <h2 className="text-balance text-3xl font-semibold tracking-tight text-neutral-900 dark:text-ink sm:text-4xl">
           Ready to run your business smarter?
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-pretty text-base text-neutral-600 dark:text-neutral-400">
+        <p className="mx-auto mt-4 max-w-xl text-pretty text-base text-neutral-600 dark:text-ink-muted">
           Set up your business, start selling, and keep everything under control with Busihub.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

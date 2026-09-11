@@ -34,10 +34,10 @@ export function Hero() {
           <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-800 dark:bg-brand-950/40 dark:text-brand-300">
             Built for modern businesses in Ghana
           </span>
-          <h1 className="text-balance text-4xl font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-5xl">
+          <h1 className="text-balance text-4xl font-semibold tracking-tight text-neutral-900 dark:text-ink sm:text-5xl">
             Run your business. Sell smarter.
           </h1>
-          <p className="max-w-xl text-pretty text-lg text-neutral-600 dark:text-neutral-400">
+          <p className="max-w-xl text-pretty text-lg text-neutral-600 dark:text-ink-muted">
             Busihub is a simple, powerful POS and business management platform that helps you sell faster, manage
             inventory, accept payments, and keep track of your business — all in one place.
           </p>
@@ -61,8 +61,8 @@ export function Hero() {
                   <point.icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <dt className="text-sm font-semibold text-neutral-900 dark:text-white">{point.title}</dt>
-                  <dd className="text-sm text-neutral-500 dark:text-neutral-400">{point.description}</dd>
+                  <dt className="text-sm font-semibold text-neutral-900 dark:text-ink">{point.title}</dt>
+                  <dd className="text-sm text-neutral-500 dark:text-ink-muted">{point.description}</dd>
                 </div>
               </div>
             ))}

@@ -31,7 +31,7 @@ const LATEST_SALES = [
 export function HeroMockup() {
   return (
     <div className="relative mx-auto w-full max-w-lg lg:mx-0">
-      <div className="flex overflow-hidden rounded-2xl border border-neutral-200 shadow-xl shadow-neutral-900/10 dark:border-neutral-800 dark:shadow-black/30">
+      <div className="flex overflow-hidden rounded-2xl border border-neutral-200 shadow-xl shadow-neutral-900/10 dark:border-surface-line dark:shadow-black/30">
         {/* Sidebar — bg-brand-950 with a lime logo badge and lime
             active-nav highlight, same treatment as
             components/layout/sidebar.tsx. */}
@@ -61,7 +61,7 @@ export function HeroMockup() {
             background (components/layout/app-shell.tsx). */}
         <div className="flex flex-1 flex-col gap-3 bg-canvas p-4 dark:bg-canvas-dark">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-neutral-900 dark:text-white">Dashboard</span>
+            <span className="text-sm font-semibold text-neutral-900 dark:text-ink">Dashboard</span>
             <span className="rounded-lg bg-brand-950 px-2.5 py-1.5 text-[11px] font-medium text-white">
               Open the till
             </span>
@@ -77,29 +77,29 @@ export function HeroMockup() {
               <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wide text-brand-200">Net sales</p>
               <p className="text-sm font-semibold text-white">GH₵ 2,340</p>
             </div>
-            <div className="rounded-xl border border-neutral-200/70 bg-white p-2.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="rounded-xl border border-neutral-200/70 bg-white p-2.5 shadow-sm dark:border-surface-line dark:bg-surface-card">
               <span className="flex h-5 w-5 items-center justify-center rounded-md bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
                 <TrendingUp className="h-3 w-3" aria-hidden="true" />
               </span>
-              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">Profit</p>
-              <p className="text-sm font-semibold text-neutral-900 dark:text-white">GH₵ 890</p>
+              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:text-ink-muted">Profit</p>
+              <p className="text-sm font-semibold text-neutral-900 dark:text-ink">GH₵ 890</p>
             </div>
-            <div className="rounded-xl border border-neutral-200/70 bg-white p-2.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="rounded-xl border border-neutral-200/70 bg-white p-2.5 shadow-sm dark:border-surface-line dark:bg-surface-card">
               <span className="flex h-5 w-5 items-center justify-center rounded-md bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
                 <Receipt className="h-3 w-3" aria-hidden="true" />
               </span>
-              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500">Sales</p>
-              <p className="text-sm font-semibold text-neutral-900 dark:text-white">38</p>
+              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:text-ink-muted">Sales</p>
+              <p className="text-sm font-semibold text-neutral-900 dark:text-ink">38</p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-neutral-200/70 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">Latest sales</p>
+          <div className="rounded-xl border border-neutral-200/70 bg-white p-3 shadow-sm dark:border-surface-line dark:bg-surface-card">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:text-ink-muted">Latest sales</p>
             <div className="mt-2 flex flex-col gap-1.5">
               {LATEST_SALES.map((line) => (
                 <div key={line.name} className="flex items-center justify-between text-xs">
-                  <span className="truncate text-neutral-700 dark:text-neutral-300">{line.name}</span>
-                  <span className="flex-shrink-0 font-medium text-neutral-900 dark:text-white">{line.amount}</span>
+                  <span className="truncate text-neutral-700 dark:text-ink-muted">{line.name}</span>
+                  <span className="flex-shrink-0 font-medium text-neutral-900 dark:text-ink">{line.amount}</span>
                 </div>
               ))}
             </div>
@@ -111,12 +111,12 @@ export function HeroMockup() {
           (rounded-2xl border-neutral-200/70 bg-white shadow) used
           everywhere in the real app, kept small so it reads as a
           companion detail rather than a second competing screen. */}
-      <div className="absolute -bottom-6 -right-4 hidden w-44 rounded-2xl border border-neutral-200/70 bg-white p-3.5 shadow-lg shadow-neutral-900/10 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30 sm:block">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
+      <div className="absolute -bottom-6 -right-4 hidden w-44 rounded-2xl border border-neutral-200/70 bg-white p-3.5 shadow-lg shadow-neutral-900/10 dark:border-surface-line dark:bg-surface-card dark:shadow-black/30 sm:block">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-500 dark:text-ink-muted">
           <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> Today
         </div>
-        <p className="mt-1 text-lg font-semibold text-neutral-900 dark:text-white">38 sales</p>
-        <p className="mt-0.5 text-[11px] text-neutral-500">GH₵ 2,340 taken</p>
+        <p className="mt-1 text-lg font-semibold text-neutral-900 dark:text-ink">38 sales</p>
+        <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-ink-muted">GH₵ 2,340 taken</p>
       </div>
     </div>
   );

@@ -19,7 +19,7 @@ const FLOW = [
  */
 export function PaymentsSection() {
   return (
-    <section id="payments" className="border-t border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
+    <section id="payments" className="border-t border-neutral-200 bg-canvas dark:border-surface-line dark:bg-surface/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
         <SectionHeading
           eyebrow="Payments"
@@ -31,15 +31,15 @@ export function PaymentsSection() {
           {FLOW.map((step, i) => (
             <div key={`${step.label}-${i}`} className="flex items-center gap-1">
               <div className="flex w-24 flex-col items-center gap-2">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-white text-brand-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-brand-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-white text-brand-700 dark:border-surface-line dark:bg-surface-card dark:text-brand-300">
                   <step.icon className="h-5 w-5" />
                 </div>
-                <span className="text-center text-xs font-medium leading-tight text-neutral-600 dark:text-neutral-300">
+                <span className="text-center text-xs font-medium leading-tight text-neutral-600 dark:text-ink-muted">
                   {step.label}
                 </span>
               </div>
               {i < FLOW.length - 1 ? (
-                <ArrowRight className="h-4 w-4 shrink-0 text-neutral-300 dark:text-neutral-700" />
+                <ArrowRight className="h-4 w-4 shrink-0 text-neutral-300 dark:text-ink-muted" />
               ) : null}
             </div>
           ))}
@@ -52,7 +52,7 @@ export function PaymentsSection() {
           </p>
         </div>
 
-        <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-neutral-500 dark:text-neutral-400">
+        <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-neutral-500 dark:text-ink-muted">
           Supports card payments and mobile money — MTN, Telecel and AirtelTigo — through your own Paystack
           integration.
         </p>

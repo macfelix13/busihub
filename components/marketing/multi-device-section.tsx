@@ -24,10 +24,10 @@ export function MultiDeviceSection() {
       <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-6 sm:gap-10">
         {DEVICES.map((device) => (
           <div key={device.label} className="flex flex-col items-center gap-2">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-200 bg-white text-brand-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-brand-300">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-200 bg-white text-brand-700 dark:border-surface-line dark:bg-surface-card dark:text-brand-300">
               <device.icon className="h-6 w-6" />
             </div>
-            <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">{device.label}</span>
+            <span className="text-sm font-medium text-neutral-600 dark:text-ink-muted">{device.label}</span>
           </div>
         ))}
       </div>

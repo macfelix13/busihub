@@ -37,7 +37,7 @@ const MEASURES = [
 
 export function SecuritySection() {
   return (
-    <section className="border-t border-neutral-200 bg-canvas dark:border-neutral-800 dark:bg-neutral-900/40">
+    <section className="border-t border-neutral-200 bg-canvas dark:border-surface-line dark:bg-surface/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-24">
         <SectionHeading
           eyebrow="Security"
@@ -45,12 +45,12 @@ export function SecuritySection() {
         />
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {MEASURES.map((measure) => (
-            <div key={measure.title} className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <div key={measure.title} className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
                 <measure.icon className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-sm font-semibold text-neutral-900 dark:text-white">{measure.title}</h3>
-              <p className="mt-1.5 text-sm text-neutral-500 dark:text-neutral-400">{measure.description}</p>
+              <h3 className="mt-4 text-sm font-semibold text-neutral-900 dark:text-ink">{measure.title}</h3>
+              <p className="mt-1.5 text-sm text-neutral-500 dark:text-ink-muted">{measure.description}</p>
             </div>
           ))}
         </div>

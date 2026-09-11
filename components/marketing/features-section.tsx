@@ -60,16 +60,16 @@ export function FeaturesSection() {
         {FEATURES.map((feature) => (
           <div
             key={feature.title}
-            className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 transition-shadow hover:shadow-md hover:shadow-neutral-900/5 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:shadow-black/30"
+            className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 transition-shadow hover:shadow-md hover:shadow-neutral-900/5 dark:border-surface-line dark:bg-surface-card dark:hover:shadow-black/30"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
               <feature.icon className="h-5 w-5" />
             </div>
-            <h3 className="mt-4 text-base font-semibold text-neutral-900 dark:text-white">{feature.title}</h3>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{feature.description}</p>
+            <h3 className="mt-4 text-base font-semibold text-neutral-900 dark:text-ink">{feature.title}</h3>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">{feature.description}</p>
             <ul className="mt-4 flex flex-col gap-2">
               {feature.points.map((point) => (
-                <li key={point} className="flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-300">
+                <li key={point} className="flex items-start gap-2 text-sm text-neutral-600 dark:text-ink-muted">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
                   {point}
                 </li>

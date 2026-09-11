@@ -466,6 +466,101 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 7 of N (the public
+  landing page and auth screens). Scope named directly by the user
+  ("landing page and auth screens (login, register, password reset,
+  invite acceptance) next"), mapped to the entire `app/(auth)` route
+  group (login, register, reset-password, update-password, verify-email,
+  accept-invite, and the shared `layout.tsx`) plus the public homepage
+  at `app/page.tsx` and every section component it composes under
+  `components/marketing/`. Deliberately excludes `app/privacy` and
+  `app/terms`, which the user didn't name and which read as their own
+  legal-page phase if ever revisited.
+
+  **What this phase touched**:
+
+  - Auth: `layout.tsx` (the shared card shell), `login/page.tsx`,
+    `register/page.tsx`, `reset-password/page.tsx`, `verify-email/page.tsx`,
+    `accept-invite/page.tsx`. `update-password/page.tsx` was read and
+    needed no changes — its only text is the h1 and an already
+    dark-aware error banner.
+  - Landing page: `app/page.tsx` (read, needed no changes — pure
+    composition, no styling of its own) and all 21 files under
+    `components/marketing/`: `navbar.tsx`, `hero.tsx`, `hero-mockup.tsx`,
+    `trust-bar.tsx`, `problem-section.tsx`, `solution-section.tsx`,
+    `features-section.tsx`, `product-service-section.tsx`,
+    `payments-section.tsx`, `mobile-money-section.tsx`,
+    `barcode-section.tsx`, `multi-device-section.tsx`,
+    `dashboard-section.tsx`, `staff-section.tsx`, `security-section.tsx`,
+    `how-it-works.tsx`, `pricing-preview.tsx`, `faq-section.tsx`,
+    `final-cta.tsx`, `footer.tsx`, `section-heading.tsx`.
+
+  This is the first phase to touch a part of the app that was never
+  retuned from grey to the surface/ink system in the first place — the
+  marketing site and auth screens were built (and left alone) with the
+  same plain `neutral-700/800/900` dark-mode palette the rest of the app
+  used before phase 1, so this phase is the first time they're brought
+  onto tokens that already exist rather than a re-pass over already-tuned
+  screens. Cards (`dark:bg-neutral-900` on a bordered box) moved to
+  `dark:bg-surface-card`; borders and dividers moved to
+  `dark:border-surface-line` / `dark:divide-surface-line`; headings and
+  primary text (`dark:text-white`, `dark:text-neutral-200`) moved to
+  `dark:text-ink`; secondary/description text and list items
+  (`dark:text-neutral-300`/`dark:text-neutral-400`) moved to
+  `dark:text-ink-muted`; bare `text-neutral-500` with no dark variant at
+  all (every auth page's helper/description text) got `dark:text-ink-muted`
+  appended, same treatment as every prior phase. No queries, actions, or
+  form-validation logic changed anywhere — confirmed by reading every
+  file in full before editing; only className strings were touched.
+
+  Left alone, same as always: bare `text-neutral-400` on the FAQ's
+  decorative `ChevronDown` icon (no dark variant, purely decorative,
+  same precedent as phase 3's product photo icon); the brand-tinted
+  icon badges used throughout every marketing section
+  (`bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300`)
+  — a deliberate accent color, not part of the grey-to-surface retune;
+  and `shadow-neutral-900/*` / `dark:shadow-black/30` on card shadows,
+  which `components/ui/card.tsx` already established as untouched by
+  this system in phase 1.
+
+  **Three new judgment calls, all first appearances of patterns not
+  seen in phases 1-6**:
+
+  1. Alternating section backgrounds. Several sections pair
+     `bg-canvas` with `dark:bg-neutral-900/40` to create a visually
+     distinct band between plain sections on the landing page (trust
+     bar, solutions, payments, mobile money is the exception — barcode,
+     dashboard, security, pricing, and the footer). There's no existing
+     "wash" token for this in the surface/ink system, so this was
+     mapped to `dark:bg-surface/40` — reusing `surface` (documented in
+     `tailwind.config.ts` as fitting "a secondary panel") at the same
+     opacity, rather than a plain solid fill that would flatten the
+     alternating rhythm the section already has in light mode.
+  2. The mobile nav sheet. `components/marketing/navbar.tsx`'s
+     mobile-menu dropdown used `dark:bg-neutral-950` — solid and
+     noticeably darker than `canvas-dark`, unlike every other
+     dark-mode surface in this codebase, which sits *above* canvas.
+     `surface-deep` is documented in `tailwind.config.ts` as sitting
+     *below* canvas.dark for exactly this kind of "deep overlay," so
+     the sheet now uses `dark:bg-surface-deep` rather than introducing
+     a new near-black token or forcing it onto `surface`/`surface-card`,
+     which would have made it read as a raised card rather than a
+     dropped-down panel.
+  3. Hover-to-emphasis text. The footer's link list and the navbar's
+     "Sign in" / mobile-menu items pair a muted resting color with a
+     hover state that jumps to full contrast in light mode
+     (`text-neutral-500 hover:text-neutral-800`); the dark-mode
+     equivalent (`dark:text-neutral-400 dark:hover:text-neutral-200`)
+     was doing the same job with plain grays. Mapped resting state to
+     `dark:text-ink-muted` and the hover state to `dark:hover:text-ink`
+     — the same muted-to-primary jump the light mode makes, expressed
+     with the two text tokens that already exist for exactly that
+     relationship, rather than a one-off hover shade.
+
+  Untouched: everything covered by phases 1-6 (the authenticated app,
+  settings, staff, the admin console), plus `app/privacy`, `app/terms`,
+  and the PWA/offline UI.
+
 - 2026-09-11 — Busihub brand identity pass, phase 6 of N (Operations:
   purchase orders, suppliers, expenses & branches). Scope named
   directly by the user ("operations page next"), matching the

@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
     return (
       <div className="text-center">
         <h1 className="mb-2 text-xl font-semibold">Check your email</h1>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
           If an account exists for that address, we&apos;ve sent a link to reset your password.
         </p>
       </div>
@@ -25,7 +25,7 @@ export default function ResetPasswordPage() {
   return (
     <>
       <h1 className="mb-1 text-xl font-semibold">Reset your password</h1>
-      <p className="mb-6 text-sm text-neutral-500">We&apos;ll email you a link to choose a new one.</p>
+      <p className="mb-6 text-sm text-neutral-500 dark:text-ink-muted">We&apos;ll email you a link to choose a new one.</p>
 
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {state.error ? (
@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
         </SubmitButton>
       </form>
 
-      <p className="mt-6 text-center text-sm text-neutral-500">
+      <p className="mt-6 text-center text-sm text-neutral-500 dark:text-ink-muted">
         <Link href="/login" className="font-medium text-brand-600 hover:underline">
           Back to sign in
         </Link>

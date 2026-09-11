@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="rounded-lg bg-brand-950 px-2 py-1 text-sm font-bold text-lime-400">B</span>
           <span className="text-lg font-semibold">Busihub</span>
         </div>
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:p-8">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-surface-line dark:bg-surface-card sm:p-8">
           {children}
         </div>
       </div>

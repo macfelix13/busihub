@@ -14,7 +14,7 @@ export default function LoginPage() {
   return (
     <>
       <h1 className="mb-1 text-xl font-semibold">Sign in</h1>
-      <p className="mb-6 text-sm text-neutral-500">Welcome back to Busihub.</p>
+      <p className="mb-6 text-sm text-neutral-500 dark:text-ink-muted">Welcome back to Busihub.</p>
 
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {state.error ? (
@@ -44,7 +44,7 @@ export default function LoginPage() {
         </SubmitButton>
       </form>
 
-      <p className="mt-6 text-center text-sm text-neutral-500">
+      <p className="mt-6 text-center text-sm text-neutral-500 dark:text-ink-muted">
         Don&apos;t have an account?{" "}
         <Link href="/register" className="font-medium text-brand-600 hover:underline">
           Register your business

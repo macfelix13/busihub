@@ -42,13 +42,13 @@ export function ProblemSection() {
         {PROBLEMS.map((problem) => (
           <div
             key={problem.title}
-            className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+            className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted">
               <problem.icon className="h-5 w-5" />
             </div>
-            <h3 className="mt-4 text-base font-semibold text-neutral-900 dark:text-white">{problem.title}</h3>
-            <p className="mt-1.5 text-sm text-neutral-500 dark:text-neutral-400">{problem.description}</p>
+            <h3 className="mt-4 text-base font-semibold text-neutral-900 dark:text-ink">{problem.title}</h3>
+            <p className="mt-1.5 text-sm text-neutral-500 dark:text-ink-muted">{problem.description}</p>
           </div>
         ))}
       </div>

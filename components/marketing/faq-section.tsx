@@ -82,14 +82,14 @@ export function FaqSection() {
   return (
     <section id="faq" className="mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-24">
       <SectionHeading eyebrow="FAQ" title="Frequently asked questions" />
-      <div className="mt-10 flex flex-col divide-y divide-neutral-200 dark:divide-neutral-800">
+      <div className="mt-10 flex flex-col divide-y divide-neutral-200 dark:divide-surface-line">
         {FAQS.map((faq) => (
           <details key={faq.question} className="group py-4">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-sm font-semibold text-neutral-900 marker:content-none dark:text-white">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-sm font-semibold text-neutral-900 marker:content-none dark:text-ink">
               {faq.question}
               <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400 transition-transform duration-200 group-open:rotate-180" />
             </summary>
-            <p className="mt-2.5 text-sm text-neutral-600 dark:text-neutral-400">{faq.answer}</p>
+            <p className="mt-2.5 text-sm text-neutral-600 dark:text-ink-muted">{faq.answer}</p>
           </details>
         ))}
       </div>

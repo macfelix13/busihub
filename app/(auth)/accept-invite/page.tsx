@@ -99,7 +99,7 @@ export default function AcceptInvitePage() {
     return (
       <div className="text-center">
         <h1 className="mb-2 text-xl font-semibold">Confirming your invite…</h1>
-        <p className="text-sm text-neutral-500">This will just take a moment.</p>
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">This will just take a moment.</p>
       </div>
     );
   }
@@ -108,7 +108,7 @@ export default function AcceptInvitePage() {
     return (
       <div className="text-center">
         <h1 className="mb-2 text-xl font-semibold">This invite link isn&apos;t valid</h1>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
           It may have expired or already been used — invite links only work once. Ask your business
           owner or manager to send you a new invite from Settings → Staff.
         </p>
@@ -119,7 +119,7 @@ export default function AcceptInvitePage() {
   return (
     <>
       <h1 className="mb-1 text-xl font-semibold">Welcome to Busihub</h1>
-      <p className="mb-6 text-sm text-neutral-500">Choose a password to finish setting up your account.</p>
+      <p className="mb-6 text-sm text-neutral-500 dark:text-ink-muted">Choose a password to finish setting up your account.</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         {error ? (
           <p

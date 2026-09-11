@@ -23,8 +23,8 @@ export function StaffSection() {
           title="Give your team the tools they need."
           description="Business owners can manage staff and cashier access, and control exactly what each person can do."
         />
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 dark:border-surface-line dark:bg-surface-card">
+          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-ink-muted">
             Built-in roles
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -34,9 +34,9 @@ export function StaffSection() {
               </Badge>
             ))}
           </div>
-          <ul className="mt-5 flex flex-col gap-2.5 border-t border-neutral-200 pt-5 dark:border-neutral-800">
+          <ul className="mt-5 flex flex-col gap-2.5 border-t border-neutral-200 pt-5 dark:border-surface-line">
             {CAPABILITIES.map((item) => (
-              <li key={item} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <li key={item} className="flex items-start gap-2 text-sm text-neutral-700 dark:text-ink-muted">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
                 {item}
               </li>

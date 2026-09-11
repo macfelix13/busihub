@@ -120,10 +120,14 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                       prefetch={false}
                       aria-current={active ? "page" : undefined}
                       className={cn(
+                        // active bg retuned 2026-09-11 from a generic
+                        // white/10 overlay to the brand spec's actual
+                        // "Active item" color (surface, #0D3B32) — see
+                        // tailwind.config.ts's `surface` comment.
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                         FOCUS_RING,
                         active
-                          ? "bg-white/10 text-lime-300"
+                          ? "bg-surface text-lime-300"
                           : "text-brand-100 hover:bg-white/5 hover:text-white"
                       )}
                     >
@@ -175,10 +179,12 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                               prefetch={false}
                               aria-current={active ? "page" : undefined}
                               className={cn(
+                                // See the top-level Link above — same
+                                // 2026-09-11 retune.
                                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                                 FOCUS_RING,
                                 active
-                                  ? "bg-white/10 text-lime-300"
+                                  ? "bg-surface text-lime-300"
                                   : "text-brand-200 hover:bg-white/5 hover:text-white"
                               )}
                             >

@@ -140,13 +140,16 @@ export function BarcodeScannerModal({ onDetected, onClose }: BarcodeScannerModal
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 print:hidden" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-black/60 p-4 print:hidden"
+      onClick={onClose}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl dark:bg-neutral-900"
+        className="w-full max-w-sm animate-slide-up rounded-2xl bg-white p-4 shadow-xl dark:bg-surface-card"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Scan a barcode</h2>
+          <h2 className="text-lg font-semibold dark:text-ink">Scan a barcode</h2>
           <Button type="button" variant="ghost" onClick={onClose}>
             Close
           </Button>
@@ -155,10 +158,23 @@ export function BarcodeScannerModal({ onDetected, onClose }: BarcodeScannerModal
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
         ) : (
           <>
-            <div className="mt-3 overflow-hidden rounded-xl bg-black">
+            <div className="relative mt-3 overflow-hidden rounded-xl bg-black">
               <video ref={videoRef} className="aspect-square w-full object-cover" muted playsInline />
+              {/* Purely decorative viewfinder — a sweeping line plus
+                  corner brackets so the box reads as "actively scanning"
+                  rather than a plain camera preview. Never touches the
+                  actual video frame @zxing/browser decodes underneath. */}
+              <div className="pointer-events-none absolute inset-6 rounded-lg border-2 border-lime-400/70">
+                <span className="absolute left-0 top-0 h-6 w-6 -translate-x-0.5 -translate-y-0.5 rounded-tl-lg border-l-4 border-t-4 border-lime-400" />
+                <span className="absolute right-0 top-0 h-6 w-6 translate-x-0.5 -translate-y-0.5 rounded-tr-lg border-r-4 border-t-4 border-lime-400" />
+                <span className="absolute bottom-0 left-0 h-6 w-6 -translate-x-0.5 translate-y-0.5 rounded-bl-lg border-b-4 border-l-4 border-lime-400" />
+                <span className="absolute bottom-0 right-0 h-6 w-6 translate-x-0.5 translate-y-0.5 rounded-br-lg border-b-4 border-r-4 border-lime-400" />
+                <span className="absolute inset-x-0 top-0 h-0.5 animate-scan-line bg-lime-400/90 shadow-[0_0_6px_1px_rgba(217,242,27,0.7)]" />
+              </div>
             </div>
-            <p className="mt-2 text-center text-sm text-neutral-500">Point the camera at a barcode.</p>
+            <p className="mt-2 text-center text-sm text-neutral-500 dark:text-ink-muted">
+              Point the camera at a barcode.
+            </p>
           </>
         )}
       </div>

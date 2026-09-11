@@ -8,14 +8,22 @@
      identically-white page the way they did before this pass. Values
      below are the real HSL decomposition of the hex colors named in each
      comment (checked with a script, not eyeballed), so they stay exact if
-     anyone edits them later. */
-  --background: 48 24% 96%; /* #f7f6f2 */
-  --foreground: 160 73% 9%; /* #06271c, i.e. brand-950 */
+     anyone edits them later.
+
+     Retuned 2026-09-11 to the exact Busihub brand hex values (see
+     tailwind.config.ts's `canvas`/`brand` comments for the full color
+     system) — the values below were already extremely close, so this is
+     an imperceptible nudge, not a visual change. */
+  --background: 84 24% 96%; /* #f5f7f2, i.e. canvas.DEFAULT ("warm white") */
+  --foreground: 167 69% 10%; /* #082c24, i.e. brand-950 */
 }
 
 .dark {
-  --background: 154 44% 7%; /* #0a1a13 */
-  --foreground: 80 21% 95%; /* #f2f4ee */
+  /* #082c24 (brand-950 / canvas.dark, "Primary Background") and #f5f7f2
+     (ink / canvas.DEFAULT, "Primary Text") — the same two brand colors
+     as light mode, roles swapped, rather than a separate dark-only pair. */
+  --background: 167 69% 10%; /* #082c24 */
+  --foreground: 84 24% 96%; /* #f5f7f2 */
 }
 
 body {

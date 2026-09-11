@@ -29,8 +29,15 @@ export function Card({
         // between adjacent cards) but is now the quieter of the two,
         // since the canvas behind every card is no longer the same white
         // as the card itself.
-        "rounded-2xl border border-neutral-200/70 bg-white shadow-sm shadow-neutral-900/[0.03] transition-shadow duration-150 dark:border-neutral-800 dark:bg-neutral-900",
-        hoverable && "hover:shadow-md hover:shadow-neutral-900/5 dark:hover:shadow-black/30",
+        //
+        // Dark mode retuned 2026-09-11: this was a plain desaturated
+        // gray (neutral-800/900), unrelated to the brand's dark green —
+        // now surface-card/surface-line, the same tinted-green elevation
+        // tokens used across every other dark-mode surface (see
+        // tailwind.config.ts's `surface` comment).
+        "rounded-2xl border border-neutral-200/70 bg-white shadow-sm shadow-neutral-900/[0.03] transition-[box-shadow,transform] duration-150 dark:border-surface-line dark:bg-surface-card",
+        hoverable &&
+          "hover:-translate-y-px hover:shadow-md hover:shadow-neutral-900/5 motion-reduce:hover:translate-y-0 dark:hover:shadow-black/30",
         className
       )}
       {...props}
@@ -43,7 +50,7 @@ export function Card({
 export function CardHeader({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col gap-1 border-b border-neutral-200 px-5 py-4 dark:border-neutral-800", className)}
+      className={cn("flex flex-col gap-1 border-b border-neutral-200 px-5 py-4 dark:border-surface-line", className)}
       {...props}
     >
       {children}
@@ -53,7 +60,7 @@ export function CardHeader({ className, children, ...props }: React.HTMLAttribut
 
 export function CardTitle({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn("text-base font-semibold text-neutral-900 dark:text-white", className)} {...props}>
+    <h3 className={cn("text-base font-semibold text-neutral-900 dark:text-ink", className)} {...props}>
       {children}
     </h3>
   );
@@ -61,7 +68,7 @@ export function CardTitle({ className, children, ...props }: React.HTMLAttribute
 
 export function CardDescription({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-sm text-neutral-500 dark:text-neutral-400", className)} {...props}>
+    <p className={cn("text-sm text-neutral-500 dark:text-ink-muted", className)} {...props}>
       {children}
     </p>
   );
@@ -79,7 +86,7 @@ export function CardFooter({ className, children, ...props }: React.HTMLAttribut
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 border-t border-neutral-200 px-5 py-4 dark:border-neutral-800",
+        "flex flex-wrap items-center gap-2 border-t border-neutral-200 px-5 py-4 dark:border-surface-line",
         className
       )}
       {...props}

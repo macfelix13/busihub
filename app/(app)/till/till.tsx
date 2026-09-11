@@ -11,6 +11,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { BarcodeScannerModal } from "@/components/ui/barcode-scanner-modal";
 import { ProductThumbnail } from "@/components/ui/product-thumbnail";
+import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { formatQuantity } from "@/lib/validation/inventory";
 import { PAYMENT_METHODS, MOMO_NETWORKS, normaliseMomoNumber, guessMomoNetwork } from "@/lib/validation/sales";
@@ -130,9 +132,14 @@ export function Till({
   canOpenDrawer,
 }: TillProps) {
   const [state, formAction] = useFormState(completeSale, initialState);
+  const toast = useToast();
   const isOnline = useOnlineStatus();
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  // Cart lines mid-removal: still in `cart` (so the exit animation below
+  // has something to animate) but excluded from every total/eligibility
+  // calculation and from what's actually submitted — see `activeCart`.
+  const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [customerId, setCustomerId] = useState("");
   const [tendered, setTendered] = useState("");
@@ -244,21 +251,35 @@ export function Till({
    * scanner (BarcodeScannerModal), which hands a decoded string straight
    * to this same function. One matching rule for "found it" means the
    * two input methods can never quietly disagree about what a code means.
+   *
+   * Returns the matched product (not just a boolean) so a caller that
+   * wants confirmation feedback — the camera scanner's onScanned, below —
+   * has something to name; every existing call site only ever checked
+   * this for truthiness, which a matched product still satisfies.
    */
-  function tryAddByBarcode(code: string): boolean {
+  function tryAddByBarcode(code: string): TillProduct | null {
     const q = code.trim().toLowerCase();
-    if (!q) return false;
+    if (!q) return null;
     const exact = products.find(
       (p) => (p.barcode ?? "").toLowerCase() === q || (p.sku ?? "").toLowerCase() === q
     );
-    if (!exact) return false;
+    if (!exact) return null;
     addToCart(exact.variantId);
-    return true;
+    return exact;
   }
 
   function onScanned(code: string) {
     setScannerOpen(false);
-    if (!tryAddByBarcode(code)) {
+    const matched = tryAddByBarcode(code);
+    if (matched) {
+      // The camera scanner closes as soon as this fires, so a toast is
+      // the confirmation here — unlike the hardware-scanner path through
+      // the search box (onSearchKeyDown), where the cart itself stays in
+      // view and the line's own entrance animation is confirmation
+      // enough; toasting every one of those would just be noise for a
+      // cashier scanning several items a minute.
+      toast.success(`Added ${matched.label}`);
+    } else {
       setScanError(`Nothing matches "${code}".`);
       window.setTimeout(() => setScanError(null), 4000);
     }
@@ -284,19 +305,48 @@ export function Till({
     }
   }
 
+  /** How long the exit animation below plays before a line is actually
+   *  dropped from `cart` — must match the CSS transition duration on the
+   *  cart `<li>` (see its className) or the line would either vanish
+   *  before finishing its fade or sit invisible-but-present for longer
+   *  than it looks like it should. */
+  const CART_EXIT_MS = 180;
+
   function setQuantity(key: string, quantity: number) {
-    setCart((lines) =>
-      quantity <= 0 ? lines.filter((l) => l.key !== key) : lines.map((l) => (l.key === key ? { ...l, quantity } : l))
-    );
+    if (quantity <= 0) {
+      // Removed with a short exit animation rather than instantly: mark
+      // it "removing" (still rendered, now animating out and excluded
+      // from every total below) and only actually drop it from `cart`
+      // once that animation has had time to finish.
+      setRemovingKeys((prev) => new Set(prev).add(key));
+      window.setTimeout(() => {
+        setCart((lines) => lines.filter((l) => l.key !== key));
+        setRemovingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }, CART_EXIT_MS);
+      return;
+    }
+    setCart((lines) => lines.map((l) => (l.key === key ? { ...l, quantity } : l)));
   }
 
   function setRenderedBy(key: string, encoded: string) {
     setCart((lines) => lines.map((l) => (l.key === key ? { ...l, renderedBy: encoded } : l)));
   }
 
+  // Everything below reads `activeCart`, not `cart` directly: a line
+  // mid-removal (see setQuantity) is still in `cart` so its exit
+  // animation has something to render, but it's already gone as far as
+  // the total, stock checks, and what actually gets submitted are
+  // concerned — a cashier watching a line fade out sees the total drop
+  // immediately, not 180ms later.
+  const activeCart = useMemo(() => cart.filter((line) => !removingKeys.has(line.key)), [cart, removingKeys]);
+
   // A preview only. The database recomputes every figure from the catalog
   // when the sale is rung up — see create_sale() in migration 0020.
-  const total = cart.reduce((sum, line) => {
+  const total = activeCart.reduce((sum, line) => {
     const product = byId.get(line.variantId);
     return sum + (product ? product.price * line.quantity : 0);
   }, 0);
@@ -313,7 +363,7 @@ export function Till({
 
   // A service has no shelf to run short on — it never carries stock — so
   // it never counts toward a stock warning, only a product does.
-  const shortLines = cart.filter((line) => {
+  const shortLines = activeCart.filter((line) => {
     const p = byId.get(line.variantId);
     return p && p.type === "product" ? line.quantity > adjustedOnHand(p) : false;
   });
@@ -321,7 +371,7 @@ export function Till({
   // The database refuses a service line with no rendered_by anyway, but
   // catching it here means the button is disabled with an inline hint
   // instead of a rejected sale at the counter.
-  const missingRenderedBy = cart.some((line) => {
+  const missingRenderedBy = activeCart.some((line) => {
     const p = byId.get(line.variantId);
     return p?.type === "service" && !line.renderedBy;
   });
@@ -347,7 +397,7 @@ export function Till({
     e.preventDefault();
     setQueueError(null);
 
-    if (cart.length === 0 || missingRenderedBy) return;
+    if (activeCart.length === 0 || missingRenderedBy) return;
 
     if (paymentMethod !== "cash" && paymentMethod !== "credit") {
       setQueueError("Only cash or on-account sales can be taken while offline.");
@@ -371,7 +421,7 @@ export function Till({
     // methods, rather than relying on the checks above to keep narrowing
     // `paymentMethod` itself all the way into the .then() callback below.
     const offlinePaymentMethod: "cash" | "credit" = paymentMethod === "credit" ? "credit" : "cash";
-    const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
+    const itemCount = activeCart.reduce((n, line) => n + line.quantity, 0);
     const saleTotal = total;
     const saleChange = offlinePaymentMethod === "cash" ? change : null;
 
@@ -381,7 +431,7 @@ export function Till({
       customerId: customerId || undefined,
       paymentMethod: offlinePaymentMethod,
       amountTendered: offlinePaymentMethod === "cash" ? tenderedNumber : 0,
-      items: cart.map((line) => {
+      items: activeCart.map((line) => {
         const renderer = decodeRenderer(line.renderedBy);
         return {
           variantId: line.variantId,
@@ -396,13 +446,14 @@ export function Till({
       .then(() => {
         setQueuedThisSession((prev) => {
           const next = { ...prev };
-          for (const line of cart) {
+          for (const line of activeCart) {
             next[line.variantId] = (next[line.variantId] ?? 0) + line.quantity;
           }
           return next;
         });
         setQueuedConfirmation({ itemCount, total: saleTotal, paymentMethod: offlinePaymentMethod, change: saleChange });
         setCart([]);
+        setRemovingKeys(new Set());
         setTendered("");
         setCustomerId("");
       })
@@ -469,7 +520,7 @@ export function Till({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onSearchKeyDown}
               placeholder="Scan a barcode, or type a name or SKU…"
-              className="min-h-[52px] w-full flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+              className="min-h-[52px] w-full flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink"
             />
             {/* Camera-based scanning — for a till running on a phone/tablet
                 with no USB/Bluetooth scanner attached. That hardware kind
@@ -490,15 +541,18 @@ export function Till({
           {scanError ? <p className="text-sm text-red-600 dark:text-red-400">{scanError}</p> : null}
 
           {query.trim().length > 0 ? (
-            <Card className="overflow-hidden">
-              <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            // A brief fade-in, not a delay: `matches` is already computed
+            // by the time this renders, so this only animates the result
+            // that's already there, never holds it back from appearing.
+            <Card className="animate-fade-in overflow-hidden">
+              <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {matches.length > 0 ? (
                   matches.map((p) => (
                     <li key={p.variantId}>
                       <button
                         type="button"
                         onClick={() => addToCart(p.variantId)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 active:scale-[0.99] motion-reduce:active:scale-100 dark:hover:bg-surface/60"
                       >
                         <span className="flex items-center gap-3">
                           <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
@@ -537,7 +591,7 @@ export function Till({
                     key={p.variantId}
                     type="button"
                     onClick={() => addToCart(p.variantId)}
-                    className="flex flex-col items-start gap-1.5 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
+                    className="flex flex-col items-start gap-1.5 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-lime-500 hover:bg-lime-50 active:scale-[0.98] motion-reduce:active:scale-100 dark:border-surface-line dark:hover:bg-surface/60"
                   >
                     <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
@@ -554,22 +608,41 @@ export function Till({
               </div>
             </Card>
           ) : (
-            <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-neutral-800">
+            <p className="rounded-2xl border border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500 dark:border-surface-line">
               Nothing is set to show at the till yet. Turn on &ldquo;Show at till&rdquo; from a product or
               service&apos;s page.
             </p>
           )}
 
           <Card className="overflow-hidden">
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
               {cart.length > 0 ? (
                 cart.map((line) => {
                   const p = byId.get(line.variantId);
                   if (!p) return null;
                   const isService = p.type === "service";
                   const short = !isService && line.quantity > adjustedOnHand(p);
+                  const removing = removingKeys.has(line.key);
                   return (
-                    <li key={line.key} className="flex flex-col gap-2 px-4 py-3">
+                    <li
+                      key={line.key}
+                      // Entrance: plays automatically the moment this <li>
+                      // is first mounted (a brand new line), because a CSS
+                      // animation always plays on element creation — no
+                      // extra "is this new?" tracking needed. Exit: a
+                      // *transition* (not an animation) toggled by the
+                      // `removing` class below, driven by setQuantity's
+                      // two-step removal — see its comment. Both durations
+                      // (200ms here, CART_EXIT_MS above) are kept in sync
+                      // by hand since one is a Tailwind class and the
+                      // other a JS constant.
+                      className={cn(
+                        "flex flex-col gap-2 overflow-hidden px-4 py-3 transition-[opacity,transform,max-height,padding] duration-200 ease-in motion-reduce:transition-none",
+                        removing
+                          ? "max-h-0 scale-95 py-0 opacity-0"
+                          : "max-h-96 scale-100 opacity-100 animate-slide-up"
+                      )}
+                    >
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{p.label}</p>
@@ -592,7 +665,18 @@ export function Till({
                           >
                             <Minus className="h-4 w-4" aria-hidden="true" />
                           </Button>
-                          <span className="w-10 text-center tabular-nums">{formatQuantity(line.quantity)}</span>
+                          {/* key={line.quantity}: a quick, cheap way to
+                              replay the "pop" animation on every +/- tap —
+                              changing the key forces React to remount this
+                              span as a brand-new node, and (same as the
+                              cart-line entrance above) a CSS animation
+                              always plays on element creation. */}
+                          <span
+                            key={line.quantity}
+                            className="w-10 animate-qty-pop text-center tabular-nums"
+                          >
+                            {formatQuantity(line.quantity)}
+                          </span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -653,7 +737,7 @@ export function Till({
             <p className="text-lg font-semibold">
               Sale queued — {formatMoney(toMinorUnits(queuedConfirmation.total), currencyCode)}
             </p>
-            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            <p className="text-sm text-neutral-600 dark:text-ink-muted">
               {queuedConfirmation.itemCount} item{queuedConfirmation.itemCount === 1 ? "" : "s"} ·{" "}
               {queuedConfirmation.paymentMethod === "cash" ? "Cash" : "On account"}
               {queuedConfirmation.change !== null
@@ -675,7 +759,9 @@ export function Till({
             type="hidden"
             name="cartJson"
             value={JSON.stringify(
-              cart.map((line) => {
+              // activeCart, not cart — a line mid-exit-animation must
+              // never be submitted (see its definition above).
+              activeCart.map((line) => {
                 const renderer = decodeRenderer(line.renderedBy);
                 return {
                   variantId: line.variantId,
@@ -747,8 +833,8 @@ export function Till({
                 onChange={(e) => setTendered(e.target.value)}
                 error={state.fieldErrors?.amountTendered}
               />
-              <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">Change</span>
+              <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-surface">
+                <span className="text-sm text-neutral-600 dark:text-ink-muted">Change</span>
                 <span
                   className={`text-lg font-semibold tabular-nums ${
                     change < 0 ? "text-red-600 dark:text-red-400" : ""
@@ -819,13 +905,13 @@ export function Till({
                   options={MOMO_NETWORKS.map((n) => ({ value: n.value, label: n.label }))}
                 />
                 {!momoNetworkTouched && guessMomoNetwork(normaliseMomoNumber(momoNumber) ?? "") ? (
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  <p className="text-xs text-neutral-500 dark:text-ink-muted">
                     Guessed from the number — change it if this customer ported to another network.
                   </p>
                 ) : null}
               </div>
-              <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-neutral-800">
-                <span className="text-sm text-neutral-600 dark:text-neutral-300">To charge their phone</span>
+              <div className="flex items-baseline justify-between rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-surface">
+                <span className="text-sm text-neutral-600 dark:text-ink-muted">To charge their phone</span>
                 <span
                   className={`text-lg font-semibold tabular-nums ${
                     momoPart <= 0 ? "text-red-600 dark:text-red-400" : ""
@@ -870,7 +956,7 @@ export function Till({
           <SubmitButton
             pendingText="Taking payment…"
             className="min-h-[52px] text-base"
-            disabled={cart.length === 0 || missingRenderedBy}
+            disabled={activeCart.length === 0 || missingRenderedBy}
           >
             {paymentMethod === "cash"
               ? "Take cash"
@@ -881,8 +967,15 @@ export function Till({
                   : "Take cash and prompt"}
           </SubmitButton>
 
-          {cart.length > 0 ? (
-            <Button type="button" variant="ghost" onClick={() => setCart([])}>
+          {activeCart.length > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setCart([]);
+                setRemovingKeys(new Set());
+              }}
+            >
               Clear sale
             </Button>
           ) : null}
@@ -954,12 +1047,12 @@ export function Till({
         }
       >
         {noSaleSlip ? (
-          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-100 p-3 font-mono text-xs dark:bg-neutral-800">
+          <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl bg-neutral-100 p-3 font-mono text-xs dark:bg-surface">
             {noSaleSlip}
           </pre>
         ) : (
           <>
-            <label className="block text-sm font-medium" htmlFor="no-sale-reason">
+            <label className="block text-sm font-medium dark:text-ink" htmlFor="no-sale-reason">
               Reason (optional)
             </label>
             <textarea
@@ -968,7 +1061,7 @@ export function Till({
               onChange={(e) => setNoSaleReason(e.target.value)}
               rows={2}
               placeholder="e.g. giving change for a customer"
-              className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+              className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink"
             />
             {noSaleError ? <p className="mt-2 text-sm text-red-600 dark:text-red-400">{noSaleError}</p> : null}
           </>

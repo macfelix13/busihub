@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "outline" | "danger" | "ghost";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -21,15 +21,22 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  // brand-950 rather than brand-600: the same dark green as the sidebar
-  // and the dashboard's hero card, so the app's one "do the main thing"
-  // color reads as a single deliberate choice instead of three different
-  // greens competing for attention.
-  primary: "bg-brand-950 text-white hover:bg-brand-900 focus-visible:outline-brand-950",
+  // Retuned 2026-09-11: this was bg-brand-950 (dark green, matching the
+  // sidebar) — the brand spec calls for the app's one "do the main
+  // thing" color to be the lime accent instead, so every primary action
+  // (Complete Sale, Save, Add Product, Pay) now reads unmistakably as
+  // THE thing to do next, with the dark green reserved for structural
+  // chrome (sidebar, cards) rather than competing with it for attention.
+  primary: "bg-lime-400 text-brand-950 hover:bg-lime-300 focus-visible:outline-lime-400",
   secondary:
-    "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus-visible:outline-neutral-400 dark:bg-neutral-900 dark:text-white dark:border-neutral-700",
+    "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus-visible:outline-neutral-400 dark:border-surface-line dark:bg-surface dark:text-ink dark:hover:bg-surface-card",
+  // New 2026-09-11: transparent-background, bordered button — for a
+  // secondary action that shouldn't read as a filled surface at all
+  // (e.g. sitting next to a primary CTA without competing with it).
+  outline:
+    "border border-neutral-300 bg-transparent text-neutral-700 hover:bg-neutral-100 focus-visible:outline-neutral-400 dark:border-surface-line dark:text-ink dark:hover:bg-surface/60",
   danger: "bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600",
-  ghost: "bg-transparent text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800",
+  ghost: "bg-transparent text-neutral-700 hover:bg-neutral-100 dark:text-ink-muted dark:hover:bg-surface/60",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

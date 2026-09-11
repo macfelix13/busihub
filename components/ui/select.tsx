@@ -22,7 +22,7 @@ export function Select({ label, error, className, id, options, ...props }: Selec
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+      <label htmlFor={inputId} className="text-sm font-medium text-neutral-800 dark:text-ink">
         {label}
       </label>
       <select
@@ -30,9 +30,10 @@ export function Select({ label, error, className, id, options, ...props }: Selec
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         className={cn(
+          // See field.tsx's matching comment — same 2026-09-11 retune.
           "min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900",
-          "focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30",
-          "dark:border-neutral-700 dark:bg-neutral-900 dark:text-white",
+          "focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40",
+          "dark:border-surface-line dark:bg-surface dark:text-ink",
           error && "border-red-500 focus:border-red-500 focus:ring-red-500/30",
           className
         )}
@@ -52,4 +53,3 @@ export function Select({ label, error, className, id, options, ...props }: Selec
     </div>
   );
 }
-

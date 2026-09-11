@@ -11,7 +11,15 @@ export type BadgeVariant = "neutral" | "brand" | "success" | "warning" | "danger
  * reuses that instead of introducing a second name for the same color.
  */
 const variantClasses: Record<BadgeVariant, string> = {
-  neutral: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+  // neutral's dark background retuned 2026-09-11 to the surface token
+  // (see tailwind.config.ts's `surface` comment) instead of plain gray,
+  // for the same reason as Card/Modal/Field — success/warning/danger/info
+  // are deliberately left on Tailwind's stock scales, unchanged.
+  neutral: "bg-neutral-100 text-neutral-700 dark:bg-surface dark:text-ink-muted",
+  // Left as brand-300 (green, not lime) deliberately — this badge is used
+  // for routine, low-emphasis tags all over the app, and the brand spec
+  // reserves lime for strategic emphasis (CTAs, active states, key
+  // numbers), not everyday pills. See tailwind.config.ts's `lime` comment.
   brand: "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300",
   success: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300",
   warning: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",

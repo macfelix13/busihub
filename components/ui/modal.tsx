@@ -82,17 +82,20 @@ export function Modal({
         aria-describedby={description ? "modal-description" : undefined}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl animate-slide-up dark:bg-neutral-900 sm:rounded-2xl",
+          // Dark mode retuned 2026-09-11 to the same surface-card /
+          // surface-line elevation tokens used by Card — see
+          // tailwind.config.ts's `surface` comment.
+          "flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl animate-slide-up dark:bg-surface-card sm:rounded-2xl",
           sizeClasses[size]
         )}
       >
-        <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
+        <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4 dark:border-surface-line">
           <div className="min-w-0">
-            <h2 id="modal-title" className="text-base font-semibold text-neutral-900 dark:text-white">
+            <h2 id="modal-title" className="text-base font-semibold text-neutral-900 dark:text-ink">
               {title}
             </h2>
             {description ? (
-              <p id="modal-description" className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
+              <p id="modal-description" className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
                 {description}
               </p>
             ) : null}
@@ -102,14 +105,14 @@ export function Modal({
             onClick={() => !pending && onClose()}
             aria-label="Close"
             disabled={pending}
-            className="flex-shrink-0 rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            className="flex-shrink-0 rounded-lg p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-ink-muted dark:hover:bg-surface"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer ? (
-          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-neutral-200 px-5 py-4 dark:border-neutral-800">
+          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-neutral-200 px-5 py-4 dark:border-surface-line">
             {footer}
           </div>
         ) : null}

@@ -466,6 +466,129 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 1 of N (design tokens +
+  POS/till + payment states). Context for why this exists as its own
+  series, distinct from the "UI/UX polish pass" series later in this
+  changelog (2026-09-07, phases 1-9): this app already went through an
+  earlier color redesign (`abf2251` "dark green sidebar, lime accents,
+  off-white canvas", `d5f6240` "phase 2: rest of the app, marketing
+  site, dark mode toggle", `f643037` "make dark green the default
+  theme") that was never written up here — this entry is also the first
+  time that earlier work gets documented, alongside what changed in
+  this pass on top of it.
+
+  **What this phase actually touched** (deliberately scoped to the
+  design-token foundation plus the two screens named first — the rest
+  of the app, listed below, is unchanged and NOT yet in Busihub's exact
+  brand palette):
+
+  - `tailwind.config.ts` / `app/globals.css` — every color retuned to
+    Busihub's exact brand hex values (previously close-but-not-exact,
+    e.g. the sidebar was `#06271c`, not `#082C24`). Two real gaps beyond
+    hex-precision were found and fixed, not just nudged: (1) the `lime`
+    accent scale was a muted olive-green (`#b0d840` at its main shade),
+    not the vivid "Busihub Lime Yellow" the brand actually calls for —
+    the whole ramp was rebuilt around the real `#D9F21B`. (2) every
+    dark-mode surface ABOVE the page background — Card, Modal,
+    Field/Select/Textarea — used plain desaturated gray
+    (`neutral-800`/`900`), unrelated to the forest-green identity, so
+    dark mode read as "green sidebar, gray everything else." A new
+    `surface` token group (`surface`/`surface-card`/`surface-line`/
+    `surface-deep`, at `#0D3B32`/`#123F35`/`#28564B`/`#041A15`) and an
+    `ink`/`ink-muted` text pair (`#F5F7F2`/`#B7C8C1`) replace that gray
+    staircase everywhere those primitives render in dark mode. Light
+    mode is unchanged apart from the hex-precision nudge (imperceptible
+    — `#f7f6f2` to `#f5f7f2`).
+  - `components/ui/button.tsx` — primary buttons are now lime-yellow
+    with dark text (was dark-green with white text) per the brand spec's
+    explicit rule that the app's one "do the main thing" color is the
+    accent, not the structural dark green; a new `outline` variant was
+    added (transparent + bordered) alongside the existing
+    primary/secondary/danger/ghost. This is the one change in this pass
+    that reaches every screen rather than just till/payments, since
+    Button is shared everywhere — Complete Sale, Save, Add Product, Pay
+    all read this from one definition.
+  - `components/ui/card.tsx`, `modal.tsx`, `field.tsx`, `select.tsx`,
+    `textarea.tsx`, `badge.tsx` — dark-mode surfaces/borders/text moved
+    onto the new `surface`/`ink` tokens; form focus rings moved from a
+    green (`brand-500`) ring to the lime accent, matching the brand
+    spec's "focus uses the accent" rule. `Card` also gained a subtle
+    `hover:-translate-y-px` lift for `hoverable` cards (motion-reduce
+    respected). Semantic colors (success/warning/danger/info) were left
+    on Tailwind's stock scales, unchanged, per this codebase's existing
+    "reuse stock scales for semantics" rule (see badge.tsx) — those
+    already sit close to the brand spec's success/error/warning hex.
+  - `components/layout/sidebar.tsx` — one narrow, surgical change: the
+    active-nav-item background moved from a generic `white/10` overlay
+    to the brand spec's actual named "Active item" color (`surface`,
+    `#0D3B32`). Nothing else in the sidebar/header/app-shell was
+    touched this pass — it inherited the retuned `brand-950` background
+    automatically, since it already read that shared token rather than
+    a hardcoded hex.
+  - `app/(app)/till/till.tsx` — the POS/till motion system: cart lines
+    now animate in on add (`animate-slide-up`, plays automatically on
+    mount, no extra state needed) and animate out on removal (a genuine
+    two-step exit: `setQuantity` marks a line "removing," lets a 180ms
+    CSS transition collapse it, then actually drops it from state — see
+    `CART_EXIT_MS` and `activeCart`). `activeCart` (cart minus
+    mid-removal lines) is what every total, stock check, and the
+    submitted `cartJson` now reads, not `cart` directly, so the total a
+    cashier sees updates instantly on removal even though the line is
+    still visibly fading out — the animation was not allowed to lag
+    the number behind it. A quantity bump/decrement gets a quick "pop"
+    (remounting the number under a `key={line.quantity}`, which is
+    what makes a fresh CSS animation play on every tap — no manual
+    animation-state tracking needed there). Scanning a barcode via the
+    camera modal now confirms with a toast naming the product (the
+    hardware-scanner-into-search-box path deliberately does NOT toast
+    on every hit — a cashier scanning several items a minute doesn't
+    need one popup per item when the cart's own entrance animation
+    already shows it landed). Search results and product tiles got
+    `active:scale` press feedback and the new lime/surface hover
+    treatment. No business logic changed: every dollar figure, stock
+    check, and validation rule computes exactly as before — only what
+    was fed into "which lines count right now" was clarified, and only
+    because the new removal animation made that ambiguous for the
+    first time.
+  - `app/(app)/sales/awaiting-payment.tsx` — the payment-status waiting
+    screen got an entrance fade and its plain pulsing dot became a
+    layered ping-ring + solid dot (both Tailwind's built-in
+    `animate-ping`/`animate-pulse`, no new keyframes). This is
+    presentation only: the actual state machine (waiting → declined →
+    completed) and its polling/webhook logic were not touched, and
+    "completed" still only ever renders once the server has verified
+    the charge — nothing here can show success before that.
+  - `components/ui/barcode-scanner-modal.tsx` — a decorative viewfinder
+    overlay (corner brackets + a sweeping scan line, all `pointer-events-none`)
+    was added on top of the camera preview, and the panel now
+    fades/slides in with the shared `animate-fade-in`/`animate-slide-up`
+    pair. The actual `@zxing/browser` decode loop underneath — device
+    enumeration, constraints, the frame callback — was not touched.
+  - Two new keyframes in `tailwind.config.ts` for the above:
+    `qty-pop` (150ms scale bump) and `scan-line` (1.8s sweep,
+    decorative only). Both inherit the existing global
+    `prefers-reduced-motion` blanket override in `app/globals.css`
+    (durations collapse to near-zero) the same way every other
+    animation in this app already does, rather than needing their own
+    override.
+
+  **Explicitly NOT done this phase** — named here rather than left
+  implicit, so nobody mistakes "till and payments are retuned" for "the
+  whole app is": the dashboard, products, inventory, customers,
+  transactions/sales list, reports, expenses, suppliers, branches,
+  settings, staff, the admin console, auth screens (login/register/
+  etc.), and the public marketing site all still render with the
+  *previous* redesign's colors (dark green + the old muted-olive
+  accent) wherever they don't happen to route through a primitive
+  retuned in this pass (Button/Card/Modal/Field/Select/Textarea/Badge
+  do reach most of those screens indirectly, so many of them will
+  already look closer to on-brand than before — but none of those
+  screens' own bespoke styling was reviewed or touched). No count-up
+  stat animations, no dashboard entrance animations, no landing-page
+  animations, no light-mode elevation-token pass, and no receipt-page
+  success-checkmark treatment exist yet. These are candidates for
+  later phases of this same series, not abandoned.
+
 - 2026-09-11 — Phase 17 (Synchronization), client half — the
   "You're offline" banner was removed rather than fixed a fifth time.
   The entry below this one describes a fourth attempt at

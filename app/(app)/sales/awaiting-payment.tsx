@@ -166,7 +166,7 @@ export function AwaitingPayment({
 
   if (declined) {
     return (
-      <div className="rounded-2xl border border-red-300 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/40">
+      <div className="animate-fade-in rounded-2xl border border-red-300 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/40">
         <h2 className="font-semibold text-red-900 dark:text-red-200">Payment declined</h2>
         <p className="mt-2 text-sm text-red-900/90 dark:text-red-200/90">
           {declined}. Nothing has been charged to {momoNumber ?? "their phone"}.
@@ -193,12 +193,21 @@ export function AwaitingPayment({
   }
 
   return (
-    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/40">
+    <div className="animate-fade-in rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={`h-2.5 w-2.5 rounded-full ${expired ? "bg-neutral-400" : "animate-pulse bg-amber-500"}`}
-          aria-hidden="true"
-        />
+        {/* A ping ring behind a solid dot reads more clearly as "actively
+            waiting on something" than a plain pulsing dot — the same
+            layered pattern used for a live/recording indicator elsewhere.
+            Both pieces are Tailwind's built-in animate-ping/animate-pulse,
+            no new keyframes needed. */}
+        <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+          {!expired ? (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+          ) : null}
+          <span
+            className={`relative inline-flex h-2.5 w-2.5 rounded-full ${expired ? "bg-neutral-400" : "bg-amber-500"}`}
+          />
+        </span>
         <h2 className="font-semibold text-amber-900 dark:text-amber-200">
           {expired
             ? "No answer from the customer"

@@ -521,10 +521,10 @@ before being called done, per Section 2's completion definition.
   - `components/layout/sidebar.tsx` — one narrow, surgical change: the
     active-nav-item background moved from a generic `white/10` overlay
     to the brand spec's actual named "Active item" color (`surface`,
-    `#0D3B32`). Nothing else in the sidebar/header/app-shell was
-    touched this pass — it inherited the retuned `brand-950` background
+    `#0D3B32`). It inherited the retuned `brand-950` background
     automatically, since it already read that shared token rather than
-    a hardcoded hex.
+    a hardcoded hex (see the follow-up fix below for a border regression
+    that retune introduced).
   - `app/(app)/till/till.tsx` — the POS/till motion system: cart lines
     now animate in on add (`animate-slide-up`, plays automatically on
     mount, no extra state needed) and animate out on removal (a genuine
@@ -588,6 +588,24 @@ before being called done, per Section 2's completion definition.
   animations, no light-mode elevation-token pass, and no receipt-page
   success-checkmark treatment exist yet. These are candidates for
   later phases of this same series, not abandoned.
+
+  **Follow-up fix, same day** — retuning `brand-950` to the exact
+  `#082C24` earlier in this pass had a side effect nobody caught until
+  it was live: `brand-950` (the sidebar's background) and
+  `canvas.dark` (the main content background, in dark mode) are both
+  `#082C24` — the same hex, exactly. Before this pass they were two
+  different dark greens with enough natural contrast to read as
+  separate zones; retuned to the brand's precise values, they became
+  identical, so the sidebar, header, and page content fused into one
+  undifferentiated dark-green field with no visible seam anywhere.
+  Fixed by adding a `border-r` to the sidebar (`components/layout/
+  sidebar.tsx`) and a `border-b` to the sticky header
+  (`components/layout/app-shell.tsx`), both using `surface-line`
+  (`#28564B`) — the brand spec's own named "Border" color, already used
+  the same way on Card/Modal/Field. The header also gets a light-mode
+  border (`neutral-200/70`) for the same reason, since it previously had
+  none there either. No layout, spacing, or functional change — purely
+  the missing dividing lines.
 
 - 2026-09-11 — Phase 17 (Synchronization), client half — the
   "You're offline" banner was removed rather than fixed a fifth time.

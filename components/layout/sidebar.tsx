@@ -65,7 +65,14 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden bg-brand-950 text-brand-50 transition-transform duration-200 ease-in-out",
+          // border-r added 2026-09-11: brand-950 (this sidebar) and
+          // canvas.dark (the main content background, in dark mode) are
+          // now the exact same #082c24 following this phase's color
+          // retune — without a visible seam here the sidebar and the page
+          // read as one undifferentiated dark-green field. surface-line is
+          // the brand spec's own "Border" color (#28564B), used for
+          // exactly this purpose everywhere else (Card, Modal, Field).
+          "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden border-r border-surface-line bg-brand-950 text-brand-50 transition-transform duration-200 ease-in-out",
           // At md+ the drawer becomes a normal, in-flow column: sticky (not
           // fixed) so it takes up real width in the parent flex row and
           // pushes the content beside it, instead of floating over it.

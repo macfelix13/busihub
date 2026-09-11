@@ -52,7 +52,12 @@ export function AppShell({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center gap-2 bg-canvas/90 px-4 py-4 backdrop-blur-sm dark:bg-canvas-dark/90 sm:px-6">
+        {/* border-b added 2026-09-11 alongside the sidebar's border-r, same
+            reason: this header's bg-canvas-dark/90 is the same near-black
+            green as the page content behind it in dark mode, so the sticky
+            header had no visible edge to separate it once you scroll
+            content underneath it. */}
+        <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-neutral-200/70 bg-canvas/90 px-4 py-4 backdrop-blur-sm dark:border-surface-line dark:bg-canvas-dark/90 sm:px-6">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}

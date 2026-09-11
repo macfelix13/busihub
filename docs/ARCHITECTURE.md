@@ -447,7 +447,7 @@ one section of this document expected to change often.
 | 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
-| 17 | Synchronization | pending |
+| 17 | Synchronization | **partial — backend only, see changelog** (`create_sale()` accepts an idempotent `client_transaction_id`, a synced sale is allowed to oversell and records a notification instead of being refused, mobile money is blocked for a synced sale, and `/api/sync` exists to receive a batch of them; there is no offline sale queue in the browser yet — no IndexedDB outbox, no till-UI restriction to cash/credit while offline, no service worker `sync` event, nothing queues a sale for this endpoint to receive) |
 | 18 | Subscriptions & entitlements enforcement | pending |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
 | 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
@@ -465,6 +465,45 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-10 — Phase 17 (Synchronization), backend half only. Migration
+  `0052_offline_sync.sql` extends `create_sale()` with a trailing
+  `p_client_transaction_id` parameter (every existing call site is
+  unaffected — it defaults to null): passing one makes the call
+  idempotent (a replay with the same id, scoped per business by a partial
+  unique index, returns the original sale instead of creating a second
+  one), refuses a `momo` tender outright (a phone cannot be prompted for
+  a charge after the fact), and — because a sale that already happened at
+  the till cannot be refused retroactively — lets its stock movement land
+  negative under a new `sale_synced` reason regardless of the business's
+  `allow_negative_stock` setting, which stays untouched for the ordinary
+  online path. The shortfall is recorded, not silently absorbed: a new
+  `inventory_negative_from_sync` notification type, written directly by
+  the already-`SECURITY DEFINER` `apply_inventory_movement()` trigger and
+  visible to `inventory.view` holders through their own scoped SELECT
+  policy (added as a separate policy, not a widened clause on the
+  existing one — see the migration's own comment on why, it's the exact
+  regression a first draft of this introduced and testing caught).
+  `app/api/sync/route.ts` (new) is the Route Handler a browser-side
+  offline queue will eventually POST a batch of queued sales to: ordinary
+  session auth (never service-role), `requirePermission` up front,
+  payment method restricted to cash/credit before `create_sale` is even
+  called, each queued sale processed independently so one bad item
+  doesn't block the rest of the batch. `tests/security/offline_sync.sql`
+  (new) covers idempotent replay, per-business uniqueness of the
+  idempotency key, a synced oversell landing and notifying correctly, the
+  online path staying refused on the same stock, the momo refusal, the
+  `sale_synced` insert policy, and cross-tenant isolation for all of it —
+  built and run against a real local Postgres instance (all 20 security
+  test suites, existing and new, pass with zero regression) before any
+  of this was written up.
+  What this is NOT: there is still no offline sale queue anywhere in the
+  browser. Nothing generates a `client_transaction_id`, queues a sale in
+  IndexedDB, restricts the till to cash/credit while offline, extends
+  `public/sw.js` with a `sync` event, or shows "N sales pending sync" —
+  `/api/sync` has no caller yet. That client-side half is deliberately
+  separate follow-up work, built against a database layer proven first
+  rather than the other way around.
 
 - 2026-09-10 — Phase 16 (Offline/PWA), installability only. Requested
   directly, scoped down from the full Section 7 offline-sync design after

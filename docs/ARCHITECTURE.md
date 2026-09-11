@@ -447,7 +447,7 @@ one section of this document expected to change often.
 | 14 | Reports | **done — verified, see tests/security/reports.sql** (profit & loss, receivables ageing, stock valuation, sales report; print, WhatsApp text and CSV export) |
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
-| 17 | Synchronization | **partial — mid-session resilience only, see changelog** (a cash/credit sale rung up at the till while the connection drops mid-session queues on the device via IndexedDB and syncs automatically to `/api/sync` once reconnected, idempotently; opening or reloading `/till` from a cold start with no connection still doesn't work — that needs a whole separate offline catalog cache, deliberately scoped out — and there is no service-worker-driven Background Sync retry, by deliberate choice, not oversight, see changelog) |
+| 17 | Synchronization | **partial — mid-session resilience only, no visible connectivity indicator, see changelog** (a cash/credit sale rung up at the till while the connection drops mid-session queues on the device via IndexedDB and syncs automatically to `/api/sync` once reconnected, idempotently; opening or reloading `/till` from a cold start with no connection still doesn't work — that needs a whole separate offline catalog cache, deliberately scoped out — and there is no service-worker-driven Background Sync retry, by deliberate choice, not oversight; the "You're offline" / "N sales syncing" banner was removed on 2026-09-11 after repeated false-positives on real devices, see changelog — the queue and sync themselves are unaffected, there is just nothing on screen telling a cashier which state they're in) |
 | 18 | Subscriptions & entitlements enforcement | pending |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
 | 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
@@ -465,6 +465,46 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-11 — Phase 17 (Synchronization), client half — the
+  "You're offline" banner was removed rather than fixed a fifth time.
+  The entry below this one describes a fourth attempt at
+  `lib/offline/use-online-status.ts` that fixed a real, confirmed race
+  condition — but real-device retesting after it shipped still showed
+  the banner reading "You're offline" immediately on a fresh app open
+  with a genuinely working connection. That's four rounds (DevTools-only
+  event handling, then polling `navigator.onLine`, then a reachability
+  probe, then a corrected version of that probe) where each fix solved
+  the specific failure mode it was built for and real devices still
+  found another one. Rather than ship a fifth guess, `<ConnectionStatus
+  />` was removed from `app/layout.tsx` so the banner stops rendering
+  anywhere, full stop — it can no longer show wrong information because
+  it doesn't show anything. This is a product decision, not a technical
+  fix: client-side network detection (`navigator.onLine`, reachability
+  probes, the `online`/`offline` events) has proven unreliable enough
+  across real browsers and devices in this app's testing that no
+  amount of polling or probing found this session has produced a
+  trustworthy enough signal to put in front of a cashier.
+  `components/ui/connection-status.tsx` and `lib/offline/use-online-status.ts`
+  are both left in place, working and still unit-tested — nothing about
+  them was wrong on their own terms, they just were never fed a reliable
+  enough input. Re-mounting the banner later needs only
+  `<ConnectionStatus />` back in the layout, once (if ever) a genuinely
+  reliable connectivity signal is found. **What did NOT change**: the
+  till (`app/(app)/till/till.tsx`) reads `useOnlineStatus()` directly,
+  independently of the banner, to restrict payment methods to
+  cash/credit and to queue sales locally instead of submitting them
+  live — that logic, and the underlying IndexedDB queue and
+  `/api/sync` flush, are unaffected by removing the banner and continue
+  to work exactly as verified in the entries below. The one open
+  question this doesn't resolve: if the same detection is unreliable
+  enough to mislead a banner, it could in principle also mislead the
+  till's own online/offline branching (e.g., wrongly treating a
+  reachable connection as unreachable and queuing a sale that could
+  have gone through live, or the reverse). That has not been reported
+  as a symptom so far — every offline-till test this phase has queued
+  and synced correctly — but it is now flagged here explicitly as an
+  assumption riding on the same signal, rather than left implicit.
 
 - 2026-09-11 — Phase 17 (Synchronization), client half — fourth
   follow-up, and the first one not diagnosed from a written report: the

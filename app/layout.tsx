@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/ui/toast";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
-import { ConnectionStatus } from "@/components/ui/connection-status";
+// ConnectionStatus (the "You're offline" banner) is deliberately NOT
+// rendered here — see components/ui/connection-status.tsx's own comment
+// and the 2026-09-11 changelog entry ("client half — banner removed")
+// in docs/ARCHITECTURE.md for why.
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -91,7 +94,6 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <RegisterServiceWorker />
         <ToastProvider>{children}</ToastProvider>
-        <ConnectionStatus />
       </body>
     </html>
   );

@@ -5,19 +5,35 @@ import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { usePendingSync } from "@/lib/offline/use-pending-sync";
 
 /**
- * An honest status banner — never a promise that more works than
- * actually does.
+ * NOT CURRENTLY MOUNTED. This used to render from app/layout.tsx (every
+ * route); it was removed from there on 2026-09-11 — see that date's
+ * changelog entry in docs/ARCHITECTURE.md for the full story — after
+ * four rounds of fixes to lib/offline/use-online-status.ts still left
+ * real devices showing "You're offline" while genuinely online. Rather
+ * than ship a fifth guess at client-side connectivity detection, the
+ * banner was taken down so it stops giving wrong information; nothing
+ * else changed. The till's own offline handling (restricting payment
+ * methods to cash/credit and queuing sales locally) does NOT depend on
+ * this component and is unaffected — it reads useOnlineStatus() itself,
+ * separately, in app/(app)/till/till.tsx.
  *
- * Phase 16 (Offline/PWA) only cached static assets and an offline
- * fallback page; there was no offline sale queue, so this used to say
- * simply "won't work until you reconnect" and render nothing at all
- * while online. Phase 17's client half (lib/offline/*) changed that for
- * exactly one thing — a cash or on-account sale rung up at the till — so
- * this now also has something to say once there IS a queue: while
- * offline, how many sales are waiting on this device; while online
- * again, whether they're syncing, done, or stuck. It still says nothing
- * implying anything OTHER than a till sale works offline, because
- * nothing else does.
+ * This file is left in place, working and unit-testable, so a future
+ * fix to the underlying detection can re-mount it by adding
+ * `<ConnectionStatus />` back to app/layout.tsx — nothing here needs to
+ * change for that.
+ *
+ * Original design intent, still accurate for whenever this comes back:
+ * an honest status banner — never a promise that more works than
+ * actually does. Phase 16 (Offline/PWA) only cached static assets and
+ * an offline fallback page; there was no offline sale queue, so this
+ * used to say simply "won't work until you reconnect" and render
+ * nothing at all while online. Phase 17's client half (lib/offline/*)
+ * changed that for exactly one thing — a cash or on-account sale rung
+ * up at the till — so this also has something to say once there IS a
+ * queue: while offline, how many sales are waiting on this device;
+ * while online again, whether they're syncing, done, or stuck. It still
+ * says nothing implying anything OTHER than a till sale works offline,
+ * because nothing else does.
  *
  * Renders nothing only when online with an empty queue — pinned to the
  * bottom of the viewport (rather than pushed inline into the header) so

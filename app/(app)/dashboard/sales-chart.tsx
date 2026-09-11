@@ -41,7 +41,7 @@ const GAP = 2;
 export function SalesChart({ points, period, money, showProfit }: SalesChartProps) {
   if (points.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-neutral-500">No sales in this period yet.</p>
+      <p className="py-10 text-center text-sm text-neutral-500 dark:text-ink-muted">No sales in this period yet.</p>
     );
   }
 
@@ -71,7 +71,7 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
     // entrance with zero client-side JavaScript, preserving the
     // no-charting-library, server-rendered-SVG approach described above.
     <div className="animate-fade-in">
-      <div className="flex items-baseline justify-between text-xs text-neutral-500">
+      <div className="flex items-baseline justify-between text-xs text-neutral-500 dark:text-ink-muted">
         <span>{money(min < 0 ? min : 0)}</span>
         <span>{money(max)}</span>
       </div>
@@ -91,7 +91,7 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
           y2={zeroY}
           stroke="currentColor"
           strokeWidth="0.5"
-          className="text-neutral-300 dark:text-neutral-700"
+          className="text-neutral-300 dark:text-surface-line"
           vectorEffect="non-scaling-stroke"
         />
 
@@ -141,7 +141,7 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
         })}
       </svg>
 
-      <div className="mt-1 flex text-[10px] text-neutral-500">
+      <div className="mt-1 flex text-[10px] text-neutral-500 dark:text-ink-muted">
         {points.map((point, index) => (
           <span
             key={point.bucket_start}
@@ -154,7 +154,7 @@ export function SalesChart({ points, period, money, showProfit }: SalesChartProp
       </div>
 
       {showProfit ? (
-        <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500">
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500 dark:text-ink-muted">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm bg-brand-500" aria-hidden="true" /> Net sales
           </span>

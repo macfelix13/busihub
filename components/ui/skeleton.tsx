@@ -10,7 +10,11 @@
  * someone will act on by mistake.
  */
 export function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-neutral-100 dark:bg-neutral-800 ${className}`} />;
+  // dark:bg-surface (2026-09-11, dashboard phase) instead of plain
+  // neutral-800 — every loaded surface behind this (Card, the sidebar)
+  // now reads as a tinted dark green, not desaturated grey, so a loading
+  // placeholder that stayed grey stood out as visibly "off," not neutral.
+  return <div className={`animate-pulse rounded-2xl bg-neutral-100 dark:bg-surface ${className}`} />;
 }
 
 /** Wraps a route's skeleton with the accessibility announcement every loading.tsx needs. */

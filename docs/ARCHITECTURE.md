@@ -466,6 +466,70 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 2 of N (dashboard).
+  Scope picked by the user after phase 1 shipped and its sidebar/header
+  border regression (see the follow-up fix under the phase-1 entry below)
+  was fixed and confirmed live.
+
+  **What this phase touched** — the dashboard route
+  (`app/(app)/dashboard/page.tsx`, `sales-chart.tsx`) plus two shared
+  primitives it (and most other pages) render through:
+
+  - `app/(app)/dashboard/page.tsx` — every dark-mode class still reading
+    plain desaturated grey (`neutral-800`/`900`/`500`/`300` for borders,
+    dividers, hover backgrounds, and secondary text) moved onto the
+    `surface`/`ink` tokens introduced in phase 1, matching what Card/
+    Modal/Field already do — the stat cards, chart card, and list cards
+    on this page all use `<Card>` already, so only what's DRAWN INSIDE
+    those cards (table dividers, row hover, muted labels, progress-bar
+    tracks) had been missed by phase 1's primitive-only sweep. No
+    numbers, RPC calls, or permission checks changed — every figure on
+    this page still comes from the same database functions listed at
+    the top of the file, unre-touched.
+  - Two real regressions from phase 1's exact-hex retune were found and
+    fixed here, the same class of bug as the sidebar/header border
+    issue: (1) the **dashboard hero card** (the first, dark "Net sales"
+    stat tile) sets `bg-brand-950` and explicitly removes its own
+    border (`dark:border-transparent`) — harmless when brand-950 differed
+    from the page background, but now that they're the exact same
+    `#082C24`, the hero card was disappearing into the page entirely in
+    dark mode. Fixed the same way as the sidebar: `dark:border-surface-line`
+    instead of `dark:border-transparent`. (2) The **active date-range/branch
+    filter pill** used plain `bg-brand-950 text-white` with no dark-mode
+    override, so the "active" pill was rendering the exact same color as
+    the page behind it in dark mode — invisible. Given a dark-mode
+    treatment matching the sidebar's own active-nav-item convention:
+    `dark:bg-surface dark:text-lime-300`.
+  - `components/ui/page-header.tsx` — the shared page title/description
+    block every route renders through (not just the dashboard): title
+    `dark:text-white` → `dark:text-ink`, description `dark:text-neutral-400`
+    → `dark:text-ink-muted`. Reaches every screen the same way Button did
+    in phase 1, for the same reason — one shared primitive, zero logic
+    change.
+  - `components/ui/skeleton.tsx` — `SkeletonBlock`'s dark background moved
+    from plain `neutral-800` to `surface`, so a loading placeholder now
+    reads as "a card that hasn't loaded yet" instead of a grey box that
+    doesn't match anything else on a loaded page. Also reaches every
+    route's `loading.tsx`, purely a color swap — the component's own
+    "deliberately plain, no placeholder numbers" behavior is untouched.
+  - `app/(app)/dashboard/sales-chart.tsx` — muted axis/legend text and
+    the chart's zero-line stroke moved onto `ink-muted`/`surface-line`
+    the same way. The bars themselves (`fill-brand-500` net,
+    `fill-lime-500 dark:fill-lime-400` profit) needed no change — they
+    already read the corrected token values from phase 1 automatically.
+
+  **Explicitly NOT done this phase**: no count-up/entrance number
+  animations on the stat cards (the brand spec's own "final validation"
+  list mentions these as a candidate, not a requirement); no changes to
+  `expenseCategories`' progress-bar fill color (`bg-neutral-400
+  dark:bg-neutral-500`), left as a deliberately neutral (non-branded)
+  bar rather than reached for consistency with the green payment-method
+  bars — a style choice, not a defect, and left for a future pass if
+  wanted. Products, inventory, customers, transactions, reports (the
+  dedicated report pages, as opposed to the dashboard's own summary
+  cards), settings, staff, the admin console, auth screens, and the
+  marketing site remain untouched, same as phase 1.
+
 - 2026-09-11 — Busihub brand identity pass, phase 1 of N (design tokens +
   POS/till + payment states). Context for why this exists as its own
   series, distinct from the "UI/UX polish pass" series later in this

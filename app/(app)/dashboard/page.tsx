@@ -350,15 +350,15 @@ export default async function DashboardPage({
       {/* Filters as links, so a particular week at a particular branch is
           a URL that can be bookmarked or sent to someone. */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+        <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-surface-line">
           {RANGES.map((option) => (
             <Link
               key={option.value}
               href={{ pathname: "/dashboard", query: linkQuery({ range: option.value, from: undefined, to: undefined }) }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 period.range === option.value
-                  ? "bg-brand-950 text-white"
-                  : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+                  ? "bg-brand-950 text-white dark:bg-surface dark:text-lime-300"
+                  : "text-neutral-600 hover:text-neutral-900 dark:text-ink-muted dark:hover:text-ink"
               }`}
             >
               {option.label}
@@ -367,13 +367,13 @@ export default async function DashboardPage({
         </div>
 
         {branches.length > 1 ? (
-          <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-neutral-800">
+          <div className="flex flex-wrap gap-1 rounded-xl border border-neutral-200 p-1 dark:border-surface-line">
             <Link
               href={{ pathname: "/dashboard", query: linkQuery({ branch: undefined }) }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 branchId === null
-                  ? "bg-brand-950 text-white"
-                  : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+                  ? "bg-brand-950 text-white dark:bg-surface dark:text-lime-300"
+                  : "text-neutral-600 hover:text-neutral-900 dark:text-ink-muted dark:hover:text-ink"
               }`}
             >
               All branches
@@ -384,8 +384,8 @@ export default async function DashboardPage({
                 href={{ pathname: "/dashboard", query: linkQuery({ branch: branch.id }) }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   branchId === branch.id
-                    ? "bg-brand-950 text-white"
-                    : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+                    ? "bg-brand-950 text-white dark:bg-surface dark:text-lime-300"
+                    : "text-neutral-600 hover:text-neutral-900 dark:text-ink-muted dark:hover:text-ink"
                 }`}
               >
                 {branch.name}
@@ -436,7 +436,7 @@ export default async function DashboardPage({
       {canSeeMoney ? (
         summaryError ? (
           <Card className="p-5">
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">
               Today&rsquo;s figures could not be loaded. Reload the page, or check back in a moment.
             </p>
           </Card>
@@ -489,14 +489,21 @@ export default async function DashboardPage({
                     hoverable
                     className={cn(
                       "p-4",
-                      isHero && "border-transparent bg-brand-950 shadow-none dark:border-transparent"
+                      // dark:border-transparent (its own border removed) was
+                      // fine when brand-950 differed from the page
+                      // background; now that brand-950 IS canvas.dark, an
+                      // invisible border here means this card disappears
+                      // into the page entirely in dark mode. surface-line
+                      // gives it a defined edge the same way the sidebar
+                      // and header got one, without changing its fill.
+                      isHero && "border-transparent bg-brand-950 shadow-none dark:border-surface-line"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p
                         className={cn(
                           "text-xs font-medium uppercase tracking-wide",
-                          isHero ? "text-brand-200" : "text-neutral-500"
+                          isHero ? "text-brand-200" : "text-neutral-500 dark:text-ink-muted"
                         )}
                       >
                         {card.label}
@@ -515,12 +522,12 @@ export default async function DashboardPage({
                     <p
                       className={cn(
                         "mt-2 text-2xl font-semibold tabular-nums",
-                        isHero ? "text-white" : "text-neutral-900 dark:text-white"
+                        isHero ? "text-white" : "text-neutral-900 dark:text-ink"
                       )}
                     >
                       {card.value}
                     </p>
-                    <p className={cn("mt-0.5 text-xs", isHero ? "text-brand-200" : "text-neutral-500")}>
+                    <p className={cn("mt-0.5 text-xs", isHero ? "text-brand-200" : "text-neutral-500 dark:text-ink-muted")}>
                       {card.sub}
                     </p>
                   </Card>
@@ -532,14 +539,14 @@ export default async function DashboardPage({
                 tracking existed carry a cost estimated from today's
                 catalog, so their profit is an approximation. */}
             {canSeeNetProfit && netProfit < 0 ? (
-              <p className="-mt-3 text-xs text-neutral-500">
+              <p className="-mt-3 text-xs text-neutral-500 dark:text-ink-muted">
                 Expenses came to more than the profit on what was sold {period.label}. A month with rent in it often
                 looks like this on a quiet day &mdash; the figure to watch is the month, not the day.
               </p>
             ) : null}
 
             {summary?.any_cost_estimated ? (
-              <p className="-mt-3 text-xs text-neutral-500">
+              <p className="-mt-3 text-xs text-neutral-500 dark:text-ink-muted">
                 Some sales in this period were rung up before Busihub recorded cost prices. Their profit is estimated
                 from the current catalog cost and may be off if a supplier price has changed since.
               </p>
@@ -548,13 +555,13 @@ export default async function DashboardPage({
             <Card className="p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-semibold">Sales {period.label}</h2>
-                <span className="text-sm text-neutral-500">
+                <span className="text-sm text-neutral-500 dark:text-ink-muted">
                   by {period.bucket === "hour" ? "hour" : period.bucket}
                 </span>
               </div>
               <div className="mt-4">
                 {trendError ? (
-                  <p className="py-10 text-center text-sm text-neutral-500">The chart could not be loaded.</p>
+                  <p className="py-10 text-center text-sm text-neutral-500 dark:text-ink-muted">The chart could not be loaded.</p>
                 ) : (
                   <SalesChart points={trend} period={period} money={money} showProfit />
                 )}
@@ -575,13 +582,13 @@ export default async function DashboardPage({
                             <span className="font-medium">{paymentMethodLabel(row.method)}</span>
                             <span className="tabular-nums">
                               {money(amount)}{" "}
-                              <span className="text-neutral-500">({share.toFixed(0)}%)</span>
+                              <span className="text-neutral-500 dark:text-ink-muted">({share.toFixed(0)}%)</span>
                             </span>
                           </div>
-                          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-surface">
                             <div className="h-full rounded-full bg-brand-500" style={{ width: `${share}%` }} />
                           </div>
-                          <p className="mt-1 text-xs text-neutral-500">
+                          <p className="mt-1 text-xs text-neutral-500 dark:text-ink-muted">
                             {Number(row.tender_count ?? 0)}{" "}
                             {Number(row.tender_count ?? 0) === 1 ? "payment" : "payments"}
                             {row.method === "cash" ? " · after change given" : ""}
@@ -592,7 +599,7 @@ export default async function DashboardPage({
                     })}
                   </ul>
                 ) : (
-                  <p className="py-8 text-center text-sm text-neutral-500">
+                  <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                     Nothing taken {period.label}.
                   </p>
                 )}
@@ -601,15 +608,15 @@ export default async function DashboardPage({
               <Card className="p-5">
                 <div className="flex items-baseline justify-between">
                   <h2 className="font-semibold">Best sellers</h2>
-                  <span className="text-xs text-neutral-500">by profit</span>
+                  <span className="text-xs text-neutral-500 dark:text-ink-muted">by profit</span>
                 </div>
                 {products.length > 0 ? (
-                  <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-neutral-800">
+                  <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-surface-line">
                     {products.map((row) => (
                       <li key={row.variant_id} className="flex items-center justify-between gap-3 py-2.5">
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{row.product_name}</span>
-                          <span className="text-xs text-neutral-500">
+                          <span className="text-xs text-neutral-500 dark:text-ink-muted">
                             {Number(row.quantity_sold ?? 0)} sold · {money(row.revenue)}
                           </span>
                         </span>
@@ -620,7 +627,7 @@ export default async function DashboardPage({
                     ))}
                   </ul>
                 ) : (
-                  <p className="py-8 text-center text-sm text-neutral-500">
+                  <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                     Nothing sold {period.label} yet.
                   </p>
                 )}
@@ -653,7 +660,7 @@ export default async function DashboardPage({
                     <span className="font-medium">{row.category_name}</span>
                     <span className="tabular-nums">{money(amount)}</span>
                   </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-surface">
                     <div className="h-full rounded-full bg-neutral-400 dark:bg-neutral-500" style={{ width: `${share}%` }} />
                   </div>
                 </li>
@@ -661,7 +668,7 @@ export default async function DashboardPage({
             })}
           </ul>
           {Number(expenses?.cash_paid_out ?? 0) > 0 ? (
-            <p className="mt-4 text-xs text-neutral-500">
+            <p className="mt-4 text-xs text-neutral-500 dark:text-ink-muted">
               {money(expenses?.cash_paid_out)} of this came out of the till, so the drawer will be short by that much.
             </p>
           ) : null}
@@ -678,12 +685,12 @@ export default async function DashboardPage({
               </Link>
             </div>
             {lowStock.length > 0 ? (
-              <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-neutral-800">
+              <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-surface-line">
                 {lowStock.map((row) => (
                   <li key={`${row.variant_id}-${row.branch_name}`} className="flex items-center justify-between gap-3 py-2.5">
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{row.product_name}</span>
-                      <span className="text-xs text-neutral-500">
+                      <span className="text-xs text-neutral-500 dark:text-ink-muted">
                         {row.sku ? `${row.sku} · ` : ""}
                         {row.branch_name} · {Number(row.quantity ?? 0)} left of {Number(row.reorder_point ?? 0)}
                       </span>
@@ -695,7 +702,7 @@ export default async function DashboardPage({
                 ))}
               </ul>
             ) : (
-              <p className="py-8 text-center text-sm text-neutral-500">
+              <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                 Everything is above its reorder point.
               </p>
             )}
@@ -712,18 +719,18 @@ export default async function DashboardPage({
             ) : null}
           </div>
           {recentSales.length > 0 ? (
-            <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-neutral-800">
+            <ul className="mt-4 divide-y divide-neutral-100 text-sm dark:divide-surface-line">
               {recentSales.map((sale) => {
                 const cashier = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
                 return (
                   <li key={sale.id}>
                     <Link
                       href={`/sales/${sale.id}`}
-                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                      className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60"
                     >
                       <span className="min-w-0">
                         <span className="font-medium">{sale.receipt_number}</span>
-                        <span className="block truncate text-xs text-neutral-500">
+                        <span className="block truncate text-xs text-neutral-500 dark:text-ink-muted">
                           {new Date(sale.created_at).toLocaleTimeString("en-GB", {
                             timeZone: period.timezone,
                             hour: "2-digit",
@@ -742,7 +749,7 @@ export default async function DashboardPage({
               })}
             </ul>
           ) : (
-            <p className="py-8 text-center text-sm text-neutral-500">
+            <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
               Nothing sold yet. {canSell ? "Open the till to ring one up." : ""}
             </p>
           )}
@@ -754,7 +761,7 @@ export default async function DashboardPage({
           <h2 className="font-semibold">Who sold what</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-sm">
-              <thead className="text-left text-xs uppercase text-neutral-500">
+              <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
                 <tr>
                   <th className="pb-2 font-medium">Cashier</th>
                   <th className="pb-2 text-right font-medium">Sales</th>
@@ -763,13 +770,13 @@ export default async function DashboardPage({
                   <th className="pb-2 text-right font-medium">Net</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {staff.map((row) => (
-                  <tr key={row.cashier_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                  <tr key={row.cashier_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                     <td className="py-2.5 pr-3">{staffName(row.first_name, row.last_name)}</td>
                     <td className="py-2.5 text-right tabular-nums">{Number(row.sale_count ?? 0)}</td>
                     <td className="py-2.5 text-right tabular-nums">{money(row.gross_total)}</td>
-                    <td className="py-2.5 text-right tabular-nums text-neutral-500">
+                    <td className="py-2.5 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                       {money(row.refunded_total)}
                     </td>
                     <td className="py-2.5 text-right font-medium tabular-nums">{money(row.net_total)}</td>
@@ -786,7 +793,7 @@ export default async function DashboardPage({
           <h2 className="font-semibold">Branches</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[24rem] text-sm">
-              <thead className="text-left text-xs uppercase text-neutral-500">
+              <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
                 <tr>
                   <th className="pb-2 font-medium">Branch</th>
                   <th className="pb-2 text-right font-medium">Sales</th>
@@ -794,9 +801,9 @@ export default async function DashboardPage({
                   <th className="pb-2 text-right font-medium">Profit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {branchPerf.map((row) => (
-                  <tr key={row.branch_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                  <tr key={row.branch_id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                     <td className="py-2.5 pr-3">
                       <Link
                         href={{ pathname: "/dashboard", query: linkQuery({ branch: row.branch_id }) }}
@@ -804,7 +811,7 @@ export default async function DashboardPage({
                       >
                         {row.branch_name}
                       </Link>
-                      {row.is_main ? <span className="ml-2 text-xs text-neutral-500">main</span> : null}
+                      {row.is_main ? <span className="ml-2 text-xs text-neutral-500 dark:text-ink-muted">main</span> : null}
                     </td>
                     <td className="py-2.5 text-right tabular-nums">{Number(row.sale_count ?? 0)}</td>
                     <td className="py-2.5 text-right tabular-nums">{money(row.net_total)}</td>
@@ -820,7 +827,7 @@ export default async function DashboardPage({
       {canViewCustomers && owed > 0 ? (
         <Link
           href="/customers"
-          className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/50"
+          className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-sm transition-colors hover:bg-neutral-50 dark:border-surface-line dark:bg-surface-card dark:hover:bg-surface/60"
         >
           <span>
             <span className="font-semibold tabular-nums">{money(owed)}</span> is owed to you by{" "}

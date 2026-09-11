@@ -466,6 +466,61 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Real Privacy Policy and Terms of Service, replacing the
+  honest placeholders at `app/privacy/page.tsx` and `app/terms/page.tsx`.
+  Requested directly by the user as the next focus after the 8-phase
+  brand identity pass closed out. Unlike the brand phases, this is
+  content, not styling — no className changed here beyond what the two
+  pages already carried from phase 8.
+
+  **What grounds the content.** Both documents were drafted only from
+  facts verified in this codebase, not generic boilerplate: no
+  analytics/advertising/tracking script exists anywhere in the app
+  (confirmed by grep); Paystack secret keys are encrypted at rest
+  (AES-256-GCM, `lib/crypto/secret-box.ts`) and Busihub never holds a
+  platform-level Paystack key or custody of a business's or its
+  customers' money (`docs/SECURITY.md`); tenant data is isolated by
+  Postgres row-level security, tested in CI; passwords and till PINs are
+  hashed, never stored in plain text; cookies are limited to auth and
+  till-session state (`lib/auth/till-session.ts`,
+  `lib/supabase/cookie-types.ts`) with no tracking cookies; the theme
+  preference lives only in the browser's own `localStorage`; and the
+  free trial terms match `components/marketing/pricing-preview.tsx`'s
+  own verbatim offer (14 days, no card required) rather than inventing
+  plan names or prices that don't exist in the product yet.
+
+  **Business facts supplied directly by the user**, since these are
+  decisions only the operator can make and an AI assistant should not
+  guess at: the business operates as a sole trader under the name
+  "Busihub" with no separate registered legal entity, so both documents
+  refer only to "Busihub"/"we"/"us" and do not publish an individual's
+  personal legal name; the governing law is Ghana; and the contact email
+  is an interim address, not yet the dedicated mailbox the operator
+  intends to set up. Both pages read that address from `lib/env.ts`'s
+  `supportEmail()` — already used elsewhere in the app for exactly this
+  reason — instead of hardcoding a duplicate, so updating the
+  `NEXT_PUBLIC_SUPPORT_EMAIL` env var once the real mailbox exists
+  updates every page that shows a contact address at once.
+
+  **Terms of Service sections**: Acceptance of These Terms; What Busihub
+  Is; Accounts, Access and Your Responsibilities; Free Trial and
+  Pricing; Payments Through Paystack; Acceptable Use; Your Content and
+  Data; Availability and Changes to the Service; Disclaimer of
+  Warranties; Limitation of Liability; Suspension and Termination;
+  Changes to These Terms; Governing Law; Contact Us.
+
+  **Not a substitute for legal review.** Both documents say so directly
+  in an in-file comment and should be read as a good-faith, fact-checked
+  draft rather than a final legal instrument. In particular: if Busihub
+  processes personal data of people in Ghana, registering as a data
+  controller with Ghana's Data Protection Commission under the Data
+  Protection Act, 2012 (Act 843) may be a legal requirement that hasn't
+  been confirmed either way, and the Terms' limitation-of-liability and
+  governing-law sections carry the most legal weight of anything in
+  either document. Both should get real legal review before being
+  treated as final or binding — especially before onboarding real paying
+  businesses.
+
 - 2026-09-11 — Busihub brand identity pass, phase 8 of N (final
   end-to-end sweep). Requested directly by the user ("final end-to-end
   dark-mode pass") after phase 7 closed out the last *named* area from

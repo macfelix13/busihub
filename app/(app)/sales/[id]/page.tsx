@@ -170,7 +170,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             {isAwaiting ? <Badge variant="warning">Waiting for payment</Badge> : null}
             {isCancelled ? <Badge variant="neutral">Cancelled</Badge> : null}
           </div>
-          <p className="text-neutral-500">
+          <p className="text-neutral-500 dark:text-ink-muted">
             {new Date(sale.created_at).toLocaleString("en-GB", {
               day: "2-digit",
               month: "short",
@@ -224,7 +224,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
-            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
               <tr>
                 <th className="px-4 py-3 font-medium">Item</th>
                 <th className="px-4 py-3 text-right font-medium">Qty</th>
@@ -232,18 +232,18 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 <th className="px-4 py-3 text-right font-medium">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
               {rows.map((item) => (
-                <tr key={item.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                <tr key={item.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                   <td className="px-4 py-3">
                     <span className="font-medium">{item.description}</span>
-                    {item.sku ? <span className="ml-2 text-neutral-500">{item.sku}</span> : null}
+                    {item.sku ? <span className="ml-2 text-neutral-500 dark:text-ink-muted">{item.sku}</span> : null}
                     {item.rendered_by ? (
-                      <p className="mt-0.5 text-xs text-neutral-500">
+                      <p className="mt-0.5 text-xs text-neutral-500 dark:text-ink-muted">
                         Rendered by {[item.rendered_by.first_name, item.rendered_by.last_name].filter(Boolean).join(" ") || "—"}
                       </p>
                     ) : item.provider ? (
-                      <p className="mt-0.5 text-xs text-neutral-500">
+                      <p className="mt-0.5 text-xs text-neutral-500 dark:text-ink-muted">
                         Rendered by {item.provider.name}
                         {item.provider.title ? ` (${item.provider.title})` : ""}
                       </p>
@@ -259,9 +259,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 </tr>
               ))}
             </tbody>
-            <tfoot className="border-t border-neutral-200 dark:border-neutral-800">
+            <tfoot className="border-t border-neutral-200 dark:border-surface-line">
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-right text-neutral-500">
+                <td colSpan={3} className="px-4 py-2 text-right text-neutral-500 dark:text-ink-muted">
                   Subtotal (excluding tax)
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
@@ -269,7 +269,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 </td>
               </tr>
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-right text-neutral-500">
+                <td colSpan={3} className="px-4 py-2 text-right text-neutral-500 dark:text-ink-muted">
                   Tax
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
@@ -287,7 +287,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               {sale.payment_method === "cash" ? (
                 <>
                   <tr>
-                    <td colSpan={3} className="px-4 py-2 text-right text-neutral-500">
+                    <td colSpan={3} className="px-4 py-2 text-right text-neutral-500 dark:text-ink-muted">
                       Cash received
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
@@ -295,7 +295,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={3} className="px-4 py-2 text-right text-neutral-500">
+                    <td colSpan={3} className="px-4 py-2 text-right text-neutral-500 dark:text-ink-muted">
                       Change
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
@@ -305,7 +305,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 </>
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-neutral-500">
+                  <td colSpan={3} className="px-4 py-2 text-right text-neutral-500 dark:text-ink-muted">
                     On account
                   </td>
                   <td className="px-4 py-2 text-right">
@@ -335,13 +335,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         <div>
           <h2 className="font-semibold">How it was paid</h2>
           <Card className="mt-3 overflow-hidden">
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
               {payments.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
                   <span>
                     <span className="font-medium">{paymentMethodLabel(p.method)}</span>
                     {p.momo_number ? (
-                      <span className="ml-2 text-neutral-500">
+                      <span className="ml-2 text-neutral-500 dark:text-ink-muted">
                         {p.momo_number} · {momoNetworkLabel(p.momo_network ?? "")}
                       </span>
                     ) : null}
@@ -350,7 +350,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     ) : null}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs uppercase text-neutral-500">{p.status}</span>
+                    <span className="text-xs uppercase text-neutral-500 dark:text-ink-muted">{p.status}</span>
                     <span className="font-medium tabular-nums">
                       {formatMoney(toMinorUnits(p.amount), currencyCode)}
                     </span>
@@ -363,7 +363,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       ) : null}
 
       {isCancelled ? (
-        <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+        <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-surface dark:text-ink-muted">
           This sale was cancelled before it was paid for. The items went back on the shelf and nothing was charged.
         </p>
       ) : null}
@@ -372,20 +372,20 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         <div>
           <h2 className="font-semibold">Returns against this sale</h2>
           <Card className="mt-3 overflow-hidden">
-            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
               {refundRows.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-3 text-sm">
                   <span className="min-w-0">
                     <span className="font-medium">{r.refund_number}</span>
-                    <span className="ml-2 text-neutral-500">{refundMethodLabel(r.method)}</span>
-                    {r.reason ? <span className="ml-2 text-neutral-500">· {r.reason}</span> : null}
+                    <span className="ml-2 text-neutral-500 dark:text-ink-muted">{refundMethodLabel(r.method)}</span>
+                    {r.reason ? <span className="ml-2 text-neutral-500 dark:text-ink-muted">· {r.reason}</span> : null}
                   </span>
                   <span className="whitespace-nowrap font-medium tabular-nums text-red-600 dark:text-red-400">
                     −{formatMoney(toMinorUnits(r.total), currencyCode)}
                   </span>
                 </li>
               ))}
-              <li className="flex items-center justify-between bg-neutral-50 px-5 py-3 text-sm font-medium dark:bg-neutral-800/50">
+              <li className="flex items-center justify-between bg-neutral-50 px-5 py-3 text-sm font-medium dark:bg-surface/60">
                 <span>Net after returns</span>
                 <span className="tabular-nums">
                   {formatMoney(toMinorUnits(Number(sale.total) - refundedTotal), currencyCode)}
@@ -396,7 +396,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         </div>
       ) : null}
 
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-500 dark:text-ink-muted">
         Every figure here was calculated by the server from the catalog price and your tax settings at the moment of
         sale. This record cannot be edited — a correction is a return or a void, each of which gets its own row.
       </p>

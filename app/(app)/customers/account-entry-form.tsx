@@ -31,7 +31,7 @@ export function AccountEntryForm({ mode, action, branches, currencyCode, current
         </p>
       ) : null}
 
-      <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+      <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-surface dark:text-ink-muted">
         {currentBalanceLabel}
       </p>
 
@@ -65,7 +65,7 @@ export function AccountEntryForm({ mode, action, branches, currencyCode, current
         min={0.01}
         error={state.fieldErrors?.amount}
       />
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         {isPayment
           ? "What the customer has handed over. Paying more than they owe leaves them in credit."
           : "Entered as a positive amount — the direction above decides which way it moves."}

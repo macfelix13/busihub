@@ -466,6 +466,63 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 4 of N (customers,
+  sales & reports). Scope named directly by the user ("customers/sales/
+  reports next") rather than picked from a list.
+
+  **What this phase touched** — every customer, sales/transaction, and
+  reports screen:
+
+  - Customers: `customers/page.tsx`, `customers/[id]/page.tsx`,
+    `customers/customer-form.tsx`, `customers/account-entry-form.tsx`.
+  - Sales: `sales/page.tsx`, `sales/[id]/page.tsx`,
+    `sales/refund-form.tsx`, `sales/awaiting-payment.tsx` (one residual
+    input background), `sales/[id]/receipt/page.tsx`,
+    `sales/[id]/receipt/receipt-controls.tsx`.
+  - Reports: `reports/page.tsx`, `reports/report-shell.tsx`,
+    `reports/report-controls.tsx`, `reports/profit-loss/page.tsx`,
+    `reports/receivables/page.tsx`, `reports/stock/page.tsx`,
+    `reports/sales/page.tsx`.
+
+  Same treatment as phases 1-3: plain grey dark-mode classes (borders,
+  dividers, row/card hovers, table headers, muted/secondary text, card
+  backgrounds) moved onto the `surface`/`ink` tokens. No queries, RPCs,
+  validation, or permission checks changed anywhere — confirmed by
+  reading every file in full before editing; only className strings
+  were touched.
+
+  **The receipt page is a deliberate exception, left alone on purpose.**
+  `sales/[id]/receipt/page.tsx` renders the printed/shared slip inside a
+  `.receipt-sheet` div styled `bg-white text-neutral-900` with **no**
+  `dark:` variant on either — it is meant to look like paper on screen
+  in both themes, not like the rest of the app. That was true before
+  this phase and stays true after it; only the div's border
+  (`dark:border-neutral-800` → `dark:border-surface-line`) was retuned
+  to match the design system, since a border color is not part of the
+  "looks like paper" contract the way the background/text colors are.
+
+  **A new, smaller judgment call**: `reports/receivables/page.tsx` fades
+  a zero-value aging column to `text-neutral-300` in light mode and had
+  `dark:text-neutral-700` in dark mode — a near-invisible "nothing here"
+  treatment. There is no token in the `surface`/`ink` system built for
+  "deliberately almost invisible," so this was mapped to the same
+  `dark:text-ink-muted` used everywhere else for secondary text, rather
+  than inventing a new one-off token. It is slightly more visible than
+  before; nothing has changed about the light-mode side.
+
+  **Still explicitly deferred, unchanged from phase 3's note**: the
+  checkbox in `sales/refund-form.tsx` had its border/background retuned
+  (`dark:border-neutral-700 dark:bg-neutral-900` →
+  `dark:border-surface-line dark:bg-surface`) but its focus-ring color
+  (`focus:ring-brand-500/30`) was deliberately left alone, matching the
+  same decision already made for `product-form.tsx` in phase 3. The
+  third instance of this exact pattern, `settings/payments/
+  paystack-form.tsx`, remains untouched and out of scope. A future pass
+  can retune the ring color on all three together.
+
+  Settings, staff, the admin console, auth screens, and the marketing
+  site remain untouched.
+
 - 2026-09-11 — Busihub brand identity pass, phase 3 of N (products &
   inventory). Scope picked by the user after phase 2 (dashboard) shipped.
 

@@ -178,7 +178,7 @@ export default async function SalesPage({
           { label: "Net", value: formatMoney(toMinorUnits(summary?.net_total ?? 0), currencyCode) },
         ].map((card) => (
           <Card key={card.label} className="p-4">
-            <p className="text-xs uppercase text-neutral-500">{card.label}</p>
+            <p className="text-xs uppercase text-neutral-500 dark:text-ink-muted">{card.label}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{card.value}</p>
           </Card>
         ))}
@@ -199,31 +199,31 @@ export default async function SalesPage({
       <form method="get" className="flex flex-wrap items-end gap-3">
         {activeStatus ? <input type="hidden" name="status" value={activeStatus} /> : null}
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">From</span>
+          <span className="font-medium text-neutral-800 dark:text-ink">From</span>
           <input
             type="date"
             name="from"
             defaultValue={from ?? ""}
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-900"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-surface-line dark:bg-surface dark:text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">To</span>
+          <span className="font-medium text-neutral-800 dark:text-ink">To</span>
           <input
             type="date"
             name="to"
             defaultValue={to ?? ""}
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-900"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-surface-line dark:bg-surface dark:text-ink"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">Receipt number</span>
+          <span className="font-medium text-neutral-800 dark:text-ink">Receipt number</span>
           <input
             type="search"
             name="q"
             defaultValue={search}
             placeholder="R-000042"
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-900"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base dark:border-surface-line dark:bg-surface dark:text-ink"
           />
         </label>
         <Button type="submit" variant="secondary">
@@ -254,14 +254,14 @@ export default async function SalesPage({
         />
       ) : (
         <Card className="overflow-hidden">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {rows.map((sale) => {
               const cashier = [sale.cashier?.first_name, sale.cashier?.last_name].filter(Boolean).join(" ");
               return (
                 <li key={sale.id}>
                   <Link
                     href={`/sales/${sale.id}`}
-                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                   >
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -269,9 +269,9 @@ export default async function SalesPage({
                         <Badge variant={STATUS_BADGE[sale.status] ?? "neutral"}>
                           {STATUS_LABELS[sale.status] ?? sale.status}
                         </Badge>
-                        <span className="text-xs text-neutral-500">{paymentMethodLabel(sale.payment_method)}</span>
+                        <span className="text-xs text-neutral-500 dark:text-ink-muted">{paymentMethodLabel(sale.payment_method)}</span>
                       </div>
-                      <p className="mt-0.5 text-sm text-neutral-500">
+                      <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
                         {new Date(sale.created_at).toLocaleString("en-GB", {
                           day: "2-digit",
                           month: "short",
@@ -297,7 +297,7 @@ export default async function SalesPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} sales
           </span>
           <div className="flex gap-2">

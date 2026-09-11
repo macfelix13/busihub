@@ -121,7 +121,7 @@ export default async function CustomersPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search name or phone…"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-56"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-56"
           />
           <Button type="submit" variant="secondary">
             Search
@@ -150,18 +150,18 @@ export default async function CustomersPage({
         />
       ) : (
         <Card className="overflow-hidden">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {rows.map(({ customer, balance }) => {
               const state = describeBalance(balance);
               return (
                 <li key={customer.id}>
                   <Link
                     href={`/customers/${customer.id}`}
-                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                   >
                     <div>
                       <span className="font-medium">{customer.name}</span>
-                      <p className="mt-0.5 text-sm text-neutral-500">{customer.phone || "No phone"}</p>
+                      <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">{customer.phone || "No phone"}</p>
                     </div>
                     <p
                       className={`text-sm font-medium tabular-nums ${
@@ -169,7 +169,7 @@ export default async function CustomersPage({
                           ? "text-red-600 dark:text-red-400"
                           : state.inCredit
                             ? "text-green-700 dark:text-green-400"
-                            : "text-neutral-500"
+                            : "text-neutral-500 dark:text-ink-muted"
                       }`}
                     >
                       {balance === 0

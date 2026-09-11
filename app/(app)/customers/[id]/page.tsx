@@ -83,7 +83,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <h1 className="text-2xl font-semibold">{customer.name}</h1>
             {customer.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
           </div>
-          <p className="text-neutral-500">{customer.phone || "No phone number"}</p>
+          <p className="text-neutral-500 dark:text-ink-muted">{customer.phone || "No phone number"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canEdit ? (
@@ -110,7 +110,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">
-          <p className="text-sm text-neutral-500">Balance</p>
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">Balance</p>
           <p
             className={`mt-1 text-2xl font-semibold tabular-nums ${
               state.owing ? "text-red-600 dark:text-red-400" : state.inCredit ? "text-green-700 dark:text-green-400" : ""
@@ -118,19 +118,19 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           >
             {formatMoney(toMinorUnits(Math.abs(balance)), currencyCode)}
           </p>
-          <p className="mt-0.5 text-sm text-neutral-500">
+          <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
             {balance === 0 ? "Settled up" : state.owing ? "owed to you" : "in their favour"}
           </p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-neutral-500">Credit limit</p>
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">Credit limit</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {formatMoney(toMinorUnits(creditLimit), currencyCode)}
           </p>
-          <p className="mt-0.5 text-sm text-neutral-500">{creditLimit === 0 ? "Cash only" : "maximum they may owe"}</p>
+          <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">{creditLimit === 0 ? "Cash only" : "maximum they may owe"}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm text-neutral-500">Still available</p>
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">Still available</p>
           <p
             className={`mt-1 text-2xl font-semibold tabular-nums ${
               headroom <= 0 ? "text-red-600 dark:text-red-400" : ""
@@ -138,22 +138,22 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           >
             {formatMoney(toMinorUnits(Math.max(headroom, 0)), currencyCode)}
           </p>
-          <p className="mt-0.5 text-sm text-neutral-500">
+          <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
             {headroom <= 0 ? "at their limit" : "can still be charged"}
           </p>
         </Card>
       </div>
 
       <Card className="overflow-hidden">
-        <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <dl className="divide-y divide-neutral-100 dark:divide-surface-line">
           {[
             ["Email", customer.email],
             ["Address", customer.address],
             ["Notes", customer.notes],
           ].map(([label, value]) => (
             <div key={label as string} className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-              <dt className="text-sm font-medium text-neutral-500">{label}</dt>
-              <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">
+              <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">{label}</dt>
+              <dd className="whitespace-pre-line text-sm text-neutral-800 dark:text-ink sm:col-span-2">
                 {(value as string) || "—"}
               </dd>
             </div>
@@ -163,14 +163,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
       <div>
         <h2 className="font-semibold">Account history</h2>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
           Everything charged and paid, most recent first. Entries are never edited or deleted — a correction is a new
           entry.
         </p>
         <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
                 <tr>
                   <th className="px-4 py-3 font-medium">When</th>
                   <th className="px-4 py-3 font-medium">Type</th>
@@ -179,14 +179,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   <th className="px-4 py-3 font-medium">By</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {entries && entries.length > 0 ? (
                   (entries as unknown as EntryRow[]).map((entry) => {
                     const amount = Number(entry.amount);
                     const who = [entry.profiles?.first_name, entry.profiles?.last_name].filter(Boolean).join(" ");
                     return (
-                      <tr key={entry.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                        <td className="px-4 py-3 text-neutral-500">
+                      <tr key={entry.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">
                           {new Date(entry.created_at).toLocaleString("en-GB", {
                             day: "2-digit",
                             month: "short",
@@ -204,14 +204,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                           {amount > 0 ? "+" : "−"}
                           {formatMoney(toMinorUnits(Math.abs(amount)), currencyCode)}
                         </td>
-                        <td className="px-4 py-3 text-neutral-500">{entry.note || "—"}</td>
-                        <td className="px-4 py-3 text-neutral-500">{who || "—"}</td>
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{entry.note || "—"}</td>
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{who || "—"}</td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-500">
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                       Nothing on this account yet.
                     </td>
                   </tr>
@@ -220,7 +220,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             </table>
           </div>
         </Card>
-        <p className="mt-2 text-sm text-neutral-500">
+        <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
           A charge (+) increases what they owe; a payment (−) reduces it.
         </p>
       </div>

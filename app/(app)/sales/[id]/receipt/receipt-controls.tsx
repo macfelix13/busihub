@@ -41,7 +41,7 @@ export function ReceiptControls({ text }: { text: string }) {
         </Button>
       </div>
       {copyFailed ? (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
           Your browser wouldn&apos;t let the page copy. Select the receipt below and copy it yourself.
         </p>
       ) : null}

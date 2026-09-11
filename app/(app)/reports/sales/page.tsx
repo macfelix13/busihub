@@ -148,12 +148,12 @@ export default async function SalesReportPage({
       csvHref={context.canExport ? exportHref("sales", context) : undefined}
     >
       {error ? (
-        <p className="py-10 text-center text-neutral-500">
+        <p className="py-10 text-center text-neutral-500 dark:text-ink-muted">
           This report couldn&rsquo;t be loaded. Reload the page, or try again in a moment.
         </p>
       ) : (
         <>
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
             <StatementLine
               label="Sales"
               value={money(summary?.gross_total)}
@@ -169,13 +169,13 @@ export default async function SalesReportPage({
               note="before expenses"
             />
             {saleCount > 0 ? (
-              <p className="mt-3 text-sm text-neutral-500">
+              <p className="mt-3 text-sm text-neutral-500 dark:text-ink-muted">
                 An average of {money(netTotal / saleCount)} a sale.
               </p>
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
             <h2 className="font-semibold">Sales {period.label}</h2>
             <div className="mt-4">
               <SalesChart points={trend} period={period} money={money} showProfit />
@@ -183,7 +183,7 @@ export default async function SalesReportPage({
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2">
-            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
               <h2 className="font-semibold">How people paid</h2>
               {payments.length > 0 ? (
                 <div className="mt-3">
@@ -202,11 +202,11 @@ export default async function SalesReportPage({
                   <StatementLine label="Total taken" value={money(paymentTotal)} rule emphasis />
                 </div>
               ) : (
-                <p className="py-8 text-center text-sm text-neutral-500">Nothing taken {period.label}.</p>
+                <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">Nothing taken {period.label}.</p>
               )}
             </section>
 
-            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
               <h2 className="font-semibold">Best sellers</h2>
               {products.length > 0 ? (
                 <div className="mt-3">
@@ -220,16 +220,16 @@ export default async function SalesReportPage({
                   ))}
                 </div>
               ) : (
-                <p className="py-8 text-center text-sm text-neutral-500">Nothing sold {period.label}.</p>
+                <p className="py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">Nothing sold {period.label}.</p>
               )}
             </section>
           </div>
 
           {staff.length > 0 ? (
-            <section className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+            <section className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
               <h2 className="font-semibold">Who sold what</h2>
               <table className="mt-4 w-full min-w-[28rem] text-sm">
-                <thead className="text-left text-xs uppercase text-neutral-500">
+                <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
                   <tr>
                     <th className="pb-2 font-medium">Cashier</th>
                     <th className="pb-2 text-right font-medium">Sales</th>
@@ -238,7 +238,7 @@ export default async function SalesReportPage({
                     <th className="pb-2 text-right font-medium">Net</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                   {staff.map((row) => (
                     <tr key={row.cashier_id}>
                       <td className="py-2.5 pr-3">
@@ -246,7 +246,7 @@ export default async function SalesReportPage({
                       </td>
                       <td className="py-2.5 text-right tabular-nums">{Number(row.sale_count ?? 0)}</td>
                       <td className="py-2.5 text-right tabular-nums">{money(row.gross_total)}</td>
-                      <td className="py-2.5 text-right tabular-nums text-neutral-500">
+                      <td className="py-2.5 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                         {money(row.refunded_total)}
                       </td>
                       <td className="py-2.5 text-right font-medium tabular-nums">{money(row.net_total)}</td>
@@ -258,14 +258,14 @@ export default async function SalesReportPage({
           ) : null}
 
           {providers.length > 0 ? (
-            <section className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+            <section className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
               <h2 className="font-semibold">Who rendered what</h2>
-              <p className="mt-1 text-sm text-neutral-500">
+              <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
                 Service revenue by whoever actually did the work, not whoever rang up the sale — one checkout can
                 cover more than one person&rsquo;s work.
               </p>
               <table className="mt-4 w-full min-w-[28rem] text-sm">
-                <thead className="text-left text-xs uppercase text-neutral-500">
+                <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
                   <tr>
                     <th className="pb-2 font-medium">Staff</th>
                     <th className="pb-2 text-right font-medium">Services</th>
@@ -274,16 +274,18 @@ export default async function SalesReportPage({
                     <th className="pb-2 text-right font-medium">Net</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                   {providers.map((row) => (
                     <tr key={`${row.renderer_type}:${row.renderer_id}`}>
                       <td className="py-2.5 pr-3">
                         {row.full_name || "Unnamed"}
-                        {row.title ? <span className="ml-1 text-neutral-500">· {row.title}</span> : null}
+                        {row.title ? (
+                          <span className="ml-1 text-neutral-500 dark:text-ink-muted">· {row.title}</span>
+                        ) : null}
                       </td>
                       <td className="py-2.5 text-right tabular-nums">{Number(row.service_count ?? 0)}</td>
                       <td className="py-2.5 text-right tabular-nums">{money(row.gross_total)}</td>
-                      <td className="py-2.5 text-right tabular-nums text-neutral-500">
+                      <td className="py-2.5 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                         {money(row.refunded_total)}
                       </td>
                       <td className="py-2.5 text-right font-medium tabular-nums">{money(row.net_total)}</td>
@@ -295,7 +297,7 @@ export default async function SalesReportPage({
           ) : null}
 
           {summary?.any_cost_estimated ? (
-            <p className="text-sm text-neutral-500 print:text-xs">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted print:text-xs">
               Some sales in this period were rung up before Busihub recorded cost prices. Their gross profit is
               estimated from the current catalogue.
             </p>

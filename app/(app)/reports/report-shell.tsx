@@ -76,7 +76,7 @@ export function ReportShell({
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">{title}</h1>
-            <p className="text-neutral-500">{description}</p>
+            <p className="text-neutral-500 dark:text-ink-muted">{description}</p>
           </div>
           <ReportControls text={shareText} csvHref={csvHref} />
         </div>
@@ -164,12 +164,12 @@ export function StatementLine({
   return (
     <div
       className={`flex items-baseline justify-between gap-4 py-2 ${
-        rule ? "border-t border-neutral-300 dark:border-neutral-700" : ""
+        rule ? "border-t border-neutral-300 dark:border-surface-line" : ""
       }`}
     >
       <span className={`min-w-0 break-words ${emphasis ? "font-semibold" : ""}`}>
         {label}
-        {note ? <span className="ml-2 text-xs text-neutral-500">{note}</span> : null}
+        {note ? <span className="ml-2 text-xs text-neutral-500 dark:text-ink-muted">{note}</span> : null}
       </span>
       <span
         className={`flex-shrink-0 tabular-nums ${emphasis ? "text-lg font-semibold" : ""} ${

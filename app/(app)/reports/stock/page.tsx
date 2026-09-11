@@ -100,11 +100,11 @@ export default async function StockReportPage({
       showPeriod={false}
     >
       {error ? (
-        <p className="py-10 text-center text-neutral-500">
+        <p className="py-10 text-center text-neutral-500 dark:text-ink-muted">
           This report couldn&rsquo;t be loaded. Reload the page, or try again in a moment.
         </p>
       ) : counted === 0 ? (
-        <p className="py-12 text-center text-neutral-500">
+        <p className="py-12 text-center text-neutral-500 dark:text-ink-muted">
           Nothing on the shelves yet. Receive some stock and it will be valued here.
         </p>
       ) : (
@@ -126,11 +126,11 @@ export default async function StockReportPage({
             ].map((card) => (
               <div
                 key={card.label}
-                className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border print:p-2"
+                className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border print:p-2"
               >
-                <p className="text-xs uppercase text-neutral-500">{card.label}</p>
+                <p className="text-xs uppercase text-neutral-500 dark:text-ink-muted">{card.label}</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{card.value}</p>
-                <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-ink-muted">{card.sub}</p>
               </div>
             ))}
           </div>
@@ -146,10 +146,10 @@ export default async function StockReportPage({
             </p>
           ) : null}
 
-          <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0">
+          <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0">
             <table className="w-full min-w-[42rem] text-sm">
-              <thead className="text-left text-xs uppercase text-neutral-500">
-                <tr className="border-b border-neutral-100 dark:border-neutral-800">
+              <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
+                <tr className="border-b border-neutral-100 dark:border-surface-line">
                   <th className="px-4 py-3 font-medium">Product</th>
                   {context.branchId === null && context.branches.length > 1 ? (
                     <th className="px-4 py-3 font-medium">Branch</th>
@@ -160,15 +160,17 @@ export default async function StockReportPage({
                   <th className="px-4 py-3 text-right font-medium">At retail</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {lines.map((row) => (
                   <tr key={`${row.variant_id}-${row.branch_id}`}>
                     <td className="px-4 py-3">
                       <span className="font-medium">{row.product_name}</span>
-                      {row.sku ? <span className="block text-xs text-neutral-500">{row.sku}</span> : null}
+                      {row.sku ? (
+                        <span className="block text-xs text-neutral-500 dark:text-ink-muted">{row.sku}</span>
+                      ) : null}
                     </td>
                     {context.branchId === null && context.branches.length > 1 ? (
-                      <td className="px-4 py-3 text-neutral-500">{row.branch_name}</td>
+                      <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{row.branch_name}</td>
                     ) : null}
                     <td
                       className={`px-4 py-3 text-right tabular-nums ${
@@ -177,18 +179,18 @@ export default async function StockReportPage({
                     >
                       {Number(row.quantity)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                       {money(row.cost_price)}
                     </td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">{money(row.cost_value)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                       {money(row.retail_value)}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-neutral-300 font-semibold dark:border-neutral-700">
+                <tr className="border-t border-neutral-300 font-semibold dark:border-surface-line">
                   <td className="px-4 py-3" colSpan={context.branchId === null && context.branches.length > 1 ? 4 : 3}>
                     {/* Said plainly when the table is a subset: the total
                         below is every line, not the ones on screen. */}
@@ -201,7 +203,7 @@ export default async function StockReportPage({
             </table>
           </div>
 
-          <p className="text-sm text-neutral-500 print:text-xs">
+          <p className="text-sm text-neutral-500 dark:text-ink-muted print:text-xs">
             Valued at today&rsquo;s cost and today&rsquo;s selling price. This is not a forecast: it is what the stock
             would come to if every unit sold at the current price, which nothing ever does.
           </p>

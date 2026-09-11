@@ -92,11 +92,11 @@ export default async function ReceivablesPage({
       showPeriod={false}
     >
       {error ? (
-        <p className="py-10 text-center text-neutral-500">
+        <p className="py-10 text-center text-neutral-500 dark:text-ink-muted">
           This report couldn&rsquo;t be loaded. Reload the page, or try again in a moment.
         </p>
       ) : debtors.length === 0 ? (
-        <p className="py-12 text-center text-neutral-500">
+        <p className="py-12 text-center text-neutral-500 dark:text-ink-muted">
           Nobody owes you anything. Every account is settled.
         </p>
       ) : (
@@ -118,19 +118,19 @@ export default async function ReceivablesPage({
             ].map((card) => (
               <div
                 key={card.label}
-                className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border print:p-2"
+                className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border print:p-2"
               >
-                <p className="text-xs uppercase text-neutral-500">{card.label}</p>
+                <p className="text-xs uppercase text-neutral-500 dark:text-ink-muted">{card.label}</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{card.value}</p>
-                <p className="mt-0.5 text-xs text-neutral-500">{card.sub}</p>
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-ink-muted">{card.sub}</p>
               </div>
             ))}
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0">
+          <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0">
             <table className="w-full min-w-[44rem] text-sm">
-              <thead className="text-left text-xs uppercase text-neutral-500">
-                <tr className="border-b border-neutral-100 dark:border-neutral-800">
+              <thead className="text-left text-xs uppercase text-neutral-500 dark:text-ink-muted">
+                <tr className="border-b border-neutral-100 dark:border-surface-line">
                   <th className="px-4 py-3 font-medium">Customer</th>
                   <th className="px-4 py-3 text-right font-medium">Owed</th>
                   {columns.map((column) => (
@@ -141,7 +141,7 @@ export default async function ReceivablesPage({
                   <th className="px-4 py-3 text-right font-medium">Oldest</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {debtors.map((row) => {
                   const overLimit =
                     Number(row.credit_limit ?? 0) > 0 &&
@@ -155,7 +155,7 @@ export default async function ReceivablesPage({
                         >
                           {row.customer_name}
                         </Link>
-                        <span className="block text-xs text-neutral-500">
+                        <span className="block text-xs text-neutral-500 dark:text-ink-muted">
                           {row.phone ?? "no phone number"}
                           {overLimit ? " · over their credit limit" : ""}
                         </span>
@@ -169,7 +169,7 @@ export default async function ReceivablesPage({
                           <td
                             key={column.key}
                             className={`px-4 py-3 text-right tabular-nums ${
-                              value === 0 ? "text-neutral-300 dark:text-neutral-700" : ""
+                              value === 0 ? "text-neutral-300 dark:text-ink-muted" : ""
                             } ${
                               column.key === "days_90_plus" && value > 0
                                 ? "font-medium text-red-600 dark:text-red-400"
@@ -180,7 +180,7 @@ export default async function ReceivablesPage({
                           </td>
                         );
                       })}
-                      <td className="px-4 py-3 text-right text-xs text-neutral-500">
+                      <td className="px-4 py-3 text-right text-xs text-neutral-500 dark:text-ink-muted">
                         {row.oldest_unpaid
                           ? new Date(`${row.oldest_unpaid}T00:00:00`).toLocaleDateString("en-GB", {
                               day: "numeric",
@@ -194,7 +194,7 @@ export default async function ReceivablesPage({
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t border-neutral-300 font-semibold dark:border-neutral-700">
+                <tr className="border-t border-neutral-300 font-semibold dark:border-surface-line">
                   <td className="px-4 py-3">Total</td>
                   <td className="px-4 py-3 text-right tabular-nums">{money(total)}</td>
                   {columns.map((column) => (
@@ -211,7 +211,7 @@ export default async function ReceivablesPage({
           {/* The assumption is stated on the report, not just in the
               migration. Someone reading a 90-day column is entitled to
               know how a payment was applied to produce it. */}
-          <p className="text-sm text-neutral-500 print:text-xs">
+          <p className="text-sm text-neutral-500 dark:text-ink-muted print:text-xs">
             Ages are counted from the day each charge was made, and a payment settles the oldest charge first. Customers
             in credit are not listed — they are not a debt, and letting them offset the total would understate what you
             are owed.

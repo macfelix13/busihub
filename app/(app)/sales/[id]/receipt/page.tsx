@@ -163,7 +163,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
 
       {/* The printed area. Everything else on the page is print:hidden, so
           what comes out of the printer is this slip and nothing else. */}
-      <div className="receipt-sheet mx-auto w-full max-w-[420px] rounded-2xl border border-neutral-200 bg-white p-5 text-neutral-900 dark:border-neutral-800 print:max-w-none print:rounded-none print:border-0 print:p-0">
+      <div className="receipt-sheet mx-auto w-full max-w-[420px] rounded-2xl border border-neutral-200 bg-white p-5 text-neutral-900 dark:border-surface-line print:max-w-none print:rounded-none print:border-0 print:p-0">
         {receiptSettings.show_logo && biz?.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -175,7 +175,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         <pre className="whitespace-pre font-mono text-[12px] leading-[1.35]">{text}</pre>
       </div>
 
-      <p className="text-sm text-neutral-500 print:hidden">
+      <p className="text-sm text-neutral-500 dark:text-ink-muted print:hidden">
         Printed and shared copies are generated from the same text, so they cannot disagree. Change the shop name,
         address, footer message or paper size in Settings → Business.
       </p>

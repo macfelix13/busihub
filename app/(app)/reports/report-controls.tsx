@@ -50,14 +50,14 @@ export function ReportControls({ text, csvHref }: ReportControlsProps) {
         {csvHref ? (
           <a
             href={csvHref}
-            className="inline-flex min-h-[44px] items-center rounded-xl border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            className="inline-flex min-h-[44px] items-center rounded-xl border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-50 dark:border-surface-line dark:bg-surface dark:text-ink"
           >
             Download CSV
           </a>
         ) : null}
       </div>
       {copyFailed ? (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
           Your browser wouldn&apos;t let the page copy. Select the report below and copy it yourself.
         </p>
       ) : null}

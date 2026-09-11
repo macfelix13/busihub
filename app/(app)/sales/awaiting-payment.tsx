@@ -261,7 +261,7 @@ export function AwaitingPayment({
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
               disabled={otpSubmitting}
-              className="w-36 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm tracking-widest text-amber-950 outline-none focus:border-amber-500 disabled:opacity-60 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100"
+              className="w-36 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm tracking-widest text-amber-950 outline-none focus:border-amber-500 disabled:opacity-60 dark:border-amber-800 dark:bg-surface dark:text-amber-100"
               placeholder="123456"
             />
           </div>

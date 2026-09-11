@@ -100,12 +100,12 @@ export default async function ProfitLossPage({
       csvHref={context.canExport ? exportHref("profit-loss", context) : undefined}
     >
       {error ? (
-        <p className="py-10 text-center text-neutral-500">
+        <p className="py-10 text-center text-neutral-500 dark:text-ink-muted">
           This report couldn&rsquo;t be loaded. Reload the page, or try again in a moment.
         </p>
       ) : (
         <>
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
             <StatementLine
               label="Sales"
               value={money(pl?.gross_sales)}
@@ -135,7 +135,7 @@ export default async function ProfitLossPage({
             />
 
             {margin !== null ? (
-              <p className="mt-3 text-sm text-neutral-500">
+              <p className="mt-3 text-sm text-neutral-500 dark:text-ink-muted">
                 A margin of {margin.toFixed(1)}% — you keep {money(netProfit / (netSales / 100))} of every{" "}
                 {money(100)} you take.
               </p>
@@ -143,7 +143,7 @@ export default async function ProfitLossPage({
           </section>
 
           {categories.length > 0 ? (
-            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 print:rounded-none print:border-0 print:p-0">
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card print:rounded-none print:border-0 print:p-0">
               <h2 className="font-semibold">Expenses in detail</h2>
               <div className="mt-3">
                 {categories.map((row) => (
@@ -159,7 +159,7 @@ export default async function ProfitLossPage({
                 <StatementLine label="Total expenses" value={money(pl?.expense_total)} rule emphasis />
               </div>
               {Number(pl?.cash_expenses ?? 0) > 0 ? (
-                <p className="mt-3 text-sm text-neutral-500">
+                <p className="mt-3 text-sm text-neutral-500 dark:text-ink-muted">
                   {money(pl?.cash_expenses)} of this was paid out of the till.
                 </p>
               ) : null}
@@ -169,13 +169,13 @@ export default async function ProfitLossPage({
           {/* Said in words rather than buried: a statement someone takes
               to a bank should say which of its figures are estimates. */}
           {pl?.any_cost_estimated ? (
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">
               Some sales in this period were rung up before Busihub recorded cost prices. Their cost is estimated from
               the current catalogue, so gross profit is approximate for those lines.
             </p>
           ) : null}
 
-          <p className="text-sm text-neutral-500 print:text-xs">
+          <p className="text-sm text-neutral-500 dark:text-ink-muted print:text-xs">
             Net profit is gross profit less recorded expenses. It does not include depreciation, tax, or anything not
             entered as an expense in Busihub.
           </p>

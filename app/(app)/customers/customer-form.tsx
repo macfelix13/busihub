@@ -45,7 +45,7 @@ export function CustomerForm({ action, defaultValues, currencyCode, submitLabel,
         defaultValue={defaultValues?.creditLimit ?? "0"}
         error={state.fieldErrors?.creditLimit}
       />
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         The most this customer may owe at any time. Leave it at 0 if they must pay at the till — charges beyond the limit
         are refused.
       </p>

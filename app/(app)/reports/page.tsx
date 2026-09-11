@@ -57,7 +57,7 @@ export default async function ReportsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-ink-muted">
           Every figure is worked out from your own records. Each one prints, copies for WhatsApp
           {canExport ? ", and downloads as a spreadsheet" : ""}.
         </p>
@@ -68,11 +68,11 @@ export default async function ReportsPage() {
           <Link
             key={report.href}
             href={report.href}
-            className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-white p-5 hover:border-brand-300 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-brand-800 dark:hover:bg-neutral-800/50"
+            className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-white p-5 hover:border-brand-300 hover:bg-neutral-50 dark:border-surface-line dark:bg-surface-card dark:hover:border-brand-800 dark:hover:bg-surface/60"
           >
             <h2 className="font-semibold">{report.title}</h2>
-            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{report.question}</p>
-            <p className="text-sm text-neutral-500">{report.detail}</p>
+            <p className="text-sm font-medium text-neutral-700 dark:text-ink-muted">{report.question}</p>
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">{report.detail}</p>
           </Link>
         ))}
       </div>
@@ -80,7 +80,7 @@ export default async function ReportsPage() {
       {/* Said here rather than discovered later: two of these depend on
           data the shop has to put in, and a report that reads zero is
           otherwise indistinguishable from one that is broken. */}
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 text-sm text-neutral-500 dark:border-surface-line dark:bg-surface-card dark:text-ink-muted">
         <p>
           Profit depends on cost prices being set on your products, and on expenses being recorded. Sales rung up before
           Busihub started tracking costs are marked as estimated on the reports that use them.

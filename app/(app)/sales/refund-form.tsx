@@ -80,7 +80,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+            <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-surface-line">
               <tr>
                 <th className="px-4 py-3 font-medium">Item</th>
                 <th className="px-4 py-3 text-right font-medium">Sold</th>
@@ -89,26 +89,28 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
                 <th className="px-4 py-3 font-medium">Condition</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
               {lines.map((line, index) => {
                 const outstanding = line.sold - line.alreadyRefunded;
                 const row = rows[line.saleItemId] ?? { quantity: "", restock: true };
                 return (
                   <tr
                     key={line.saleItemId}
-                    className={`transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50 ${
+                    className={`transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60 ${
                       outstanding <= 0 ? "opacity-50" : ""
                     }`}
                   >
                     <td className="px-4 py-3">
                       <span className="font-medium">{line.description}</span>
-                      {line.sku ? <span className="ml-2 text-neutral-500">{line.sku}</span> : null}
-                      <p className="text-xs text-neutral-500">
+                      {line.sku ? (
+                        <span className="ml-2 text-neutral-500 dark:text-ink-muted">{line.sku}</span>
+                      ) : null}
+                      <p className="text-xs text-neutral-500 dark:text-ink-muted">
                         {formatMoney(toMinorUnits(line.unitTotal), currencyCode)} each as sold
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatQuantity(line.sold)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">
+                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500 dark:text-ink-muted">
                       {formatQuantity(line.alreadyRefunded)}
                     </td>
                     <td className="px-4 py-3">
@@ -128,7 +130,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
                     </td>
                     <td className="px-4 py-3">
                       {line.isService ? (
-                        <span className="text-sm text-neutral-500">— (service)</span>
+                        <span className="text-sm text-neutral-500 dark:text-ink-muted">— (service)</span>
                       ) : (
                         <label className="flex items-center gap-2 text-sm">
                           <input
@@ -136,9 +138,9 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
                             checked={row.restock}
                             disabled={outstanding <= 0}
                             onChange={(e) => patch(line.saleItemId, { restock: e.target.checked })}
-                            className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+                            className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-surface-line dark:bg-surface"
                           />
-                          <span className="text-neutral-600 dark:text-neutral-300">Back on the shelf</span>
+                          <span className="text-neutral-600 dark:text-ink-muted">Back on the shelf</span>
                         </label>
                       )}
                     </td>
@@ -150,7 +152,7 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
         </div>
       </Card>
 
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-500 dark:text-ink-muted">
         Untick &ldquo;back on the shelf&rdquo; for damaged goods — the customer is still refunded, but the stock
         doesn&apos;t return.
       </p>
@@ -168,12 +170,12 @@ export function RefundForm({ action, lines, currencyCode, hasCustomer }: RefundF
           }
         />
         <div className="flex items-end">
-          <div className="w-full rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-neutral-800">
-            <span className="text-sm text-neutral-600 dark:text-neutral-300">Roughly </span>
+          <div className="w-full rounded-xl bg-neutral-100 px-3.5 py-2.5 dark:bg-surface">
+            <span className="text-sm text-neutral-600 dark:text-ink-muted">Roughly </span>
             <span className="font-semibold tabular-nums">
               {formatMoney(toMinorUnits(estimated), currencyCode)}
             </span>
-            <p className="text-xs text-neutral-500">Exact amount is worked out from the original sale.</p>
+            <p className="text-xs text-neutral-500 dark:text-ink-muted">Exact amount is worked out from the original sale.</p>
           </div>
         </div>
       </div>

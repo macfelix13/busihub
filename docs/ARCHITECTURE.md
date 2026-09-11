@@ -466,6 +466,30 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Phase 17 (Synchronization), client half — third
+  follow-up. The previous entry's `navigator.onLine`-polling fix held up
+  under Chrome DevTools testing on desktop, but the banner still got
+  stuck saying "You're offline" on a real phone with confirmed working
+  internet (other sites loading fine, reproduced in more than one
+  browser on that same device). That rules out a per-browser bug and
+  points somewhere lower: `navigator.onLine` itself getting stuck at the
+  OS/network-stack level — a real, documented limitation on some Android
+  devices, where the flag can stay stale after a network interface
+  flaps, independent of which browser reads it. Polling a flag that's
+  wrong doesn't help; the flag needed to stop being the source of truth.
+  `lib/offline/use-online-status.ts` now verifies actual reachability
+  with a real `fetch` (HEAD, `cache: "no-store"`) against
+  `/manifest.webmanifest` — a tiny, already-precached, unauthenticated
+  static file — every 5 seconds, rather than trusting `navigator.onLine`
+  for the "yes we're online" answer. `navigator.onLine` is still checked
+  first as a free, instant short-circuit for the confident "definitely
+  no network interface" case, and the `offline` event still flips the
+  state immediately rather than waiting for the next probe; only the
+  positive "we're online" signal now has to be earned by an actual round
+  trip. A request-id guard prevents a slow probe from an earlier tick
+  landing after a newer one and briefly flipping the state backwards.
+  Nothing else about the queue, sync flow, or till behavior changed.
+
 - 2026-09-11 — Phase 17 (Synchronization), client half — second
   follow-up: the hard-reload bug from the entry below was confirmed
   fixed by an actual real-browser retest (the till survived sitting

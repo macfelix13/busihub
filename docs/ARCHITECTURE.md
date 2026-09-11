@@ -466,6 +466,26 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Phase 17 (Synchronization), client half — second
+  follow-up: the hard-reload bug from the entry below was confirmed
+  fixed by an actual real-browser retest (the till survived sitting
+  offline well past 45 seconds, queued a sale, and showed the
+  count-aware banner text correctly). The separate observation from
+  that same round — the bottom banner staying on "You're offline" even
+  after switching DevTools' Network conditions back to "No throttling,"
+  confirmed with a screenshot showing the dropdown clearly set to "No
+  throttling" while the banner still read offline — turned out to be
+  real, and traced to `lib/offline/use-online-status.ts`: Chrome
+  DevTools' network-condition emulation does not reliably fire a real
+  `online` event when switching away from "Offline" without a full page
+  reload, so a hook that only listens for that event can get stuck.
+  `navigator.onLine` itself still updates correctly even when the event
+  doesn't fire, so the hook now also re-checks it directly every 3
+  seconds as a fallback, on top of (not instead of) the existing event
+  listeners — a real device regaining a genuine connection still
+  updates instantly through the event; this only adds a few seconds of
+  latency for the specific case the event misses. Nothing else changed.
+
 - 2026-09-11 — Phase 17 (Synchronization), client half — follow-up fix
   found during real-browser verification of the entry below, not just a
   lint cleanup this time. Throttling the network to Offline in DevTools

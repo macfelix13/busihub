@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-// A tiny, always-present, unauthenticated same-origin file (already
-// fetched elsewhere by the service worker's own precache list) — never
+// A tiny, always-present, unauthenticated same-origin file — never
 // touches Supabase, RLS, or a signed-in session, just "can this device
-// actually reach our server right now." `cache: "no-store"` forces a
-// real round trip every time instead of quietly answering from the
-// service worker's own cache, which would defeat the entire point.
+// actually reach our server right now." `cache: "no-store"` asks not to
+// answer from the browser's own HTTP cache; it doesn't touch the
+// service worker's SEPARATE Cache Storage, but that's fine here — the
+// service worker only intercepts plain GETs (see public/sw.js), and
+// this probe deliberately uses HEAD so it always reaches the network.
 const PROBE_URL = "/manifest.webmanifest";
 const PROBE_TIMEOUT_MS = 4000;
 const CHECK_INTERVAL_MS = 5000;
 
-async function probeReachable(): Promise<boolean> {
-  // A browser that reports no network interface at all is trustworthy
-  // in the negative direction — no point spending a request to confirm
-  // what it's already certain of.
-  if (typeof navigator !== "undefined" && !navigator.onLine) return false;
-  if (typeof fetch === "undefined") return true;
+async function probeOnline(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
@@ -38,71 +34,76 @@ async function probeReachable(): Promise<boolean> {
  * to queuing sales locally while offline) — one listener implementation
  * instead of two copies that could quietly drift apart.
  *
- * This used to trust `navigator.onLine` alone (plus the `online`/
- * `offline` events, which fire off the same underlying flag). Two
- * rounds of real-device testing found that flag itself can't always be
- * trusted, for two different reasons: Chrome DevTools' network
- * emulation doesn't reliably fire the `online` event when switching
- * back to "No throttling" without a full reload (the flag itself was
- * still correct there — a bug fixed by re-reading it directly instead
- * of only listening for the event); then, on an actual phone with
- * confirmed working internet (other sites loading fine, in more than
- * one browser on the same device), the banner still stuck on "offline."
- * That points at `navigator.onLine` itself being stale at the OS level —
- * a documented real-world limitation on some Android network stacks,
- * where the flag can get stuck reporting no connection after a network
- * interface flaps, independent of which browser reads it.
+ * This has been wrong twice already trying to answer "are we online"
+ * from a single flag. First `navigator.onLine` alone: Chrome DevTools'
+ * network emulation doesn't reliably fire the `online` event when
+ * switching back to "No throttling" without a reload. Then, on an
+ * actual phone with confirmed working internet (other sites loading
+ * fine, in more than one browser on the same device), the banner still
+ * stuck on "offline" — `navigator.onLine` itself can get stuck stale at
+ * the OS level on some Android devices, independent of which browser
+ * reads it. Polling that same flag more often (the first fix) couldn't
+ * help, since it was still trusting a value that was itself wrong.
  *
- * So this now verifies the thing that actually matters — can this page
- * reach the server at all — with a real fetch of a tiny static file,
- * rather than trusting a flag that's turned out to be wrong twice.
- * `navigator.onLine` is still checked first as a fast, free short-
- * circuit for the confident "definitely no network interface" case; it
- * just no longer gets the final word on "yes, we're online."
+ * Live debugging then found a THIRD failure mode in the very fix meant
+ * to solve the second one: a real network probe was added, but with a
+ * "the newest check always wins" rule — so if a slow or transiently-
+ * aborted probe (harmless page churn during hydration was observed
+ * cancelling in-flight requests, for instance) happened to be the most
+ * recent one to resolve, its failure could overwrite a perfectly good
+ * "yes, we're online" result an earlier probe had just confirmed.
+ * Confirmed directly: a real successful reachability check (HTTP 200)
+ * still left the banner reading "offline" a full second and a half
+ * later, because a second, less lucky check finished after it and won.
+ *
+ * The fix is to stop treating "online" and "offline" symmetrically. A
+ * probe can only ever move this towards TRUE — a failed or aborted one
+ * changes nothing, so there is no "newest wins" race left to lose
+ * against. The one thing allowed to mark this FALSE is the browser's
+ * own `offline` event, which — unlike the *recovery* side of this —
+ * has not been observed to misfire: everything that went wrong here was
+ * about the flag failing to come back, never about it going stale while
+ * actually still connected. `navigator.onLine` still seeds the very
+ * first render (so a page that starts genuinely offline doesn't have to
+ * wait for a probe to say so), but never overrides a later success.
  */
 export function useOnlineStatus(): boolean {
   const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
-  // Guards against a slow probe from an earlier tick resolving after a
-  // faster, more recent one — the interval keeps firing every 5s
-  // regardless of how long any one probe takes, so without this an old
-  // result could land after a newer one and briefly flip the state
-  // backwards.
-  const requestIdRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    function check() {
-      const requestId = ++requestIdRef.current;
-      probeReachable().then((reachable) => {
-        if (!cancelled && requestId === requestIdRef.current) setOnline(reachable);
-      });
-    }
-
     function goOffline() {
-      // A real, negative signal worth acting on immediately rather than
-      // waiting up to CHECK_INTERVAL_MS for the next probe.
-      requestIdRef.current += 1;
       setOnline(false);
     }
 
-    window.addEventListener("online", check);
+    // Only ever raises `online` to true on a confirmed success — never
+    // lowers it. A failed/timed-out/aborted probe is simply inconclusive
+    // (could be a real outage, could be unrelated churn) and is treated
+    // as "no news," not as evidence of being offline.
+    function tryGoOnline() {
+      probeOnline().then((reachable) => {
+        if (!cancelled && reachable) setOnline(true);
+      });
+    }
+
+    window.addEventListener("online", tryGoOnline);
     window.addEventListener("offline", goOffline);
-    // Scheduled rather than called bare (`check()`) here, matching
+    // Scheduled rather than called bare (`tryGoOnline()`) here, matching
     // notification-bell.tsx's own reasoning: react-hooks/set-state-in-effect
     // flags a function invoked directly from an effect body if its call
     // graph reaches a setState anywhere — including inside a `.then()`,
     // not just a bare synchronous call — so this goes through setTimeout
     // the same way that file's refresh() does.
-    const initial = window.setTimeout(check, 0);
-    const interval = window.setInterval(check, CHECK_INTERVAL_MS);
+    const initial = window.setTimeout(tryGoOnline, 0);
+    const interval = window.setInterval(tryGoOnline, CHECK_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       window.clearTimeout(initial);
-      window.removeEventListener("online", check);
-      window.removeEventListener("offline", goOffline);
       window.clearInterval(interval);
+      window.removeEventListener("online", tryGoOnline);
+      window.removeEventListener("offline", goOffline);
     };
   }, []);
 

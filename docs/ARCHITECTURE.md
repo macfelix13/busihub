@@ -466,6 +466,36 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Phase 17 (Synchronization), client half — fourth
+  follow-up, and the first one not diagnosed from a written report: the
+  previous entry's reachability probe was reproduced live, directly
+  against the deployed production site's public homepage (no login
+  needed — `ConnectionStatus` renders from the root layout, so it's on
+  every route), using direct browser automation rather than waiting on
+  another round of screen photos. That session's network log showed
+  the HEAD probe to `/manifest.webmanifest` genuinely succeeding
+  (`200 OK`, confirmed twice, stack trace pointing at the real deployed
+  bundle) and the banner still reading "You're offline" a full second
+  and a half later. Service-worker interference, a stray
+  `AbortController.abort()`, and the fetch logic itself were each ruled
+  out in turn by testing them in isolation in that same session, which
+  narrowed it down to the request-id "newest result wins" guard added
+  in the previous fix: a slower, unrelated probe (ordinary hydration
+  churn was observed cancelling in-flight requests on its own) could
+  still resolve after a successful one and overwrite it, since
+  "arrived last" isn't the same as "most trustworthy" once transient
+  failures are possible. `lib/offline/use-online-status.ts` no longer
+  treats "online" and "offline" symmetrically: a probe can now only
+  ever raise the state to true (applying a success is idempotent, so
+  there's no ordering left to race), and the only thing trusted to
+  lower it to false is the browser's own `offline` event, which was
+  never the part that misbehaved across any of the last three fixes —
+  only the *recovery* side kept failing. `navigator.onLine` still seeds
+  the very first render so a page opened while genuinely offline
+  doesn't have to wait on a probe to say so, but no longer overrides a
+  later success. Nothing about the queue, sync flow, or till behavior
+  changed.
+
 - 2026-09-11 — Phase 17 (Synchronization), client half — third
   follow-up. The previous entry's `navigator.onLine`-polling fix held up
   under Chrome DevTools testing on desktop, but the banner still got

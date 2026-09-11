@@ -149,7 +149,7 @@ export default async function InventoryPage({
           name="q"
           defaultValue={q ?? ""}
           placeholder="Search by product name…"
-          className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-72"
+          className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-72"
         />
         <Button type="submit" variant="secondary">
           Search
@@ -165,14 +165,14 @@ export default async function InventoryPage({
           <span>Couldn&apos;t load inventory. Please refresh the page.</span>
         </p>
       ) : !activeBranchId ? (
-        <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:border-neutral-800">
+        <p className="rounded-xl border border-neutral-200 px-3.5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted dark:border-surface-line">
           No active branches yet. Add a branch before tracking stock.
         </p>
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
                 <tr>
                   <th className="px-4 py-3 font-medium">Item</th>
                   <th className="px-4 py-3 font-medium">SKU</th>
@@ -180,10 +180,10 @@ export default async function InventoryPage({
                   <th className="px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {rows.length > 0 ? (
                   rows.map(({ variant, quantity }) => (
-                    <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                    <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                       <td className="px-4 py-3 font-medium">
                         <Link
                           href={`/inventory/${variant.id}?branch=${activeBranchId}`}
@@ -192,14 +192,14 @@ export default async function InventoryPage({
                           {variantLabel(variant)}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-neutral-500">{variant.sku || "—"}</td>
+                      <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{variant.sku || "—"}</td>
                       <td
                         className={`px-4 py-3 text-right font-medium tabular-nums ${
                           quantity <= 0 ? "text-red-600 dark:text-red-400" : ""
                         }`}
                       >
                         {formatQuantity(quantity)}{" "}
-                        <span className="text-xs font-normal text-neutral-500">{variant.products?.unit_of_measure}</span>
+                        <span className="text-xs font-normal text-neutral-500 dark:text-ink-muted">{variant.products?.unit_of_measure}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
@@ -219,7 +219,7 @@ export default async function InventoryPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-neutral-500">
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                       {q ? "No products match that search." : "No active products yet. Add a product first."}
                     </td>
                   </tr>

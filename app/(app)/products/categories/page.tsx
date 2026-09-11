@@ -103,13 +103,13 @@ export default async function CategoriesPage({
         />
       ) : (
         <Card className="overflow-hidden">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {rows.map((category) => {
               const Icon = categoryIconComponent(category.icon);
               return (
                 <li key={category.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100 dark:bg-surface">
                       {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
                     </span>
                     <div>
@@ -118,7 +118,7 @@ export default async function CategoriesPage({
                         {category.is_system ? <Badge variant="neutral">Starter</Badge> : null}
                       </div>
                       {category.description ? (
-                        <p className="text-sm text-neutral-500">{category.description}</p>
+                        <p className="text-sm text-neutral-500 dark:text-ink-muted">{category.description}</p>
                       ) : null}
                     </div>
                   </div>

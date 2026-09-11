@@ -111,11 +111,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {product.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
               {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
             </div>
-            <p className="text-neutral-500">
+            <p className="text-neutral-500 dark:text-ink-muted">
               {(product.categories as unknown as { name: string } | null)?.name ?? "Uncategorized"} · {product.unit_of_measure}
               {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
             </p>
-            {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">{product.description}</p> : null}
+            {product.description ? <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-ink-muted">{product.description}</p> : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -171,7 +171,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
                 <tr>
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">Barcode</th>
@@ -183,26 +183,26 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   <th className="px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {variants.map((variant) => (
-                  <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                  <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                     <td className="px-4 py-3 font-medium">{variant.sku || "—"}</td>
-                    <td className="px-4 py-3 text-neutral-500">{variant.barcode || "—"}</td>
+                    <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{variant.barcode || "—"}</td>
                     {product.has_variants ? (
-                      <td className="px-4 py-3 text-neutral-500">{optionsLabel(variant.variant_options as Record<string, string>)}</td>
+                      <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{optionsLabel(variant.variant_options as Record<string, string>)}</td>
                     ) : null}
                     <td className="px-4 py-3">{formatMoneyMinor(variant.cost_price, currencyCode)}</td>
                     <td className="px-4 py-3">{formatMoneyMinor(variant.selling_price, currencyCode)}</td>
                     {showStock ? (
                     <td className="px-4 py-3 tabular-nums">
                       {(stockByVariant.get(variant.id) ?? []).length === 0 ? (
-                        <span className="text-neutral-400">none</span>
+                        <span className="text-neutral-400 dark:text-ink-muted/60">none</span>
                       ) : (
                         <span className="flex flex-col">
                           {(stockByVariant.get(variant.id) ?? []).map((level) => (
                             <span key={level.branch}>
                               {formatQuantity(level.quantity)}
-                              <span className="ml-1 text-xs text-neutral-500">{level.branch}</span>
+                              <span className="ml-1 text-xs text-neutral-500 dark:text-ink-muted">{level.branch}</span>
                             </span>
                           ))}
                         </span>
@@ -249,7 +249,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </Card>
         {!canChangePrice ? (
-          <p className="mt-2 text-sm text-neutral-500">You can view prices here but don&apos;t have permission to change them.</p>
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">You can view prices here but don&apos;t have permission to change them.</p>
         ) : null}
       </div>
     </div>

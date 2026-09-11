@@ -97,7 +97,7 @@ export function StockForm({ mode, action, branchId, branchName, variants, quanti
           from — changing it is a deliberate trip back to the list, rather
           than a dropdown that's easy to leave on the wrong value. */}
       <input type="hidden" name="branchId" value={branchId} />
-      <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+      <p className="rounded-xl bg-neutral-100 px-3.5 py-2.5 text-sm text-neutral-600 dark:bg-surface dark:text-ink-muted">
         Branch: <span className="font-medium">{branchName}</span>{" "}
         <Link href={`/inventory?branch=${branchId}`} className="ml-1 underline">
           change
@@ -113,7 +113,7 @@ export function StockForm({ mode, action, branchId, branchName, variants, quanti
         options={variants.map((v) => ({ value: v.id, label: v.label }))}
       />
 
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         Currently on hand: <span className="font-medium tabular-nums">{formatQuantity(onHand)}</span>{" "}
         {selected?.unit}
       </p>
@@ -149,7 +149,7 @@ export function StockForm({ mode, action, branchId, branchName, variants, quanti
         min={mode === "count" ? 0 : 0.001}
         error={state.fieldErrors?.[mode === "count" ? "countedQuantity" : "quantity"]}
       />
-      <p className="-mt-2 text-sm text-neutral-500">{copy.hint}</p>
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">{copy.hint}</p>
 
       <Textarea label="Note (optional)" name="note" error={state.fieldErrors?.note} />
 

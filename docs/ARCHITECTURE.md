@@ -466,6 +466,47 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 3 of N (products &
+  inventory). Scope picked by the user after phase 2 (dashboard) shipped.
+
+  **What this phase touched** — every products and inventory screen:
+  the list pages (`products/page.tsx`, `inventory/page.tsx`), detail
+  pages (`products/[id]/page.tsx`, `inventory/[variantId]/page.tsx`),
+  and every form (`product-form.tsx`, `variant-form.tsx`,
+  `product-photo-field.tsx`, `categories/category-form.tsx`,
+  `categories/page.tsx`, `inventory/stock-form.tsx`) — same treatment
+  as phases 1-2: plain grey dark-mode classes (borders, dividers, row
+  hovers, muted/secondary text, icon-chip backgrounds) moved onto the
+  `surface`/`ink` tokens. No queries, RPCs, validation, or permission
+  checks changed anywhere — confirmed by reading every file before
+  editing; only className strings were touched.
+
+  One category of fix specific to this phase: several of the search/
+  filter `<input>`/`<select>` elements on the products and inventory
+  list pages are hand-rolled native form controls (a plain HTML
+  `<form action="/products">` GET search, not a client component).
+  They never went through the shared `Field`/`Select` components phase
+  1 retuned, so they'd been quietly left on the OLD styling the whole
+  time — `dark:border-neutral-700 dark:bg-neutral-900 dark:text-white`
+  and a `focus:ring-brand-500/30` ring, instead of the corrected
+  `surface`/`ink` tokens and lime focus ring every other input in the
+  app has had since phase 1. Retuned to match exactly, kept as native
+  elements (not converted to `<Field>`/`<Select>`, which would have
+  meant restructuring a working GET-search form for no functional
+  gain).
+
+  **Explicitly NOT done this phase**: the checkbox inputs in
+  `product-form.tsx` ("This product comes in variants") had their
+  grey border/background retuned, but their focus-ring color
+  (`focus:ring-brand-500/30`) was deliberately left alone — the exact
+  same styling exists on checkboxes in `sales/refund-form.tsx` and
+  `settings/payments/paystack-form.tsx`, both out of scope for this
+  phase, and retuning one but not the others would have made the
+  inconsistency worse, not better. A future pass can address all three
+  together. Customers, transactions, the dedicated report pages,
+  settings, staff, the admin console, auth screens, and the marketing
+  site remain untouched.
+
 - 2026-09-11 — Busihub brand identity pass, phase 2 of N (dashboard).
   Scope picked by the user after phase 1 shipped and its sidebar/header
   border regression (see the follow-up fix under the phase-1 entry below)

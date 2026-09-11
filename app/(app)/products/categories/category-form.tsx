@@ -46,7 +46,7 @@ export function CategoryForm({
       />
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">Icon (optional)</span>
+        <span className="text-sm font-medium text-neutral-800 dark:text-ink">Icon (optional)</span>
         <input type="hidden" name="icon" value={icon} />
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Category icon">
           <button
@@ -55,7 +55,7 @@ export function CategoryForm({
             aria-checked={icon === ""}
             onClick={() => setIcon("")}
             className={`flex h-11 w-11 items-center justify-center rounded-xl border text-xs ${
-              icon === "" ? "border-brand-500 bg-brand-50 dark:bg-brand-950" : "border-neutral-300 dark:border-neutral-700"
+              icon === "" ? "border-brand-500 bg-brand-50 dark:bg-brand-950" : "border-neutral-300 dark:border-surface-line"
             }`}
           >
             None
@@ -70,7 +70,7 @@ export function CategoryForm({
               title={label}
               onClick={() => setIcon(value)}
               className={`flex h-11 w-11 items-center justify-center rounded-xl border ${
-                icon === value ? "border-brand-500 bg-brand-50 dark:bg-brand-950" : "border-neutral-300 dark:border-neutral-700"
+                icon === value ? "border-brand-500 bg-brand-50 dark:bg-brand-950" : "border-neutral-300 dark:border-surface-line"
               }`}
             >
               <Icon className="h-5 w-5" aria-hidden="true" />

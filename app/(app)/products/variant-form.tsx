@@ -119,7 +119,7 @@ export function VariantForm({ action, optionNames, defaultValues, canSetPrice, s
             {/* Not permitted to set price (products.change_price) on an existing variant — still submit the current values unchanged rather than omitting them, and show them read-only for context. */}
             <input type="hidden" name="costPrice" value={defaultValues?.costPrice ?? 0} />
             <input type="hidden" name="sellingPrice" value={defaultValues?.sellingPrice ?? 0} />
-            <p className="text-sm text-neutral-500 sm:col-span-2">
+            <p className="text-sm text-neutral-500 dark:text-ink-muted sm:col-span-2">
               Cost price GH₵{(defaultValues?.costPrice ?? 0).toFixed(2)} · Selling price GH₵{(defaultValues?.sellingPrice ?? 0).toFixed(2)}
               — you don&apos;t have permission to change prices.
             </p>

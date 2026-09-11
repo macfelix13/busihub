@@ -124,7 +124,7 @@ export function ProductForm({
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">What is this?</span>
+        <span className="text-sm font-medium text-neutral-800 dark:text-ink">What is this?</span>
         <SegmentedControl
           className="self-start"
           size="md"
@@ -134,7 +134,7 @@ export function ProductForm({
           ]}
         />
         {isService ? (
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">
             A service (braiding, sewing, barbering...) is sold just like a product, but it never carries stock, and
             each sale of it will ask who rendered it.
           </p>
@@ -166,7 +166,7 @@ export function ProductForm({
         ) : null}
       </div>
 
-      <div className="border-t border-neutral-200 pt-5 dark:border-neutral-800">
+      <div className="border-t border-neutral-200 pt-5 dark:border-surface-line">
         <label className="flex items-center gap-3">
           <input
             type="checkbox"
@@ -178,9 +178,9 @@ export function ProductForm({
                 setVariants((rows) => [{ ...(rows[0] ?? emptyVariant([])), variantOptions: {} }]);
               }
             }}
-            className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+            className="h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-surface-line dark:bg-surface"
           />
-          <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+          <span className="text-sm font-medium text-neutral-800 dark:text-ink">
             This product comes in variants (e.g. different sizes or colors)
           </span>
         </label>
@@ -200,7 +200,7 @@ export function ProductForm({
         <h3 className="font-semibold">{hasVariants ? "Variants" : "Pricing"}</h3>
 
         {hasVariants && effectiveOptionNames.length === 0 ? (
-          <p className="text-sm text-neutral-500">Enter at least one variant option above to start adding variants.</p>
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">Enter at least one variant option above to start adding variants.</p>
         ) : (
           <div className="flex flex-col gap-4">
             {effectiveVariants.map((row, index) => (
@@ -307,7 +307,7 @@ export function ProductForm({
             error={state.fieldErrors?.branchId}
             options={branches.map((b) => ({ value: b.id, label: b.name }))}
           />
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">
             This is recorded as stock received today, so it shows in the inventory history like any other delivery.
             Leave the boxes empty if the goods haven&apos;t arrived yet.
           </p>

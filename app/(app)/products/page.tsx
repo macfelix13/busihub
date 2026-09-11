@@ -248,12 +248,12 @@ export default async function ProductsPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-48"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-48"
           />
           <select
             name="category"
             defaultValue={activeCategory ?? ""}
-            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            className="min-h-[44px] rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink"
           >
             <option value="">All categories</option>
             {categories.map((c) => (
@@ -270,7 +270,7 @@ export default async function ProductsPage({
             defaultValue={minPrice ?? ""}
             placeholder="Min price"
             aria-label="Minimum price"
-            className="min-h-[44px] w-28 rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            className="min-h-[44px] w-28 rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink"
           />
           <input
             type="number"
@@ -280,7 +280,7 @@ export default async function ProductsPage({
             defaultValue={maxPrice ?? ""}
             placeholder="Max price"
             aria-label="Maximum price"
-            className="min-h-[44px] w-28 rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+            className="min-h-[44px] w-28 rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink"
           />
           <Button type="submit" variant="secondary">
             Search
@@ -296,7 +296,7 @@ export default async function ProductsPage({
       </div>
 
       {!error ? (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
           {totalCount} {noun === "products or services" ? "item" : noun.slice(0, -1)}
           {totalCount === 1 ? "" : "s"}
         </p>
@@ -343,7 +343,7 @@ export default async function ProductsPage({
         )
       ) : (
         <Card className="overflow-hidden">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {(products as unknown as ProductRow[]).map((product) => {
               const Icon = categoryIconComponent(product.categories?.icon ?? null);
               const photoUrl = product.photo_url ? photoUrlsByPath.get(product.photo_url) ?? null : null;
@@ -351,7 +351,7 @@ export default async function ProductsPage({
                 <li key={product.id}>
                   <Link
                     href={`/products/${product.id}`}
-                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                    className="flex flex-col gap-1 px-5 py-4 transition-colors hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                   >
                     <div className="flex items-center gap-3">
                       <ProductThumbnail photoUrl={photoUrl} size="sm" />
@@ -365,14 +365,14 @@ export default async function ProductsPage({
                           ) : null}
                           {!product.available_at_till ? <Badge variant="warning">Hidden from till</Badge> : null}
                         </div>
-                        <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500">
+                        <p className="mt-0.5 flex items-center gap-1 text-sm text-neutral-500 dark:text-ink-muted">
                           {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden="true" /> : null}
                           {product.categories?.name ?? "Uncategorized"}
                           {product.type === "service" && product.duration_minutes ? ` · ${product.duration_minutes} min` : ""}
                         </p>
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    <p className="text-sm font-medium text-neutral-700 dark:text-ink">
                       {priceRangeLabel(product.product_variants, currencyCode)}
                     </p>
                   </Link>
@@ -385,7 +385,7 @@ export default async function ProductsPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} {noun}
           </span>
           <div className="flex gap-2">

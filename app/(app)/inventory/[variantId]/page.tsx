@@ -120,7 +120,7 @@ export default async function VariantStockHistoryPage({
       <div>
         <h2 className="font-semibold">On hand</h2>
         <Card className="mt-3 overflow-hidden">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {levelRows.length > 0 ? (
               <>
                 {levelRows.map((level) => (
@@ -128,22 +128,22 @@ export default async function VariantStockHistoryPage({
                     <span>{level.branches?.name ?? "Unknown branch"}</span>
                     <span className="font-medium tabular-nums">
                       {formatQuantity(level.quantity)}{" "}
-                      <span className="text-xs font-normal text-neutral-500">{product.unit_of_measure}</span>
+                      <span className="text-xs font-normal text-neutral-500 dark:text-ink-muted">{product.unit_of_measure}</span>
                     </span>
                   </li>
                 ))}
                 {levelRows.length > 1 ? (
-                  <li className="flex items-center justify-between bg-neutral-50 px-5 py-3 text-sm font-medium dark:bg-neutral-800/50">
+                  <li className="flex items-center justify-between bg-neutral-50 px-5 py-3 text-sm font-medium dark:bg-surface/60">
                     <span>Total across branches</span>
                     <span className="tabular-nums">
                       {formatQuantity(total)}{" "}
-                      <span className="text-xs font-normal text-neutral-500">{product.unit_of_measure}</span>
+                      <span className="text-xs font-normal text-neutral-500 dark:text-ink-muted">{product.unit_of_measure}</span>
                     </span>
                   </li>
                 ) : null}
               </>
             ) : (
-              <li className="px-5 py-6 text-center text-sm text-neutral-500">No stock recorded yet.</li>
+              <li className="px-5 py-6 text-center text-sm text-neutral-500 dark:text-ink-muted">No stock recorded yet.</li>
             )}
           </ul>
         </Card>
@@ -151,14 +151,14 @@ export default async function VariantStockHistoryPage({
 
       <div>
         <h2 className="font-semibold">Movement history</h2>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
           Every change to this item&apos;s stock, most recent first. Entries are never edited or deleted — a correction is
           a new entry.
         </p>
         <Card className="mt-3 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:border-neutral-800">
+              <thead className="border-b border-neutral-200 text-xs uppercase text-neutral-500 dark:text-ink-muted dark:border-surface-line">
                 <tr>
                   <th className="px-4 py-3 font-medium">When</th>
                   <th className="px-4 py-3 font-medium">Branch</th>
@@ -168,14 +168,14 @@ export default async function VariantStockHistoryPage({
                   <th className="px-4 py-3 font-medium">By</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {movements && movements.length > 0 ? (
                   (movements as unknown as MovementRow[]).map((m) => {
                     const delta = Number(m.quantity_delta);
                     const who = [m.profiles?.first_name, m.profiles?.last_name].filter(Boolean).join(" ");
                     return (
-                      <tr key={m.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                        <td className="px-4 py-3 text-neutral-500">
+                      <tr key={m.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">
                           {new Date(m.created_at).toLocaleString("en-GB", {
                             day: "2-digit",
                             month: "short",
@@ -194,14 +194,14 @@ export default async function VariantStockHistoryPage({
                           {delta > 0 ? "+" : ""}
                           {formatQuantity(delta)}
                         </td>
-                        <td className="px-4 py-3 text-neutral-500">{m.note || "—"}</td>
-                        <td className="px-4 py-3 text-neutral-500">{who || "—"}</td>
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{m.note || "—"}</td>
+                        <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{who || "—"}</td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">
                       No movements recorded yet.
                     </td>
                   </tr>

@@ -8,6 +8,7 @@ import { formatNotification } from "@/lib/notifications/format";
 import type { NotificationFeedRow, NotificationSeverity } from "@/lib/notifications/types";
 import { cn } from "@/lib/utils";
 import { SkeletonBlock } from "@/components/ui/skeleton";
+import { useOnlineStatus } from "@/lib/offline/use-online-status";
 
 // Matches components/ui/button.tsx's own focus-visible treatment — this
 // file previously had no explicit focus ring anywhere, relying on browser
@@ -33,6 +34,18 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Phase 17 (Synchronization), client half: this poll used to run
+  // unconditionally, offline or not. A Server Action call that fails at
+  // the network level (no connection at all, as opposed to the server
+  // returning an error) doesn't just reject quietly here — Next's own
+  // App Router treats that failure like a stale-deployment/navigation
+  // error and can fall back to a full, hard page reload, which the
+  // service worker then answers with the static offline.html fallback
+  // (public/sw.js's "page navigation fails while offline" branch) —
+  // wiping out whatever was on the till (cart, an in-progress sale) well
+  // before the offline queue ever got a chance to help. Skipping the
+  // poll entirely while offline avoids ever making that doomed request.
+  const online = useOnlineStatus();
 
   // Not called directly in the effect body below — same reasoning as the
   // till's AwaitingPayment panel (app/(app)/sales/awaiting-payment.tsx):
@@ -40,15 +53,30 @@ export function NotificationBell() {
   // callback there, never as a bare statement in the effect itself
   // (react-hooks/set-state-in-effect), even though the actual setState
   // calls here happen well after the `await`, on a later microtask.
+  //
+  // Wrapped in try/catch (new) so a request that fails outright — not
+  // just one the server answers with an error — settles into the same
+  // inline error state instead of becoming an unhandled rejection.
   const refresh = useCallback(async () => {
-    const result = await getNotificationFeed();
-    setNotifications(result.notifications);
-    setCurrencyCode(result.currencyCode);
-    setError(result.error ?? null);
-    setLoading(false);
+    try {
+      const result = await getNotificationFeed();
+      setNotifications(result.notifications);
+      setCurrencyCode(result.currencyCode);
+      setError(result.error ?? null);
+    } catch (err) {
+      console.error("NotificationBell: could not load notifications", err);
+      setError("Couldn't load notifications.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
+    // Nothing to poll for while offline — see the `online` comment above.
+    // The cleanup below still fires when this flips false mid-interval,
+    // so there's never a pending timer left trying to fetch with no
+    // connection to fetch over.
+    if (!online) return;
     // setTimeout(…, 0) rather than calling refresh() directly: it still
     // runs on (essentially) the next tick, but as a scheduled callback
     // rather than a synchronous call inside the effect body.
@@ -58,7 +86,7 @@ export function NotificationBell() {
       window.clearTimeout(initial);
       window.clearInterval(interval);
     };
-  }, [refresh]);
+  }, [refresh, online]);
 
   useEffect(() => {
     if (!open) return;

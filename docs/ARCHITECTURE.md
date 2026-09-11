@@ -466,6 +466,45 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Phase 17 (Synchronization), client half — follow-up fix
+  found during real-browser verification of the entry below, not just a
+  lint cleanup this time. Throttling the network to Offline in DevTools
+  and leaving the till sitting there (rather than acting immediately)
+  reproduced a genuine failure: the till was silently knocked back to
+  the static `public/offline.html` fallback with no warning, wiping the
+  in-progress cart before the offline queue ever got a chance to help.
+  Root cause was two background requests that kept firing regardless of
+  connection state and had nothing to do with the till itself:
+  `components/notifications/notification-bell.tsx`'s 45-second poll (a
+  Server Action call) and Next's own default behavior of prefetching
+  every `<Link>` the moment it's in the viewport — which, in
+  `components/layout/sidebar.tsx`, is all of them, all the time, since
+  the sidebar never leaves the screen. A request that fails outright
+  (no connection at all, not the server returning an error) is treated
+  by Next's App Router the same way as a stale-deployment error, and it
+  can fall back to a full, hard page reload to recover — which the
+  service worker then answers with offline.html, per its own "page
+  navigation fails while offline" branch (public/sw.js), exactly as
+  designed for a real navigation. Nothing about that fallback is wrong;
+  the bug was in making requests that could trigger it while sitting
+  idle on a page that was never asked to go anywhere.
+  Fixed by not making those requests while offline: the notification
+  bell now checks `useOnlineStatus()` before scheduling its poll (and
+  its `refresh()` is now wrapped in try/catch instead of leaving a
+  network failure as an unhandled rejection), and every sidebar `<Link>`
+  now sets `prefetch={false}` — an explicit click still fetches fresh
+  on demand exactly as before; only the always-on background prefetch
+  is gone. Both are small, targeted fixes, not a redesign — nothing
+  about the queue, the sync flow, or the till's own submit handling
+  changed. Still to be re-verified in a real browser: whether the till
+  now survives sitting offline for longer than 45 seconds without being
+  knocked back to the fallback page, and whether the connection banner
+  correctly clears once the browser reports being back online (a second,
+  separate observation from this same test round that isn't yet
+  explained — worth a clean, isolated retest before assuming it's fixed
+  by the above, since neither change directly touches
+  `lib/offline/use-online-status.ts` or `connection-status.tsx`).
+
 - 2026-09-11 — Phase 17 (Synchronization), client half — scoped to
   "mid-session resilience," not full offline support, after weighing two
   options directly with the business owner: either the till survives a

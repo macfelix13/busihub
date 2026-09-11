@@ -102,6 +102,22 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                     <Link
                       href={entry.href}
                       onClick={onClose}
+                      // Phase 17 (Synchronization), client half: every one
+                      // of these links sits in the viewport the whole time
+                      // (the sidebar is always visible), so Next's default
+                      // prefetch-on-visible behavior means an idle till
+                      // makes a stream of background fetches with no click
+                      // involved at all. That's wasted bandwidth for a
+                      // link that's rarely used from most pages, but it's
+                      // actively harmful while offline: a background
+                      // prefetch that fails can trigger the same
+                      // hard-reload fallback a real failed navigation
+                      // would (see notification-bell.tsx's fuller
+                      // explanation) — dropping the till back to the
+                      // static offline.html fallback with no warning,
+                      // mid-sale. Explicit navigations (an actual click)
+                      // still fetch fresh on demand exactly as before.
+                      prefetch={false}
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
@@ -155,6 +171,8 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
                             <Link
                               href={child.href}
                               onClick={onClose}
+                              // See the top-level Link above — same reason.
+                              prefetch={false}
                               aria-current={active ? "page" : undefined}
                               className={cn(
                                 "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",

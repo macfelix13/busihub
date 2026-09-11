@@ -42,7 +42,7 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
       ) : null}
 
       {connected ? (
-        <div className="rounded-xl border border-neutral-200 px-3.5 py-3 text-sm dark:border-neutral-800">
+        <div className="rounded-xl border border-neutral-200 px-3.5 py-3 text-sm dark:border-surface-line">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">Connected</span>
             <span
@@ -55,7 +55,7 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
               {isLive ? "Live — real money" : "Test mode"}
             </span>
           </div>
-          <p className="mt-1 text-neutral-500">
+          <p className="mt-1 text-neutral-500 dark:text-ink-muted">
             Secret key ending <span className="font-mono">…{secretLast4}</span>. Leave the box below empty to keep it.
           </p>
           <div className="mt-3">
@@ -84,7 +84,7 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
         error={state.fieldErrors?.secretKey}
         onChange={(e) => setSecretKeyValue(e.target.value)}
       />
-      <p className="-mt-3 text-sm text-neutral-500">
+      <p className="-mt-3 text-sm text-neutral-500 dark:text-ink-muted">
         Both are in your Paystack dashboard under Settings → API Keys &amp; Webhooks. The secret key is encrypted
         before it is stored and is never shown again — not even here.
       </p>
@@ -95,7 +95,7 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
             <input
               type="checkbox"
               name="confirmLive"
-              className="mt-0.5 h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+              className="mt-0.5 h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-surface-line dark:bg-surface"
             />
             <span>
               <span className="font-medium text-amber-900 dark:text-amber-200">This is a LIVE key</span>
@@ -118,21 +118,21 @@ export function PaystackForm({ publicKey, secretLast4, momoEnabled, isLive, webh
           type="checkbox"
           name="momoEnabled"
           defaultChecked={momoEnabled}
-          className="mt-0.5 h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900"
+          className="mt-0.5 h-5 w-5 rounded border-neutral-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30 dark:border-surface-line dark:bg-surface"
         />
         <span>
-          <span className="font-medium text-neutral-800 dark:text-neutral-200">Take mobile money at the till</span>
-          <span className="block text-neutral-500">
+          <span className="font-medium text-neutral-800 dark:text-ink">Take mobile money at the till</span>
+          <span className="block text-neutral-500 dark:text-ink-muted">
             Cashiers can charge a customer&apos;s MTN, Telecel or AT number. The customer approves it on their own
             phone.
           </span>
         </span>
       </label>
 
-      <div className="rounded-xl bg-neutral-100 px-3.5 py-3 text-sm dark:bg-neutral-800">
-        <p className="font-medium text-neutral-800 dark:text-neutral-200">Your webhook URL</p>
-        <p className="mt-1 break-all font-mono text-xs text-neutral-600 dark:text-neutral-300">{webhookUrl}</p>
-        <p className="mt-2 text-neutral-500">
+      <div className="rounded-xl bg-neutral-100 px-3.5 py-3 text-sm dark:bg-surface">
+        <p className="font-medium text-neutral-800 dark:text-ink">Your webhook URL</p>
+        <p className="mt-1 break-all font-mono text-xs text-neutral-600 dark:text-ink-muted">{webhookUrl}</p>
+        <p className="mt-2 text-neutral-500 dark:text-ink-muted">
           Paste this into Paystack under Settings → API Keys &amp; Webhooks. Without it a customer can approve a
           payment and the sale will sit unfinished until someone checks it.
         </p>

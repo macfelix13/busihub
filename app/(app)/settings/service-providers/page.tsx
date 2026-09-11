@@ -63,7 +63,7 @@ export default async function ServiceProvidersPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Service providers</h1>
-          <p className="text-neutral-500">
+          <p className="text-neutral-500 dark:text-ink-muted">
             Barbers, nail techs, and other staff who render a service but don&rsquo;t sign in to Busihub — link them
             to a sale line at the till and track their own performance under Reports → Sales.
           </p>
@@ -95,21 +95,21 @@ export default async function ServiceProvidersPage({
           <span>Couldn&apos;t load service providers. Please refresh the page.</span>
         </p>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-neutral-200 px-4 py-14 text-center dark:border-neutral-800">
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-neutral-200 px-4 py-14 text-center dark:border-surface-line">
           <Scissors className="h-8 w-8 text-neutral-400" aria-hidden="true" />
           <p className="font-medium">
             {activeStatus === "archived" ? "No archived service providers" : "No service providers yet"}
           </p>
           {activeStatus === "active" ? (
-            <p className="max-w-sm text-sm text-neutral-500">
+            <p className="max-w-sm text-sm text-neutral-500 dark:text-ink-muted">
               Add a barber, nail tech, or other staff member who renders a service — they&rsquo;ll show up in the
               till&rsquo;s &ldquo;who rendered this?&rdquo; picker for their branch.
             </p>
           ) : null}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {rows.map((provider) => {
               const photoUrl = provider.photo_url ? photoUrls.get(provider.photo_url) : null;
               return (
@@ -118,7 +118,7 @@ export default async function ServiceProvidersPage({
                   className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 dark:bg-surface">
                       {photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={photoUrl} alt="" className="h-full w-full object-cover" />
@@ -129,9 +129,9 @@ export default async function ServiceProvidersPage({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{provider.name}</span>
-                        {provider.title ? <span className="text-sm text-neutral-500">{provider.title}</span> : null}
+                        {provider.title ? <span className="text-sm text-neutral-500 dark:text-ink-muted">{provider.title}</span> : null}
                       </div>
-                      <p className="truncate text-sm text-neutral-500">
+                      <p className="truncate text-sm text-neutral-500 dark:text-ink-muted">
                         {provider.branches?.name ?? "Unknown branch"}
                         {provider.phone ? ` · ${provider.phone}` : ""}
                       </p>

@@ -206,7 +206,7 @@ export default async function AuditLogPage({
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Audit log</h1>
-        <p className="text-neutral-500">A record of sensitive actions taken on your business, {totalCount} total.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">A record of sensitive actions taken on your business, {totalCount} total.</p>
       </div>
 
       <SegmentedControl
@@ -224,8 +224,8 @@ export default async function AuditLogPage({
           Couldn&apos;t load the audit log. Please refresh the page.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {entries.length > 0 ? (
               entries.map((entry) => {
                 const actorName = entry.action.startsWith("platform.")
@@ -238,10 +238,10 @@ export default async function AuditLogPage({
                 return (
                   <li key={entry.id} className="flex flex-col gap-1 px-5 py-3.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-surface dark:text-ink-muted">
                         {actionLabel(entry.action)}
                       </span>
-                      <span className="flex-shrink-0 text-xs text-neutral-500">
+                      <span className="flex-shrink-0 text-xs text-neutral-500 dark:text-ink-muted">
                         {new Date(entry.created_at).toLocaleString("en-GB", {
                           day: "numeric",
                           month: "short",
@@ -251,14 +251,14 @@ export default async function AuditLogPage({
                         })}
                       </span>
                     </div>
-                    <p className="min-w-0 break-words text-sm text-neutral-700 dark:text-neutral-200">
+                    <p className="min-w-0 break-words text-sm text-neutral-700 dark:text-ink">
                       {describe(entry, actorName, targetName)}
                     </p>
                   </li>
                 );
               })
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">Nothing recorded yet for this filter.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">Nothing recorded yet for this filter.</li>
             )}
           </ul>
         </div>
@@ -266,7 +266,7 @@ export default async function AuditLogPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} entries
           </span>
           <div className="flex gap-2">

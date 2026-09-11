@@ -29,7 +29,7 @@ interface OwnerRow {
 const STATUS_BADGE: Record<BusinessStatus, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
   suspended: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  closed: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  closed: "bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted",
 };
 
 export default async function AdminBusinessesPage({
@@ -110,7 +110,7 @@ export default async function AdminBusinessesPage({
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Businesses</h1>
-        <p className="text-neutral-500">Every business registered on Busihub, {totalCount} total.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Every business registered on Busihub, {totalCount} total.</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -129,7 +129,7 @@ export default async function AdminBusinessesPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search by name…"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-56"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-56"
           />
           <Button type="submit" variant="secondary">
             Search
@@ -142,8 +142,8 @@ export default async function AdminBusinessesPage({
           Couldn&apos;t load businesses. Please refresh the page.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {businesses.length > 0 ? (
               businesses.map((business) => {
                 const owner = business.created_by ? ownerById.get(business.created_by) : null;
@@ -152,7 +152,7 @@ export default async function AdminBusinessesPage({
                   <li key={business.id}>
                     <Link
                       href={`/admin/businesses/${business.id}`}
-                      className="flex flex-col gap-2 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                      className="flex flex-col gap-2 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -161,13 +161,13 @@ export default async function AdminBusinessesPage({
                             {business.status.charAt(0).toUpperCase() + business.status.slice(1)}
                           </span>
                         </div>
-                        <p className="mt-0.5 text-sm text-neutral-500">
+                        <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">
                           {owner ? `${owner.first_name} ${owner.last_name}`.trim() : "No registering owner on record"}
                           {owner?.email ? ` · ${owner.email}` : ""}
                           {owner?.phone ? ` · ${owner.phone}` : ""}
                         </p>
                       </div>
-                      <div className="flex flex-shrink-0 flex-col text-sm text-neutral-500 sm:text-right">
+                      <div className="flex flex-shrink-0 flex-col text-sm text-neutral-500 dark:text-ink-muted sm:text-right">
                         <span>
                           {stats?.count ?? 0} {stats?.count === 1 ? "staff" : "staff"}
                         </span>
@@ -194,7 +194,7 @@ export default async function AdminBusinessesPage({
                 );
               })
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">No businesses match this filter.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">No businesses match this filter.</li>
             )}
           </ul>
         </div>
@@ -202,7 +202,7 @@ export default async function AdminBusinessesPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} businesses
           </span>
           <div className="flex gap-2">

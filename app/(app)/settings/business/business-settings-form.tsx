@@ -12,9 +12,9 @@ const initialState: SettingsFormState = {};
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="border-t border-neutral-200 pt-5 first:border-t-0 first:pt-0 dark:border-neutral-800">
+    <div className="border-t border-neutral-200 pt-5 first:border-t-0 first:pt-0 dark:border-surface-line">
       <h3 className="font-semibold">{title}</h3>
-      {description ? <p className="mt-0.5 text-sm text-neutral-500">{description}</p> : null}
+      {description ? <p className="mt-0.5 text-sm text-neutral-500 dark:text-ink-muted">{description}</p> : null}
       <div className="mt-4 flex flex-col gap-4">{children}</div>
     </div>
   );
@@ -67,7 +67,7 @@ export function BusinessSettingsForm({ defaultValues }: { defaultValues: Busines
         />
         <Checkbox label="Show logo on receipt" name="receiptShowLogo" defaultChecked={defaultValues.receiptShowLogo} />
         <Checkbox label="Show QR code on receipt" name="receiptShowQrCode" defaultChecked={defaultValues.receiptShowQrCode} />
-        <p className="-mt-1 text-sm text-neutral-500">
+        <p className="-mt-1 text-sm text-neutral-500 dark:text-ink-muted">
           The QR code is saved but not printed yet: a code is only worth scanning once there is a shareable
           receipt link for it to point at. Everything else here applies to printed and shared receipts today.
         </p>

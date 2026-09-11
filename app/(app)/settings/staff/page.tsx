@@ -31,7 +31,7 @@ interface RoleAssignmentRow {
 
 const STATUS_BADGE: Record<ProfileStatus, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
-  inactive: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  inactive: "bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted",
   suspended: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
 };
 
@@ -111,7 +111,7 @@ export default async function StaffPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Staff</h1>
-          <p className="text-neutral-500">Everyone with access to your Busihub account, {totalCount} total.</p>
+          <p className="text-neutral-500 dark:text-ink-muted">Everyone with access to your Busihub account, {totalCount} total.</p>
         </div>
         <Link href="/settings/staff/new" className="flex-shrink-0">
           <Button>Invite staff</Button>
@@ -134,7 +134,7 @@ export default async function StaffPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search by name or email…"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white sm:w-56"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-base text-neutral-900 focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/40 dark:border-surface-line dark:bg-surface dark:text-ink sm:w-56"
           />
           <Button type="submit" variant="secondary">
             Search
@@ -147,8 +147,8 @@ export default async function StaffPage({
           Couldn&apos;t load staff. Please refresh the page.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {staff.length > 0 ? (
               staff.map((person) => {
                 const isYou = person.id === viewer?.id;
@@ -157,7 +157,7 @@ export default async function StaffPage({
                   <li key={person.id}>
                     <Link
                       href={`/settings/staff/${person.id}`}
-                      className="flex flex-col gap-2 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-neutral-800/50"
+                      className="flex flex-col gap-2 px-5 py-4 hover:bg-neutral-50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-surface/60"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -171,12 +171,12 @@ export default async function StaffPage({
                             {person.status.charAt(0).toUpperCase() + person.status.slice(1)}
                           </span>
                         </div>
-                        <p className="mt-0.5 min-w-0 break-words text-sm text-neutral-500">
+                        <p className="mt-0.5 min-w-0 break-words text-sm text-neutral-500 dark:text-ink-muted">
                           {person.email ?? "No email on record"}
                           {roleLabels.length > 0 ? ` · ${roleLabels.join(", ")}` : " · No role assigned"}
                         </p>
                       </div>
-                      <div className="flex-shrink-0 text-sm text-neutral-500 sm:text-right">
+                      <div className="flex-shrink-0 text-sm text-neutral-500 dark:text-ink-muted sm:text-right">
                         {person.last_login_at
                           ? `Last active ${new Date(person.last_login_at).toLocaleDateString("en-GB", {
                               day: "numeric",
@@ -190,7 +190,7 @@ export default async function StaffPage({
                 );
               })
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">No staff match this filter.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">No staff match this filter.</li>
             )}
           </ul>
         </div>
@@ -198,7 +198,7 @@ export default async function StaffPage({
 
       {totalCount > PAGE_SIZE ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="text-neutral-500">
+          <span className="text-neutral-500 dark:text-ink-muted">
             Page {pageNumber} of {lastPage} · {totalCount} staff
           </span>
           <div className="flex gap-2">

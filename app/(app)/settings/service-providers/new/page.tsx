@@ -35,7 +35,7 @@ export default async function NewServiceProviderPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Add service provider</h1>
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-ink-muted">
           A barber, nail tech, or similar staff member who renders a service but doesn&rsquo;t sign in.
         </p>
       </div>

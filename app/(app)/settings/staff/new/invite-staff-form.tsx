@@ -38,7 +38,7 @@ export function InviteStaffForm({
         placeholder="colleague@example.com"
         error={state.fieldErrors?.email}
       />
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         We&apos;ll send them an email with a link to set their own password. No account is created until they do.
       </p>
 
@@ -58,7 +58,7 @@ export function InviteStaffForm({
           options={roles.map((r) => ({ value: r.id, label: r.name }))}
         />
       </div>
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         Most roles apply across every branch — the branch here mainly matters for till/cashier assignments. You can
         change this later from the staff list.
       </p>

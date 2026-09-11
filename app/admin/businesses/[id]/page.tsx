@@ -11,7 +11,7 @@ type BusinessStatus = "active" | "suspended" | "closed";
 const STATUS_BADGE: Record<BusinessStatus, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
   suspended: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  closed: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  closed: "bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted",
 };
 
 interface StaffRow {
@@ -86,7 +86,7 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </span>
             </div>
-            <p className="text-neutral-500">
+            <p className="text-neutral-500 dark:text-ink-muted">
               {business.business_type || "No business type set"} · {business.country_code} · {business.currency_code}
             </p>
           </div>
@@ -118,8 +118,8 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-        <dl className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+        <dl className="divide-y divide-neutral-100 dark:divide-surface-line">
           {[
             ["Registering owner", owner ? `${owner.first_name} ${owner.last_name}`.trim() : "Not on record"],
             ["Owner email", owner?.email ?? "—"],
@@ -137,8 +137,8 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
             ],
           ].map(([label, value]) => (
             <div key={label} className="grid grid-cols-1 gap-1 px-5 py-3.5 sm:grid-cols-3 sm:gap-4">
-              <dt className="text-sm font-medium text-neutral-500">{label}</dt>
-              <dd className="min-w-0 break-words text-sm text-neutral-800 dark:text-neutral-200 sm:col-span-2">{value}</dd>
+              <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">{label}</dt>
+              <dd className="min-w-0 break-words text-sm text-neutral-800 dark:text-ink sm:col-span-2">{value}</dd>
             </div>
           ))}
         </dl>
@@ -146,8 +146,8 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
 
       <div>
         <h2 className="font-semibold">Staff ({staff.length})</h2>
-        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-surface-line dark:bg-surface-card">
+          <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
             {staff.length > 0 ? (
               staff.map((person) => (
                 <li
@@ -156,14 +156,14 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
                 >
                   <span className="min-w-0 break-words">
                     <span className="font-medium">{`${person.first_name} ${person.last_name}`.trim()}</span>
-                    {person.email ? <span className="ml-2 text-neutral-500">{person.email}</span> : null}
+                    {person.email ? <span className="ml-2 text-neutral-500 dark:text-ink-muted">{person.email}</span> : null}
                     {person.status !== "active" ? (
-                      <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                      <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:bg-surface dark:text-ink-muted">
                         {person.status}
                       </span>
                     ) : null}
                   </span>
-                  <span className="flex-shrink-0 text-neutral-500">
+                  <span className="flex-shrink-0 text-neutral-500 dark:text-ink-muted">
                     {person.last_login_at
                       ? `Last login ${new Date(person.last_login_at).toLocaleDateString("en-GB", {
                           day: "numeric",
@@ -175,7 +175,7 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
                 </li>
               ))
             ) : (
-              <li className="px-5 py-8 text-center text-sm text-neutral-500">No staff on record.</li>
+              <li className="px-5 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">No staff on record.</li>
             )}
           </ul>
         </div>

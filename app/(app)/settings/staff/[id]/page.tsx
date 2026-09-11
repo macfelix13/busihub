@@ -14,7 +14,7 @@ type ProfileStatus = "active" | "inactive" | "suspended";
 
 const STATUS_BADGE: Record<ProfileStatus, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
-  inactive: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+  inactive: "bg-neutral-100 text-neutral-600 dark:bg-surface dark:text-ink-muted",
   suspended: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
 };
 
@@ -110,7 +110,7 @@ export default async function StaffMemberPage({ params }: { params: Promise<{ id
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </span>
             </div>
-            <p className="text-neutral-500">
+            <p className="text-neutral-500 dark:text-ink-muted">
               {person.email ?? "No email on record"}
               {person.phone ? ` · ${person.phone}` : ""}
             </p>
@@ -119,7 +119,7 @@ export default async function StaffMemberPage({ params }: { params: Promise<{ id
             <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
               {status === "active" ? (
                 isOnlyActiveOwner ? (
-                  <p className="max-w-[16rem] text-right text-sm text-neutral-500">
+                  <p className="max-w-[16rem] text-right text-sm text-neutral-500 dark:text-ink-muted">
                     Can&apos;t deactivate — this business&apos;s only active Owner. Make someone else Owner first.
                   </p>
                 ) : (
@@ -150,14 +150,14 @@ export default async function StaffMemberPage({ params }: { params: Promise<{ id
       ) : null}
 
       {isYou ? (
-        <p className="rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600 dark:bg-neutral-800/60 dark:text-neutral-300">
+        <p className="rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600 dark:bg-surface/60 dark:text-ink-muted">
           You can&apos;t change your own role or deactivate your own account — ask another admin.
         </p>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <h2 className="font-semibold">Role by branch</h2>
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
           Most permissions apply business-wide regardless of branch — this mainly matters for till/cashier
           assignments at a specific location.
         </p>
@@ -166,7 +166,7 @@ export default async function StaffMemberPage({ params }: { params: Promise<{ id
             isYou ? (
               <div key={branch.id} className="text-sm">
                 <span className="font-medium">{branch.name}: </span>
-                <span className="text-neutral-500">
+                <span className="text-neutral-500 dark:text-ink-muted">
                   {roles.find((r) => r.id === roleIdByBranch.get(branch.id))?.name ?? "No access"}
                 </span>
               </div>

@@ -38,7 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-canvas-dark">
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900 sm:px-6">
+      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-surface-line dark:bg-surface-card sm:px-6">
         <Link href="/admin/businesses" className="font-semibold">
           Busihub Admin
         </Link>

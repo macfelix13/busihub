@@ -96,7 +96,7 @@ export function ProviderForm({
       ) : null}
 
       <div className="flex items-center gap-4">
-        <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+        <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 dark:bg-surface">
           {preview ? (
             // A signed URL (0045) or a local blob: object URL — both
             // per-viewer, dynamic strings next/image's optimizer has no
@@ -127,7 +127,7 @@ export function ProviderForm({
             onChange={onPhotoChange}
             className="hidden"
           />
-          <p className="text-sm text-neutral-500">JPEG, PNG, or WebP. Up to 5 MB. Optional.</p>
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">JPEG, PNG, or WebP. Up to 5 MB. Optional.</p>
           {removeError ? <p className="text-sm text-red-600 dark:text-red-400">{removeError}</p> : null}
         </div>
       </div>
@@ -159,7 +159,7 @@ export function ProviderForm({
           ...branches.map((b) => ({ value: b.id, label: b.name })),
         ]}
       />
-      <p className="-mt-2 text-sm text-neutral-500">
+      <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">
         Which location this person works out of. Only sales rung up at this branch can name them.
       </p>
 

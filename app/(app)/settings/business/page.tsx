@@ -55,10 +55,10 @@ export default async function BusinessSettingsPage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold">Business settings</h1>
-        <p className="text-neutral-500">Your business profile and configurable defaults.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">Your business profile and configurable defaults.</p>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <BusinessProfileForm
           defaultValues={{
             name: business.name,
@@ -71,16 +71,15 @@ export default async function BusinessSettingsPage() {
             region: business.region ?? "",
           }}
         />
-        <p className="mt-4 text-sm text-neutral-500">
+        <p className="mt-4 text-sm text-neutral-500 dark:text-ink-muted">
           Country ({business.country_code}) and currency ({business.currency_code}) are set at registration and can&apos;t be
           changed here — every price and tax calculation in Busihub assumes they stay fixed.
         </p>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <BusinessSettingsForm defaultValues={jsonGroupsToFormDefaults((settings ?? {}) as Partial<BusinessSettingsRow>)} />
       </div>
     </div>
   );
 }
-

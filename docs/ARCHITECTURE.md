@@ -466,6 +466,60 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-11 — Busihub brand identity pass, phase 5 of N (settings,
+  staff & the admin console). Scope named directly by the user
+  ("settings/staff/the admin console next").
+
+  **What this phase touched** — every screen under `/settings` plus the
+  Super Admin console at `/admin` (deliberately separate from the
+  tenant app — see `app/admin/layout.tsx`'s own comment on why it does
+  not share `AppShell`/`Sidebar`):
+
+  - Settings: `audit-log/page.tsx`, `business/page.tsx`,
+    `business-profile-form.tsx`, `business-settings-form.tsx`,
+    `payments/page.tsx`, `paystack-form.tsx`,
+    `regenerate-webhook-button.tsx` and `test-connection-button.tsx`
+    (read, needed no changes), `pin/page.tsx`, `pin-form.tsx` (read,
+    needed no changes), `service-providers/page.tsx`,
+    `provider-form.tsx`, `service-providers/[id]/edit/page.tsx`,
+    `service-providers/new/page.tsx`, `staff/page.tsx`,
+    `staff/[id]/page.tsx`, `role-assignment-form.tsx` (read, needed no
+    changes), `staff/new/page.tsx`, `invite-staff-form.tsx`.
+  - Admin console: `admin/layout.tsx`, `admin/businesses/page.tsx`,
+    `admin/businesses/[id]/page.tsx` (`admin/page.tsx` is a bare
+    redirect with no markup of its own).
+
+  Same treatment as phases 1-4: borders, dividers, row hovers, table
+  headers, status badges, muted/secondary text, and card backgrounds
+  moved onto the `surface`/`ink` tokens. No queries, RPCs, validation,
+  or permission checks changed anywhere — confirmed by reading every
+  file in full before editing; only className strings were touched.
+
+  **This phase finally closes out the checkbox focus-ring deferral**
+  first noted in phase 3: `settings/payments/paystack-form.tsx` was the
+  third and last of the three files sharing the
+  `dark:border-neutral-700 dark:bg-neutral-900` checkbox pattern (the
+  other two, `products/product-form.tsx` and `sales/refund-form.tsx`,
+  were retuned in phases 3 and 4). All three now use
+  `dark:border-surface-line dark:bg-surface` consistently, with
+  `focus:ring-brand-500/30` left alone on all three as before — nothing
+  is inconsistent between them anymore.
+
+  **Left deliberately alone**: the "Platform" pill in
+  `admin/layout.tsx` (`bg-neutral-900 text-white ... dark:bg-white
+  dark:text-neutral-900`) is an intentionally inverted badge, not a
+  case of a background blending into the page — retuning it would
+  remove the contrast it's designed to have. Decorative icon glyphs on
+  bare `text-neutral-400` (e.g. the placeholder photo icons in
+  `provider-form.tsx` and `service-providers/page.tsx`) were also left
+  untouched, matching the precedent already set in phase 3's
+  `product-photo-field.tsx`.
+
+  Branches (`/branches`) sits under the "Operations" nav group rather
+  than "Settings" (see `components/layout/nav-items.tsx`) and was not
+  part of this phase's scope. The landing page, auth screens, and the
+  marketing site remain untouched.
+
 - 2026-09-11 — Busihub brand identity pass, phase 4 of N (customers,
   sales & reports). Scope named directly by the user ("customers/sales/
   reports next") rather than picked from a list.

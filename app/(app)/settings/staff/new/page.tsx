@@ -45,20 +45,20 @@ export default async function InviteStaffPage() {
           ← Staff
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Invite a colleague</h1>
-        <p className="text-neutral-500">They&apos;ll get an email to set their own password and sign in.</p>
+        <p className="text-neutral-500 dark:text-ink-muted">They&apos;ll get an email to set their own password and sign in.</p>
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <InviteStaffForm branches={branches} roles={roles} />
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <h2 className="font-semibold">What each role can do</h2>
         <dl className="mt-3 flex flex-col gap-3">
           {roles.map((role) => (
             <div key={role.id} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
               <dt className="w-32 flex-shrink-0 font-medium">{role.name}</dt>
-              <dd className="min-w-0 break-words text-sm text-neutral-500">{role.description ?? "—"}</dd>
+              <dd className="min-w-0 break-words text-sm text-neutral-500 dark:text-ink-muted">{role.description ?? "—"}</dd>
             </div>
           ))}
         </dl>

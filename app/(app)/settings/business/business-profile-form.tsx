@@ -42,4 +42,3 @@ export function BusinessProfileForm({ defaultValues }: { defaultValues: Business
     </form>
   );
 }
-

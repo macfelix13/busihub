@@ -34,7 +34,7 @@ export default async function PinSettingsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Till PIN</h1>
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-ink-muted">
           A short code that identifies you at a shared till, so each sale records who made it.
         </p>
       </div>
@@ -47,7 +47,7 @@ export default async function PinSettingsPage() {
         </p>
       ) : null}
 
-      <p className="max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="max-w-2xl text-sm text-neutral-600 dark:text-ink-muted">
         4 to 6 digits. It is stored hashed and can never be read back — not by us, not by your colleagues. Five wrong
         attempts locks it for 15 minutes.
         {hasPin ? " You already have a PIN set; entering a new one replaces it." : ""}

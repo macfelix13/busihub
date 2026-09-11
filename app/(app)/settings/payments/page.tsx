@@ -56,7 +56,7 @@ export default async function PaymentSettingsPage() {
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold">Payments</h1>
-        <p className="text-neutral-500">
+        <p className="text-neutral-500 dark:text-ink-muted">
           Connect your own Paystack account to take mobile money. The money goes straight to you — Busihub never
           holds it.
         </p>
@@ -71,9 +71,9 @@ export default async function PaymentSettingsPage() {
       />
 
       {settings?.paystack_secret_last4 ? (
-        <div className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
+        <div className="border-t border-neutral-200 pt-6 dark:border-surface-line">
           <h2 className="font-semibold">Disconnect</h2>
-          <p className="mt-1 max-w-prose text-sm text-neutral-500">
+          <p className="mt-1 max-w-prose text-sm text-neutral-500 dark:text-ink-muted">
             Removes the stored keys and switches mobile money off. Sales already paid are untouched; any sale still
             waiting for a payment will have to be cancelled at the till.
           </p>

@@ -466,6 +466,59 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-18 — First-run onboarding checklist on the dashboard (migration
+  0053). Came out of a UI review of real screenshots from a demo
+  business ("Style Vault"): a brand-new trial signup landed on a
+  dashboard that was all zeros with no guidance on what to do first —
+  identified as the single highest-leverage UI gap given the current
+  goal of converting social-media traffic into trial signups.
+
+  **What it is.** A dismissible card at the top of the dashboard,
+  visible only to someone with `business.manage` (an Owner/Manager — a
+  cashier doesn't need to be told to connect Paystack), listing five
+  steps in the order a new shop would naturally do them: add a
+  product, get stock in, make a first sale, connect Paystack, invite a
+  staff member. It disappears on its own once every step is done, or
+  earlier if dismissed.
+
+  **Why a database function, not a client-side flag.** Every checked
+  item is a real fact read from the actual tables (`products`,
+  `stock_levels`, `sales`, `business_payment_settings`,
+  `user_branch_roles`) through a new `onboarding_status()` function —
+  SECURITY INVOKER, no `business_id` argument, same pattern
+  `dashboard_snapshot()` (0028) already established, so RLS is what
+  scopes it and there's nothing here that could report one business's
+  progress against another's or claim a step is done when it isn't.
+  The only thing actually stored is the dismissal flag, in a new
+  `business_settings.onboarding_settings` jsonb column — the same
+  "new settings group via migration" pattern the table's own 0002
+  header describes, not a bespoke tracking table.
+
+  **New file:** `tests/security/onboarding.sql`, wired into CI
+  alongside the other per-feature security tests. It proves, against a
+  real Postgres, both that a fresh business gets an honest all-false
+  checklist and — the point that actually matters given how much of
+  this project's review has centered on tenant isolation — that one
+  business adding a product does not flip `has_product` for a second,
+  unrelated business's `onboarding_status()` call. Also confirms
+  dismissing the checklist requires `business.manage`, the same gate
+  `business_settings_update` (0009) already enforces, rather than
+  accidentally becoming writable by anyone signed in.
+
+  **Also from the same UI review, deliberately NOT done here:** the
+  screenshots also surfaced a placeholder-product-image styling issue,
+  product name truncation cutting mid-word, an empty chart state that
+  reads as broken rather than "no data yet", and date/branch filters
+  eating the fold on mobile. Those are separate, smaller UI passes —
+  scoped out of this one so the checklist (the highest-leverage item)
+  shipped on its own rather than being bundled with unrelated touch-ups.
+  A fifth item from that review — the unpaid-sales alert's contrast —
+  was re-checked against the actual rendered colors
+  (`amber-200` on `amber-950/40` over `canvas-dark`) and computes to
+  13.8:1, comfortably past WCAG AAA; the original screenshot read as
+  low-contrast, but the math says it isn't, so no change was made
+  there and the earlier verbal assessment was wrong.
+
 - 2026-09-11 — Real Privacy Policy and Terms of Service, replacing the
   honest placeholders at `app/privacy/page.tsx` and `app/terms/page.tsx`.
   Requested directly by the user as the next focus after the 8-phase

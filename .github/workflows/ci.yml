@@ -103,6 +103,9 @@ jobs:
       - name: Run mobile money OTP tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/momo_otp.sql
 
+      - name: Run onboarding checklist tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/onboarding.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

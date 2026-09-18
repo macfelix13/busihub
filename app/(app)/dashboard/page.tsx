@@ -22,6 +22,7 @@ import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import { paymentMethodLabel } from "@/lib/validation/sales";
 import { RANGES, resolvePeriod, periodDates } from "@/lib/reports/period";
 import { SalesChart, type TrendPoint } from "./sales-chart";
+import { OnboardingChecklist, type OnboardingStatus } from "./onboarding-checklist";
 
 export const metadata = { title: "Dashboard" };
 
@@ -128,6 +129,7 @@ export default async function DashboardPage({
     canViewInventory,
     canViewCustomers,
     canViewExpenses,
+    canManageBusiness,
     { data: business },
     { data: branchRows },
   ] =
@@ -137,6 +139,9 @@ export default async function DashboardPage({
       hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.CUSTOMERS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
+      // Gates the first-run checklist below (0053) — a cashier doesn't
+      // need to be told to connect Paystack or invite staff.
+      hasPermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE),
       supabase.from("businesses").select("name, currency_code").eq("id", businessId).maybeSingle(),
       supabase.from("branches").select("id, name, is_main, timezone").eq("status", "active").order("is_main", {
         ascending: false,
@@ -180,6 +185,7 @@ export default async function DashboardPage({
     { data: expenseRows },
     { data: expenseCategoryRows },
     { data: recent, error: recentError },
+    { data: onboardingRows },
   ] = await Promise.all([
     canSeeMoney
       ? supabase.rpc("sales_summary", { p_from: fromIso, p_to: toIso, p_status: null, p_branch_id: branchId })
@@ -225,6 +231,7 @@ export default async function DashboardPage({
       )
       .order("created_at", { ascending: false })
       .limit(6),
+    canManageBusiness ? supabase.rpc("onboarding_status") : empty,
   ]);
 
   // Logged, not shown. A database error message can name columns,
@@ -289,6 +296,19 @@ export default async function DashboardPage({
     expense_count: number | string;
   }[];
   const recentSales = (recent ?? []) as unknown as RecentSale[];
+
+  // Only ever fetched when canManageBusiness (see the Promise.all above),
+  // so this is null for anyone the checklist isn't shown to anyway.
+  const onboarding = ((onboardingRows ?? []) as unknown as OnboardingStatus[])[0] ?? null;
+  const showOnboarding =
+    canManageBusiness &&
+    onboarding !== null &&
+    !onboarding.dismissed &&
+    (!onboarding.has_product ||
+      !onboarding.has_stock ||
+      !onboarding.has_sale ||
+      !onboarding.payment_connected ||
+      !onboarding.has_extra_staff);
 
   const waiting = Number(snapshot?.awaiting_payment_count ?? 0);
   const owed = Number(snapshot?.owed_total ?? 0);
@@ -394,6 +414,8 @@ export default async function DashboardPage({
           </div>
         ) : null}
       </div>
+
+      {showOnboarding ? <OnboardingChecklist status={onboarding!} /> : null}
 
       {/* Things that need doing, before things that merely happened. A
           sale waiting for payment is holding stock off the shelf, so it

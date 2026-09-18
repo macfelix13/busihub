@@ -466,6 +466,34 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-18 — Scanner success beep on the till. A short ~100ms tone
+  now plays on every barcode/SKU match, from both scanning paths at
+  once: the phone-camera scanner (`BarcodeScannerModal`) and a
+  USB/Bluetooth hardware scanner typing into the search box. Both
+  already funnelled through one shared function, `tryAddByBarcode()`
+  in `app/(app)/till/till.tsx`, specifically so the two input methods
+  could never disagree about what counts as a match (see that
+  function's own comment) — the beep is one line added right there,
+  so it's automatically identical for both rather than two separate
+  call sites that could drift.
+
+  New file `lib/ui/scan-beep.ts`: the tone is synthesized with the Web
+  Audio API (a sine oscillator, ramped rather than switched abruptly
+  to avoid an audible click) instead of an audio file — no binary
+  asset to add to a project whose delivery pipeline (the apply/verify
+  script pairs used for every phase so far) only round-trips plain
+  text. One `AudioContext`, created lazily and reused. Every failure
+  mode — no Web Audio support, the context still suspended because
+  there's been no user gesture yet, anything else — is swallowed
+  rather than surfaced, since this is a nice-to-have alongside the
+  toast/visual confirmation the till already shows, never something a
+  scan should be blocked or broken by.
+
+  Scoped to exactly what was asked — a success sound. No mute toggle
+  or settings entry was added; if that turns out to matter in
+  practice (a noisy shop floor, multiple tills side by side), that's a
+  small, separate follow-up rather than something to guess at now.
+
 - 2026-09-18 — First-run onboarding checklist on the dashboard (migration
   0053). Came out of a UI review of real screenshots from a demo
   business ("Style Vault"): a brand-new trial signup landed on a

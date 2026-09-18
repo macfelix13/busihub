@@ -18,6 +18,7 @@ import { formatQuantity } from "@/lib/validation/inventory";
 import { PAYMENT_METHODS, MOMO_NETWORKS, normaliseMomoNumber, guessMomoNetwork } from "@/lib/validation/sales";
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { enqueueSale } from "@/lib/offline/queue";
+import { playScanSuccessBeep } from "@/lib/ui/scan-beep";
 import { completeSale, signOutCashier, openDrawerNoSale, type FormState } from "./actions";
 
 const initialState: FormState = {};
@@ -256,6 +257,12 @@ export function Till({
    * wants confirmation feedback — the camera scanner's onScanned, below —
    * has something to name; every existing call site only ever checked
    * this for truthiness, which a matched product still satisfies.
+   *
+   * Plays a short beep on every exact match, from both scanning paths at
+   * once, since they both funnel through here — a cashier scanning
+   * several items a minute gets audible confirmation without having to
+   * watch the screen for each one, the same way a supermarket scanner
+   * beeps regardless of what till software is behind it.
    */
   function tryAddByBarcode(code: string): TillProduct | null {
     const q = code.trim().toLowerCase();
@@ -265,6 +272,7 @@ export function Till({
     );
     if (!exact) return null;
     addToCart(exact.variantId);
+    playScanSuccessBeep();
     return exact;
   }
 

@@ -466,6 +466,60 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-18 — Custom staff roles (Settings → Staff → Roles). The RBAC
+  schema (`roles`, `role_permissions`, RLS policies gating them on
+  `roles.manage`) has supported per-business custom roles and editable
+  built-in-role permission sets since very early in the project —
+  migration `0044`'s own header even assumed a "Settings → Staff →
+  Roles" screen already existed. This phase builds the screen that was
+  actually missing: `app/(app)/settings/roles/` (list, create, and a
+  detail page combining a name/description form with a permission
+  checkbox grid grouped by category), all gated on the
+  `PERMISSIONS.ROLES_MANAGE` key that already existed in
+  `lib/rbac/permissions.ts` but had zero application-layer usage until
+  now.
+
+  New migration `0054_custom_roles.sql` adds `set_role_permissions(role_id,
+  permission_keys)` — a `SECURITY DEFINER` function that replaces a
+  role's entire permission set in one call, mirroring
+  `update_staff_role()`'s (0036) established pattern: an explicit
+  internal `app_has_permission()` check that raises a real error rather
+  than relying on RLS to silently no-op, so an unauthorized or
+  cross-tenant call gets a clean, specific message. It refuses to strip
+  the built-in Owner role of `roles.manage`/`business.manage` — without
+  those two, a business could permanently lock itself out of its own
+  settings with no way back in.
+
+  The same migration adds two DB-level guardrails discovered while
+  designing this feature, both closing gaps that existed from the
+  original RBAC schema and would otherwise have been left as
+  "hope the UI is careful" invariants:
+
+  - `protect_system_role_identity()` blocks renaming a system role (or
+    flipping `is_system_role`) at the table level.
+    `app/(app)/settings/staff/[id]/page.tsx`'s last-active-Owner check is
+    a literal `.eq("roles.name", "Owner")` string match — renaming the
+    built-in Owner role would have silently broken it. The roles-detail
+    page also renders the name field read-only for a system role as a
+    UX courtesy, but the trigger is the real backstop.
+  - `prevent_assigned_role_delete()` blocks deleting a role that
+    `user_branch_roles` still references. That table's
+    `role_id references roles(id) on delete cascade` would otherwise let
+    deleting an in-use role silently delete the affected staff members'
+    role assignments with no error at all. The roles-detail page only
+    ever shows the delete control for an unassigned custom role, but
+    again, the trigger — not the UI — is what actually prevents it.
+
+  New security test `tests/security/custom_roles.sql` (wired into CI)
+  exercises all of the above directly against Postgres: permission
+  enforcement, cross-tenant role-id rejection, that
+  `set_role_permissions()` replaces rather than appends and makes no
+  partial change when rejected, both new triggers, and that the
+  pre-existing "a system role can't be deleted" RLS behavior is
+  unchanged. Run against a real local Postgres 16 instance together with
+  every other file in `tests/security/`, in the CI's exact order — all
+  21 files pass.
+
 - 2026-09-18 — Scanner success beep on the till. A short ~100ms tone
   now plays on every barcode/SKU match, from both scanning paths at
   once: the phone-camera scanner (`BarcodeScannerModal`) and a

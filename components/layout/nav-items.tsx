@@ -25,6 +25,7 @@ import {
   KeyRound,
   UserCog,
   ShieldCheck,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +57,7 @@ export interface NavPermissions {
   canViewReports: boolean;
   canManageBusiness: boolean;
   canManageUsers: boolean;
+  canManageRoles: boolean;
   canViewAudit: boolean;
 }
 
@@ -132,6 +134,12 @@ export const NAV_TREE: NavEntry[] = [
     leaf("Business", "/settings/business", Building, "canManageBusiness"),
     leaf("Payments", "/settings/payments", CreditCard, "canManageBusiness"),
     leaf("Staff", "/settings/staff", UserCog, "canManageUsers"),
+    // Backend/RLS support for per-business custom roles (permission
+    // grants, not just assignment) has existed since 0005/0009 — this is
+    // the first UI for it (0054). Its own permission, roles.manage, not
+    // canManageUsers: assigning a role to a colleague and redefining what
+    // every role can do are different levels of trust.
+    leaf("Roles", "/settings/roles", Shield, "canManageRoles"),
     // Barbers, nail techs, and other staff who render a service but never
     // sign in (migration 0045) — reusing users.manage rather than a new
     // permission, same reasoning as Staff itself: this is a staffing

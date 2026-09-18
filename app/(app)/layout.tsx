@@ -169,6 +169,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canViewReports,
     canViewExpenses,
     canManageUsers,
+    canManageRoles,
     canViewAudit,
   ] =
     await Promise.all([
@@ -185,6 +186,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       hasPermission(supabase, businessId, PERMISSIONS.REPORTS_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.EXPENSES_VIEW),
       hasPermission(supabase, businessId, PERMISSIONS.USERS_MANAGE),
+      hasPermission(supabase, businessId, PERMISSIONS.ROLES_MANAGE),
       hasPermission(supabase, businessId, PERMISSIONS.AUDIT_VIEW),
     ]);
 
@@ -208,6 +210,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     canViewReports,
     canManageBusiness,
     canManageUsers,
+    canManageRoles,
     canViewAudit,
   };
 

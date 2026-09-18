@@ -106,6 +106,9 @@ jobs:
       - name: Run onboarding checklist tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/onboarding.sql
 
+      - name: Run custom roles tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/custom_roles.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

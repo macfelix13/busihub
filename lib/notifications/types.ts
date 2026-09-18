@@ -7,7 +7,7 @@
  * baking "GHS" into a stored string would be wrong for the first
  * non-Ghanaian shop). See 0034's header for the full reasoning.
  */
-export type NotificationType = "low_stock" | "credit_limit" | "stuck_payment" | "refund_created" | "sale_voided";
+export type NotificationType = "low_stock" | "credit_limit" | "stuck_payment" | "refund_created" | "sale_voided" | "expiring_stock";
 
 export type NotificationSeverity = "info" | "warning" | "critical";
 
@@ -56,4 +56,20 @@ export interface SaleVoidedData {
   total: number;
   reason: string | null;
   cashier_id: string | null;
+}
+
+/**
+ * `quantity` is the variant's current on-hand total at this branch, NOT
+ * how much of this specific expiry-dated batch remains — stock_batches
+ * (migration 0055) deliberately doesn't track per-batch consumption. See
+ * that migration's header for why, and format.ts's expiring_stock case
+ * for how the two facts are presented without conflating them.
+ */
+export interface ExpiringStockData {
+  product_name: string;
+  sku: string;
+  branch_name: string;
+  quantity: number;
+  expiry_date: string;
+  days_until_expiry: number;
 }

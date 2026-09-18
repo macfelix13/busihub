@@ -8,8 +8,46 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatQuantity } from "@/lib/validation/inventory";
+import { StatusToggleButton } from "@/app/(app)/products/status-toggle-button";
+import { ExpiryBatchForm } from "./expiry-batch-form";
+import { addExpiryBatch, deleteExpiryBatch } from "../actions";
 
 export const metadata = { title: "Stock history" };
+
+interface BatchRow {
+  id: string;
+  branch_id: string;
+  quantity: number | string;
+  expiry_date: string;
+  note: string | null;
+  branches: { name: string } | null;
+}
+
+function daysUntil(expiryDate: string): number {
+  // Both sides at UTC midnight so "today" reads as 0 regardless of the
+  // server's local offset — an expiry_date is a plain date, not a
+  // timestamp, and shouldn't shift by a day depending on where this runs.
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const expiry = new Date(expiryDate + "T00:00:00Z").getTime();
+  return Math.round((expiry - todayUtc) / (24 * 60 * 60 * 1000));
+}
+
+function expiryLabel(days: number): { text: string; className: string } {
+  if (days < 0) {
+    return {
+      text: `Expired ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} ago`,
+      className: "text-red-600 dark:text-red-400",
+    };
+  }
+  if (days === 0) {
+    return { text: "Expires today", className: "text-red-600 dark:text-red-400" };
+  }
+  if (days <= 7) {
+    return { text: `Expires in ${days} day${days === 1 ? "" : "s"}`, className: "text-amber-600 dark:text-amber-400" };
+  }
+  return { text: `Expires in ${days} days`, className: "text-neutral-500 dark:text-ink-muted" };
+}
 
 const REASON_LABELS: Record<string, string> = {
   receive: "Received",
@@ -73,7 +111,12 @@ export default async function VariantStockHistoryPage({
   const product = (variant as unknown as { products: { id: string; name: string; unit_of_measure: string } }).products;
   const options = Object.entries((variant.variant_options ?? {}) as Record<string, string>);
 
-  const [{ data: levels, error: levelsError }, { data: movements, error: movementsError }] = await Promise.all([
+  const [
+    { data: levels, error: levelsError },
+    { data: movements, error: movementsError },
+    { data: settings },
+    { data: batchRows, error: batchesError },
+  ] = await Promise.all([
     supabase.from("stock_levels").select("branch_id, quantity, branches(name)").eq("variant_id", variantId),
     supabase
       .from("inventory_movements")
@@ -81,10 +124,20 @@ export default async function VariantStockHistoryPage({
       .eq("variant_id", variantId)
       .order("created_at", { ascending: false })
       .limit(100),
+    supabase.from("business_settings").select("inventory_settings").eq("business_id", businessId).maybeSingle(),
+    supabase
+      .from("stock_batches")
+      .select("id, branch_id, quantity, expiry_date, note, branches(name)")
+      .eq("variant_id", variantId)
+      .order("expiry_date", { ascending: true }),
   ]);
 
   if (levelsError) console.error("VariantStockHistoryPage: levels query failed", levelsError);
   if (movementsError) console.error("VariantStockHistoryPage: movements query failed", movementsError);
+  if (batchesError) console.error("VariantStockHistoryPage: batches query failed", batchesError);
+
+  const trackExpiry = Boolean((settings?.inventory_settings as { track_expiry?: boolean } | null)?.track_expiry);
+  const batches = (batchRows ?? []) as unknown as BatchRow[];
 
   const levelRows = (levels ?? []) as unknown as {
     branch_id: string;
@@ -148,6 +201,62 @@ export default async function VariantStockHistoryPage({
           </ul>
         </Card>
       </div>
+
+      {trackExpiry || batches.length > 0 ? (
+        <div>
+          <h2 className="font-semibold">Expiry dates</h2>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
+            Informational only — this tracks when a logged quantity expires, not how much of it is still unsold.
+            Cross-check against &quot;On hand&quot; above before acting on it.
+          </p>
+          <Card className="mt-3 overflow-hidden">
+            <ul className="divide-y divide-neutral-100 dark:divide-surface-line">
+              {batches.length > 0 ? (
+                batches.map((b) => {
+                  const days = daysUntil(b.expiry_date);
+                  const label = expiryLabel(days);
+                  return (
+                    <li key={b.id} className="flex flex-col gap-1 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">
+                            {formatQuantity(b.quantity)} {product.unit_of_measure}
+                          </span>
+                          <span className="text-neutral-500 dark:text-ink-muted">— {b.branches?.name ?? "Unknown branch"}</span>
+                        </div>
+                        <p className={label.className}>{label.text}</p>
+                        {b.note ? <p className="text-neutral-500 dark:text-ink-muted">{b.note}</p> : null}
+                      </div>
+                      {canAdjust ? (
+                        <StatusToggleButton
+                          action={deleteExpiryBatch.bind(null, b.id, variantId)}
+                          label="Remove"
+                          pendingLabel="Removing…"
+                          variant="ghost"
+                          confirm={{ title: "Remove this entry?", description: "This can't be undone.", confirmLabel: "Remove" }}
+                        />
+                      ) : null}
+                    </li>
+                  );
+                })
+              ) : (
+                <li className="px-5 py-6 text-center text-sm text-neutral-500 dark:text-ink-muted">
+                  No expiry dates logged yet.
+                </li>
+              )}
+            </ul>
+            {canReceive && trackExpiry ? (
+              <div className="border-t border-neutral-200 p-5 dark:border-surface-line">
+                <ExpiryBatchForm
+                  action={addExpiryBatch}
+                  variantId={variantId}
+                  branches={levelRows.map((l) => ({ id: l.branch_id, name: l.branches?.name ?? "Unknown branch" }))}
+                />
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      ) : null}
 
       <div>
         <h2 className="font-semibold">Movement history</h2>

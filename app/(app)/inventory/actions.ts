@@ -6,7 +6,13 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requirePermission, AuthorizationError } from "@/lib/rbac/guard";
 import { PERMISSIONS, type PermissionKey } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
-import { receiveStockSchema, adjustStockSchema, stockCountSchema, adjustmentReasonLabel } from "@/lib/validation/inventory";
+import {
+  receiveStockSchema,
+  adjustStockSchema,
+  stockCountSchema,
+  addExpiryBatchSchema,
+  adjustmentReasonLabel,
+} from "@/lib/validation/inventory";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
 
 export interface FormState {
@@ -67,6 +73,7 @@ export async function receiveStock(_prevState: FormState, formData: FormData): P
     variantId: formData.get("variantId"),
     quantity: formData.get("quantity"),
     note: formData.get("note"),
+    expiryDate: formData.get("expiryDate"),
   });
 
   if (!parsed.success) {
@@ -83,7 +90,7 @@ export async function receiveStock(_prevState: FormState, formData: FormData): P
     return { error: "Something went wrong. Please try again." };
   }
 
-  const { branchId, variantId, quantity, note } = parsed.data;
+  const { branchId, variantId, quantity, note, expiryDate } = parsed.data;
 
   // business_id is deliberately omitted: set_inventory_movement_context()
   // (migration 0015) derives it from the branch and overwrites whatever
@@ -103,8 +110,94 @@ export async function receiveStock(_prevState: FormState, formData: FormData): P
     return { error: stockErrorMessage(error) ?? "Couldn't record the stock receipt. Please try again." };
   }
 
+  // Best-effort, and deliberately not allowed to fail the receipt itself:
+  // the stock genuinely arrived and is already recorded above regardless
+  // of what happens here. stock_batches (0055) is an informational
+  // annotation, not the source of truth for what's on hand — if this
+  // insert fails, the receipt still succeeded and the expiry date can be
+  // added afterwards from the item's page, which is worth a log line but
+  // not worth blocking or confusing the person over.
+  if (expiryDate) {
+    const { error: batchError } = await supabase.from("stock_batches").insert({
+      branch_id: branchId,
+      variant_id: variantId,
+      quantity,
+      expiry_date: expiryDate,
+    });
+    if (batchError) {
+      console.error("receiveStock: stock_batches insert failed (stock was still received)", batchError);
+    }
+  }
+
   revalidateInventory(variantId);
   redirect(`/inventory?branch=${encodeURIComponent(branchId)}`);
+}
+
+/** Logs an expiry date for stock already on hand — see addExpiryBatchSchema's own comment. */
+export async function addExpiryBatch(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const parsed = addExpiryBatchSchema.safeParse({
+    branchId: formData.get("branchId"),
+    variantId: formData.get("variantId"),
+    quantity: formData.get("quantity"),
+    expiryDate: formData.get("expiryDate"),
+    note: formData.get("note"),
+  });
+
+  if (!parsed.success) {
+    return { error: "Please fix the errors below.", fieldErrors: zodFieldErrors(parsed.error) };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  try {
+    // Logging one rides on the same permission as receiving stock — it's
+    // the same kind of "stock is arriving/already here" record-keeping,
+    // not a correction (that's inventory.adjust, used by deleteExpiryBatch
+    // below).
+    await requireInventoryPermission(supabase, PERMISSIONS.INVENTORY_RECEIVE);
+  } catch (err) {
+    if (err instanceof AuthorizationError) return { error: err.message };
+    console.error("addExpiryBatch: permission/business lookup failed", err);
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  const { branchId, variantId, quantity, expiryDate, note } = parsed.data;
+
+  const { error } = await supabase.from("stock_batches").insert({
+    branch_id: branchId,
+    variant_id: variantId,
+    quantity,
+    expiry_date: expiryDate,
+    note: note || null,
+  });
+
+  if (error) {
+    console.error("addExpiryBatch: insert failed", error);
+    return { error: stockErrorMessage(error) ?? "Couldn't log the expiry date. Please try again." };
+  }
+
+  revalidatePath(`/inventory/${variantId}`);
+  return {};
+}
+
+/**
+ * Bound as `deleteExpiryBatch.bind(null, batchId, variantId)`. Removing a
+ * wrongly-entered batch is delete-and-re-add, not an edit — stock_batches
+ * has no UPDATE grant at all (migration 0055), matching the same
+ * "a correction is a new entry" philosophy inventory_movements uses.
+ */
+export async function deleteExpiryBatch(batchId: string, variantId: string): Promise<void> {
+  const supabase = await createServerSupabaseClient();
+  const businessId = await requireInventoryPermission(supabase, PERMISSIONS.INVENTORY_ADJUST);
+
+  const { error } = await supabase.from("stock_batches").delete().eq("id", batchId).eq("business_id", businessId);
+
+  if (error) {
+    console.error("deleteExpiryBatch: delete failed", error);
+    throw new Error("Couldn't remove that entry. Please try again.");
+  }
+
+  revalidatePath(`/inventory/${variantId}`);
 }
 
 export async function adjustStock(_prevState: FormState, formData: FormData): Promise<FormState> {

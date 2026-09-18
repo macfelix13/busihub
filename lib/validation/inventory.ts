@@ -54,14 +54,59 @@ const variantIdSchema = z.string().uuid("Choose a product");
 const branchIdSchema = z.string().uuid("Choose a branch");
 const noteSchema = z.string().trim().max(500).optional().or(z.literal(""));
 
+/**
+ * A `YYYY-MM-DD` string from a date input, and nothing else — same
+ * pattern as lib/validation/expenses.ts's own dateField, duplicated
+ * rather than imported (each validation file in this codebase is
+ * self-contained; see e.g. categories.ts/products.ts). Real calendar
+ * validation, not just a regex: rejects 2026-02-31, which a regex alone
+ * would pass and `new Date(...)` would otherwise silently roll into
+ * March.
+ */
+const expiryDateField = z
+  .string({ errorMap: () => ({ message: "Choose a date" }) })
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === (month ?? 1) - 1 &&
+      date.getUTCDate() === day
+    );
+  }, "That date doesn't exist");
+
 export const receiveStockSchema = z.object({
   branchId: branchIdSchema,
   variantId: variantIdSchema,
   quantity: positiveQuantity,
   note: noteSchema,
+  // Optional: the form only shows this field (and a caller only fills it
+  // in) when the business has inventory_settings.track_expiry on — see
+  // migration 0055's header for why expiry dates are logged separately
+  // from the stock movement itself rather than as a new column here.
+  expiryDate: expiryDateField.optional().or(z.literal("")),
 });
 
 export type ReceiveStockInput = z.infer<typeof receiveStockSchema>;
+
+/**
+ * Logging an expiry date for stock already on hand — either right after
+ * receiving it, or backfilling for stock that arrived before the
+ * business turned expiry tracking on. Unlike receiveStockSchema's
+ * optional expiryDate, this one is required: the whole point of this
+ * form is to record a date.
+ */
+export const addExpiryBatchSchema = z.object({
+  branchId: branchIdSchema,
+  variantId: variantIdSchema,
+  quantity: positiveQuantity,
+  expiryDate: expiryDateField,
+  note: noteSchema,
+});
+
+export type AddExpiryBatchInput = z.infer<typeof addExpiryBatchSchema>;
 
 /**
  * An adjustment's quantity is entered as a positive number plus a

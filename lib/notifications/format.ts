@@ -1,6 +1,7 @@
 import { formatMoney, toMinorUnits } from "@/lib/money/money";
 import type {
   CreditLimitData,
+  ExpiringStockData,
   LowStockData,
   NotificationFeedRow,
   RefundCreatedData,
@@ -71,6 +72,29 @@ export function formatNotification(n: NotificationFeedRow, currencyCode: string)
         title: `Sale ${d.receipt_number} was voided`,
         body: `${money(d.total)}${d.reason ? ` — ${d.reason}` : ""}.`,
         href: `/sales/${n.reference_id}`,
+      };
+    }
+    case "expiring_stock": {
+      const d = n.data as unknown as ExpiringStockData;
+      const days = d.days_until_expiry;
+      const title =
+        days < 0
+          ? `${d.product_name} has an expired batch on record`
+          : days === 0
+            ? `${d.product_name}'s soonest batch expires today`
+            : `${d.product_name}'s soonest batch expires in ${days} day${days === 1 ? "" : "s"}`;
+      const expiry = new Date(d.expiry_date).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      // Two separate facts, deliberately not merged into one claim — see
+      // ExpiringStockData's own comment on why "quantity" isn't specific
+      // to this batch.
+      return {
+        title,
+        body: `${d.branch_name} — ${d.quantity} on hand. Recorded expiry: ${expiry}.`,
+        href: `/inventory/${n.reference_id}`,
       };
     }
     default:

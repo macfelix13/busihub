@@ -109,6 +109,9 @@ jobs:
       - name: Run custom roles tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/custom_roles.sql
 
+      - name: Run inventory expiry tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/inventory_expiry.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

@@ -29,6 +29,13 @@ interface StockFormProps {
   /** Current on-hand quantity per variant AT THIS BRANCH. Absent = zero. */
   quantities: Record<string, number>;
   defaultVariantId?: string;
+  /**
+   * business_settings.inventory_settings.track_expiry — only shown (and
+   * only in "receive" mode) when the business has turned it on. See
+   * migration 0055's header for why this stays off by default rather than
+   * always showing a field most shops have no use for.
+   */
+  trackExpiry?: boolean;
 }
 
 const COPY = {
@@ -52,7 +59,16 @@ const COPY = {
   },
 } as const;
 
-export function StockForm({ mode, action, branchId, branchName, variants, quantities, defaultVariantId }: StockFormProps) {
+export function StockForm({
+  mode,
+  action,
+  branchId,
+  branchName,
+  variants,
+  quantities,
+  defaultVariantId,
+  trackExpiry = false,
+}: StockFormProps) {
   const [state, formAction] = useFormState(action, initialState);
   // Only honour ?variant= if it is actually one of the options. A stale or
   // foreign id (an archived variant, a hand-edited URL) would otherwise sit
@@ -150,6 +166,15 @@ export function StockForm({ mode, action, branchId, branchName, variants, quanti
         error={state.fieldErrors?.[mode === "count" ? "countedQuantity" : "quantity"]}
       />
       <p className="-mt-2 text-sm text-neutral-500 dark:text-ink-muted">{copy.hint}</p>
+
+      {mode === "receive" && trackExpiry ? (
+        <Field
+          label="Expiry date (optional)"
+          name="expiryDate"
+          type="date"
+          error={state.fieldErrors?.expiryDate}
+        />
+      ) : null}
 
       <Textarea label="Note (optional)" name="note" error={state.fieldErrors?.note} />
 

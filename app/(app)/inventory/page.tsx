@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasPermission } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { getCurrentBusinessId } from "@/lib/auth/current-business";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -85,15 +86,35 @@ export default async function InventoryPage({
     variantQuery = variantQuery.ilike("products.name", `%${q.trim()}%`);
   }
 
-  const [{ data: variants, error: variantsError }, { data: levels, error: levelsError }] = await Promise.all([
+  const { data: settings } = await supabase
+    .from("business_settings")
+    .select("inventory_settings")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  const trackExpiry = Boolean((settings?.inventory_settings as { track_expiry?: boolean } | null)?.track_expiry);
+
+  const [
+    { data: variants, error: variantsError },
+    { data: levels, error: levelsError },
+    { data: expiring, error: expiringError },
+  ] = await Promise.all([
     variantQuery,
     activeBranchId
       ? supabase.from("stock_levels").select("variant_id, quantity").eq("branch_id", activeBranchId)
+      : Promise.resolve({ data: [], error: null }),
+    // A wider window than the notification bell's (0055 uses 7 days
+    // there) — this list is a deliberate "go take a look" view, not an
+    // urgency alert, so 30 days surfaces more without implying every row
+    // shown needs action today. Skipped entirely for a shop that hasn't
+    // turned expiry tracking on, rather than an always-empty extra query.
+    activeBranchId && trackExpiry
+      ? supabase.rpc("expiring_stock_report", { p_branch_id: activeBranchId, p_within_days: 30, p_limit: 500 })
       : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (variantsError) console.error("InventoryPage: variants query failed", variantsError);
   if (levelsError) console.error("InventoryPage: stock levels query failed", levelsError);
+  if (expiringError) console.error("InventoryPage: expiring stock query failed", expiringError);
 
   const quantityByVariant = new Map<string, number>(
     (levels ?? []).map((l) => [
@@ -101,6 +122,17 @@ export default async function InventoryPage({
       // numeric(14,3) arrives from PostgREST as a string, not a number.
       Number((l as { quantity: number | string }).quantity),
     ])
+  );
+
+  const expiryByVariant = new Map<string, { daysUntil: number; severity: "critical" | "warning" }>(
+    // `expiring` is typed loosely because the ternary above's other branch
+    // (a plain resolved {data: [], error: null}) gives TS nothing to widen
+    // against — same reason quantityByVariant casts each row instead of
+    // relying on inference.
+    ((expiring ?? []) as unknown[]).map((e) => {
+      const row = e as { variant_id: string; days_until_expiry: number; severity: "critical" | "warning" };
+      return [row.variant_id, { daysUntil: row.days_until_expiry, severity: row.severity }];
+    })
   );
 
   const rows = ((variants ?? []) as unknown as VariantRow[])
@@ -182,7 +214,9 @@ export default async function InventoryPage({
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-surface-line">
                 {rows.length > 0 ? (
-                  rows.map(({ variant, quantity }) => (
+                  rows.map(({ variant, quantity }) => {
+                    const expiry = expiryByVariant.get(variant.id);
+                    return (
                     <tr key={variant.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-surface/60">
                       <td className="px-4 py-3 font-medium">
                         <Link
@@ -191,6 +225,17 @@ export default async function InventoryPage({
                         >
                           {variantLabel(variant)}
                         </Link>
+                        {expiry ? (
+                          <div className="mt-1">
+                            <Badge variant={expiry.severity === "critical" ? "danger" : "warning"}>
+                              {expiry.daysUntil < 0
+                                ? "Expired"
+                                : expiry.daysUntil === 0
+                                  ? "Expires today"
+                                  : `Expires in ${expiry.daysUntil}d`}
+                            </Badge>
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-neutral-500 dark:text-ink-muted">{variant.sku || "—"}</td>
                       <td
@@ -216,7 +261,8 @@ export default async function InventoryPage({
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-ink-muted">

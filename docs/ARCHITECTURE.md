@@ -466,6 +466,89 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-18 — Inventory expiry dates. `business_settings.inventory_settings`
+  has carried a `track_expiry` flag since migration `0002`, and the
+  Settings → Business form has had a matching "Track expiry dates"
+  checkbox since it was built — but nothing ever read the flag. This
+  phase makes it do something, while deliberately staying out of the
+  scope of the separate, still-untouched `track_batches` toggle in the
+  same settings object.
+
+  **Scope decision, made explicit up front because it shapes everything
+  else below**: `track_batches` implies real FIFO batch-consumption
+  tracking — knowing exactly which batch a given sale, refund, transfer,
+  or stock count draws down, which means touching every stock-decreasing
+  code path in the app. That is a much larger and riskier change than
+  what was asked for, and it is not what this phase builds.
+  `stock_batches` (new table, migration `0055_inventory_expiry.sql`) is
+  instead a purely informational, append-only annotation: "this quantity
+  was logged with this expiry date." It does not know, and does not
+  claim to know, how much of that specific batch is still unsold.
+  `stock_levels` remains the sole source of truth for on-hand quantity,
+  completely unchanged. This boundary is written into the migration's
+  own header comment and echoed in the UI copy on the item detail page
+  ("Informational only — this tracks when a logged quantity expires, not
+  how much of it is still unsold. Cross-check against 'On hand' above
+  before acting on it.") and in the notification bell's wording, rather
+  than left implicit somewhere only a future reader of the SQL would
+  find it.
+
+  `stock_batches` reuses `set_inventory_movement_context()` (0015)
+  verbatim for its `business_id`/`branch_id`/`created_by` trigger,
+  rather than writing a near-duplicate function. It has insert, select,
+  and delete policies gated on the existing `inventory.receive`,
+  `inventory.view`, and `inventory.adjust` permissions respectively — no
+  new RBAC catalog entries were added, matching how the rest of the
+  inventory module reuses those three keys — and deliberately has **no
+  UPDATE grant at all** (`revoke update on stock_batches from
+  authenticated`, not just a missing RLS policy), matching
+  `inventory_movements`' own "a correction is a new entry" philosophy:
+  removing a wrong batch and logging a new one is the only path, so
+  `deleteExpiryBatch` exists but there is no edit action.
+
+  New `expiring_stock_report(branch_id, within_days, limit)` mirrors
+  `low_stock_report()`'s (0030) structure and is subject to the same
+  honesty rule that function enforces for low stock: it only ever
+  returns a variant/branch pair where `stock_levels.quantity > 0`, so a
+  batch logged against an item that has since fully sold through never
+  shows up as "expiring." `notification_feed_base()` (0034) gained one
+  new CTE arm, `expiring_stock`, following the exact shape of the
+  existing `low_stock` arm (same dismissal-key/type/severity/reference
+  columns) and gated on the business's own `track_expiry` setting;
+  `notification_feed()` and `mark_all_notifications_read()` needed no
+  changes since both already operate generically over
+  `notification_feed_base()`'s output.
+
+  Application layer: the Receive Stock form gained an optional expiry
+  date field (`receiveStock()` does its existing, unchanged
+  `inventory_movements` insert first, then a **separate, best-effort**
+  insert into `stock_batches` if a date was given — a failure there is
+  logged server-side but does not fail the receipt, since the stock
+  genuinely arrived and is already correctly recorded regardless); the
+  item detail page gained an "Expiry dates" section listing logged
+  batches with a plain-language freshness label and a remove control;
+  the inventory list page gained a badge showing the soonest expiry per
+  item. All three surfaces are gated on `inventory_settings.track_expiry`
+  being on, so a business that hasn't opted in sees nothing new — except
+  the item detail section itself, which still renders if batches already
+  exist even after the toggle is later turned off, so logged data is
+  never hidden.
+
+  New security test `tests/security/inventory_expiry.sql` (wired into
+  CI), 12 assertions against real Postgres 16: permission enforcement
+  for insert/select/delete across Owner and a `inventory.view`-only
+  Cashier fixture; that `UPDATE stock_batches` fails even for the Owner
+  with `insufficient_privilege` (proving the grant-level revoke, not
+  just an RLS gap); cross-tenant isolation on both the table and on
+  `expiring_stock_report()`'s handling of a foreign `branch_id`
+  (`P0002`, the same error class documented for other trigger-enforced
+  tenant checks); that `expiring_stock_report()` never surfaces a
+  variant with zero stock on hand even when a batch is logged against
+  it; and that the new `notification_feed_base()` arm stays silent while
+  `track_expiry` is off and produces exactly one row, scoped to the
+  right business, once it's turned on. Run together with every other
+  file in `tests/security/` in the CI's exact order — all 23 files pass.
+
 - 2026-09-18 — Custom staff roles (Settings → Staff → Roles). The RBAC
   schema (`roles`, `role_permissions`, RLS policies gating them on
   `roles.manage`) has supported per-business custom roles and editable

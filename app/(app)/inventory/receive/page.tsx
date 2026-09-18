@@ -31,6 +31,16 @@ export default async function ReceiveStockPage({
     redirect("/inventory");
   }
 
+  // Cosmetic — receiveStock() only reads/stores the expiry date, it
+  // doesn't gate on this setting. A shop that hasn't turned tracking on
+  // just doesn't get asked for it.
+  const { data: settings } = await supabase
+    .from("business_settings")
+    .select("inventory_settings")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  const trackExpiry = Boolean((settings?.inventory_settings as { track_expiry?: boolean } | null)?.track_expiry);
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Receive stock" description="Record stock arriving at a branch." />
@@ -42,6 +52,7 @@ export default async function ReceiveStockPage({
         variants={variants}
         quantities={quantities}
         defaultVariantId={variant}
+        trackExpiry={trackExpiry}
       />
     </div>
   );

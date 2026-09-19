@@ -23,6 +23,7 @@ import { paymentMethodLabel } from "@/lib/validation/sales";
 import { RANGES, resolvePeriod, periodDates } from "@/lib/reports/period";
 import { SalesChart, type TrendPoint } from "./sales-chart";
 import { OnboardingChecklist, type OnboardingStatus } from "./onboarding-checklist";
+import { SupportCard } from "./support-card";
 
 export const metadata = { title: "Dashboard" };
 
@@ -863,6 +864,10 @@ export default async function DashboardPage({
           <ArrowRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
         </Link>
       ) : null}
+
+      {/* Every business, every role — asking for help isn't gated behind
+          a permission the way the cards above are. */}
+      <SupportCard />
     </div>
   );
 }

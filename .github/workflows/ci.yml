@@ -115,6 +115,9 @@ jobs:
       - name: Run report type-split tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/report_type_split.sql
 
+      - name: Run support request tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/support_requests.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

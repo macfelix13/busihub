@@ -38,13 +38,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-canvas-dark">
-      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 dark:border-surface-line dark:bg-surface-card sm:px-6">
-        <Link href="/admin/businesses" className="font-semibold">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-neutral-200 bg-white px-4 py-3 dark:border-surface-line dark:bg-surface-card sm:px-6">
+        <Link href="/admin" className="font-semibold">
           Busihub Admin
         </Link>
         <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-white dark:text-neutral-900">
           Platform
         </span>
+        {/* Plain links, no active-route highlighting — this layout is a
+            Server Component and the console is small enough (4 pages)
+            that usePathname's client-component cost isn't worth it yet. */}
+        <nav className="flex flex-wrap items-center gap-1 text-sm">
+          <Link href="/admin" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
+            Overview
+          </Link>
+          <Link href="/admin/businesses" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
+            Businesses
+          </Link>
+          <Link href="/admin/support" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
+            Support
+          </Link>
+          <Link href="/admin/super-admins" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
+            Super Admins
+          </Link>
+        </nav>
         <div className="ml-auto flex flex-shrink-0 items-center">
           <LogoutButton />
         </div>

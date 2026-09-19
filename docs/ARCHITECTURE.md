@@ -466,6 +466,55 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Support requests (migration 0057) and a Super Admin console
+  home page. Requested by the user: every business's dashboard should
+  show how to reach Busihub support, and the Super Admin console should
+  be "well organized and functional".
+
+  **Dashboard.** A "Need help?" card (`app/(app)/dashboard/support-card.
+  tsx`) on every business's dashboard, ungated by permission — asking for
+  help isn't a privileged business operation. Shows Busihub's own static
+  contact details (email/phone/WhatsApp — the same for every business, not
+  per-business data) and a short message form that inserts into the new
+  `support_requests` table. Nothing is emailed anywhere yet; a submitted
+  message is picked up by the admin console's Support inbox, per the
+  user's explicit choice to keep this simple for now rather than wire up
+  an email-sending service.
+
+  **`support_requests` (0057).** Same one-table tenant-scoping pattern as
+  everywhere else: a BEFORE INSERT trigger (`set_support_request_sender`)
+  forces `business_id`/`submitted_by` to the caller's own session and
+  `status`/`resolved_*` to a fresh request's defaults, regardless of what
+  a client sends — closing off the same spoofing class that
+  `set_product_variant_business_id()` (0013) closes for products. RLS: a
+  business sees and can insert only its own requests; only a Super Admin
+  can resolve one. Verified against local Postgres, including a spoofed
+  `business_id`/`submitted_by` insert and a business attempting to resolve
+  its own request (`tests/security/support_requests.sql`).
+
+  **Super Admin console.** `/admin` previously had no page of its own and
+  just redirected to the businesses list. It's now a real home page with
+  platform-wide counts (total/active/suspended/closed businesses, signups
+  in the last 7 days, staff platform-wide, open support requests) — all
+  plain counts through the same RLS every other admin page already relies
+  on (`app_is_super_admin()`, 0008), not a new privilege. Added
+  `/admin/support`, an inbox to see and resolve incoming requests, and
+  `/admin/super-admins`, a **read-only** list of who currently holds
+  Super Admin.
+
+  **Explicitly NOT done, by the user's own choice:** granting or revoking
+  Super Admin from the console. `bootstrap_super_admin()` (0035) is
+  deliberately unreachable from the application — revoked from
+  `authenticated`/`anon`, by-hand-in-the-SQL-editor only — specifically so
+  a compromised admin session or a Server Action bug can never mint a new
+  Super Admin through the app. Adding an in-app grant/revoke path would
+  have been possible to build safely (re-checking the caller is already a
+  Super Admin before ever touching `is_super_admin`), but it would still
+  remove that "categorically impossible from the app" guarantee, which
+  the user asked to keep intact. If this is ever wanted later, it's a
+  scoped, deliberate follow-up — not something to slip in alongside an
+  unrelated console-tidiness pass.
+
 - 2026-09-19 — Bigger product images on the Till. Requested by the user:
   product photos on the till's search-result rows and browsable grid
   tiles were the smallest size `components/ui/product-thumbnail.tsx`

@@ -466,6 +466,45 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Sidebar: collapse to an icon-only rail on desktop/tablet.
+  Requested directly by the user, alongside confirming the sidebar should
+  fill the full left edge of the screen at md: and up — it already did
+  (`md:sticky md:top-0 md:h-screen`, from the navigation redesign), so
+  this entry is purely the new collapse behavior.
+
+  A new button (`components/layout/sidebar.tsx`, `md:flex`/`hidden` so it
+  never appears on the mobile drawer, which already has its own
+  hamburger/X open-close affordance) shrinks the rail from `md:w-64` to
+  `md:w-20`, hiding every label and this-group's chevron via `md:hidden`
+  rather than removing them from the tree — keeps the same NAV_TREE/
+  permission-filtering logic untouched, this is presentation-only.
+
+  **Deliberately session-only, not persisted to localStorage.** Restoring
+  a browser-stored preference before the first paint is exactly the kind
+  of client-only read that causes a server/client hydration mismatch
+  (the server has no `window`), and doing it properly needs a
+  pre-hydration inline script the way `lib/theme.ts`'s
+  `businessThemeOverrideScript()` already does for the dark/light
+  override. That's justified there because a wrong-then-corrected theme
+  flashes the whole page; a collapsed-vs-expanded sidebar is low enough
+  stakes to just default back to expanded on a fresh page load. It does
+  survive in-app navigation, since `Sidebar` lives inside the shared
+  `(app)` layout and isn't remounted between pages in the same tab.
+
+  **A group's sub-items (Products, Inventory, Operations, Reports,
+  Settings) can't show their labels next to an icon-only rail**, so
+  collapsing swaps their existing click-to-expand inline list for a
+  hover/focus flyout positioned to the rail's right — `group-focus-within`
+  as well as `group-hover`, so a keyboard user tabbing through the rail
+  reaches it too, not only a mouse. Both the inline list and the flyout
+  are built from the same `renderGroupChildren()` so they can't drift out
+  of sync with each other later. This needed removing `overflow-hidden`
+  from the `<aside>` itself — the flyout is `position: absolute` and was
+  being clipped by it; the mobile slide transition and the nav's own
+  vertical scrolling never actually depended on that property, since
+  `<nav>` already clips its own scroll area independently with its own
+  `overflow-y-auto`.
+
 - 2026-09-19 — Fix: "Forgot password" and "Confirm signup" email links
   landed on the marketing homepage instead of the update-password screen
   or the app. Reported by the user while testing the reset-password flow.

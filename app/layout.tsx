@@ -59,12 +59,21 @@ export const viewport: Viewport = {
  * every element after it, so `dark` is already set (or not) before
  * anything below has a chance to render in the wrong theme.
  *
- * Per-device preference, deliberately not a per-user account setting or a
- * business-wide setting: `localStorage` is what a browser on a shared
- * till terminal actually is — the choice sticks to that terminal,
- * regardless of which staff member is signed in, which is normally
- * exactly what a shop wants (nobody has to re-set it every shift change).
+ * Per-device preference, deliberately not a per-user account setting:
+ * `localStorage` is what a browser on a shared till terminal actually
+ * is — the choice sticks to that terminal, regardless of which staff
+ * member is signed in, which is normally exactly what a shop wants
+ * (nobody has to re-set it every shift change).
  * `components/ui/theme-toggle.tsx` is what writes to the same key.
+ *
+ * This script runs everywhere, including signed-out marketing/login
+ * pages, so "dark unless this device says otherwise" is the one default
+ * every visitor sees. A signed-in business can also set its own default
+ * (Settings → Business → Appearance) for staff whose device hasn't
+ * chosen yet — that's a second, narrower script rendered by
+ * app/(app)/layout.tsx right after this one, only for authenticated app
+ * pages, since that's the only place a "business" exists. See
+ * lib/theme.ts for that layer; it never touches this default.
  *
  * Dark green is now Busihub's standard, initial look — for the app and
  * the marketing site alike — not something hidden behind a toggle: a

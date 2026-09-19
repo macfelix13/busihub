@@ -8,6 +8,7 @@ import { supportEmail, supportPhone } from "@/lib/env";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AppShell } from "@/components/layout/app-shell";
 import type { NavPermissions } from "@/components/layout/nav-items";
+import { resolveBusinessThemeOverride, businessThemeOverrideScript } from "@/lib/theme";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -147,6 +148,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
+  // Settings → Business → Appearance's "Theme" field — see lib/theme.ts
+  // for why only an explicit "light"/"dark" choice does anything here,
+  // and why "system" (every business's untouched default) doesn't.
+  const { data: settingsRow } = await supabase
+    .from("business_settings")
+    .select("appearance_settings")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  const businessThemeOverride = resolveBusinessThemeOverride(
+    (settingsRow?.appearance_settings as { theme?: string } | null)?.theme
+  );
+
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49). Three more
   // than the old flat nav needed (canCreateProducts, canReceiveInventory,
@@ -215,14 +228,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <AppShell
-      permissions={navPermissions}
-      businessName={businessName ?? "Busihub"}
-      userLabel={`${profile.first_name} ${profile.last_name}`}
-      notificationSlot={<NotificationBell />}
-      logoutSlot={<LogoutButton />}
-    >
-      {children}
-    </AppShell>
+    <>
+      {businessThemeOverride ? (
+        // Placed before AppShell so it runs, and can flip the `dark`
+        // class if needed, before any of AppShell's content paints —
+        // see lib/theme.ts's businessThemeOverrideScript() doc comment.
+        <script dangerouslySetInnerHTML={{ __html: businessThemeOverrideScript(businessThemeOverride) }} />
+      ) : null}
+      <AppShell
+        permissions={navPermissions}
+        businessName={businessName ?? "Busihub"}
+        userLabel={`${profile.first_name} ${profile.last_name}`}
+        notificationSlot={<NotificationBell />}
+        logoutSlot={<LogoutButton />}
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }

@@ -19,12 +19,18 @@ function applyTheme(dark: boolean) {
 }
 
 /**
- * A per-device light/dark toggle — not a per-user account setting and not
- * a business-wide one. See app/layout.tsx's THEME_INIT_SCRIPT for the
- * full reasoning: a till terminal's browser is itself the right place for
- * this preference to live, so nobody has to re-set it every shift change,
- * and it works identically for a signed-out visitor on the marketing
- * site (where there is no account to attach a preference to at all).
+ * A per-device light/dark toggle — not a per-user account setting. See
+ * app/layout.tsx's THEME_INIT_SCRIPT for the full reasoning: a till
+ * terminal's browser is itself the right place for this preference to
+ * live, so nobody has to re-set it every shift change, and it works
+ * identically for a signed-out visitor on the marketing site (where
+ * there is no account to attach a preference to at all).
+ *
+ * A business can set its own default theme for staff devices that
+ * haven't chosen yet (Settings → Business → Appearance, applied by
+ * app/(app)/layout.tsx + lib/theme.ts) — but once this toggle is ever
+ * clicked on a given device, `localStorage` wins there from then on,
+ * business default or not.
  */
 export function ThemeToggle({ className }: { className?: string }) {
   // Starts unknown rather than assuming "light": the inline script in

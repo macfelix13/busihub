@@ -466,6 +466,58 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Business-wide default theme. Requested by the user after
+  reporting that Settings → Business → Appearance's "Theme" dropdown
+  "is not functioning" — confirmed by reading the code: the form saved
+  `appearance_settings.theme` correctly, but nothing in the app ever read
+  it back. The app's actual light/dark mechanism is a completely separate,
+  per-device `localStorage` toggle (`components/ui/theme-toggle.tsx`),
+  wired up in an earlier phase before `business_settings` existed and
+  never revisited.
+
+  **Scope, deliberately narrower than the field's three options.** The
+  user chose "make Theme actually work as a business-wide default" over
+  removing the section or wiring up "Primary color" instead (still
+  unwired — a known, separate gap). "Business-wide default" means: a
+  staff member's browser that hasn't set its own preference yet opens to
+  whatever the business picked, but the per-device toggle still always
+  wins once it's ever been touched on that device — same per-device
+  philosophy the toggle already documented, just with a business-supplied
+  starting point instead of a hardcoded one.
+
+  **Why "system" does nothing.** `appearance_settings.theme` has defaulted
+  to `"system"` for every business since 0002 — meaning every business
+  that has never touched this dropdown (effectively all of them, since it
+  never worked) is on `"system"` today. Making `"system"` mean "follow the
+  visiting browser's OS setting" would have silently changed the
+  first-load appearance for all of them, from Busihub's standing dark
+  default to whatever each device's OS prefers. Instead,
+  `resolveBusinessThemeOverride()` (`lib/theme.ts`) treats `"system"` as
+  "no override" — today's dark-by-default behavior is exactly preserved
+  for anyone who hasn't touched the setting, and only a deliberate
+  "Light" or "Dark" choice now does anything.
+
+  **Two cooperating no-flash scripts, not one.** `app/layout.tsx`'s
+  existing `THEME_INIT_SCRIPT` still runs first, everywhere (including
+  signed-out marketing/login pages, which have no business to look up):
+  dark unless this device's `localStorage` says otherwise. A second,
+  narrower inline script — rendered only from `app/(app)/layout.tsx`,
+  right before `<AppShell>`, only when the signed-in business has an
+  explicit `"light"`/`"dark"` choice — runs immediately after it and can
+  flip the `dark` class before anything below it paints, but only if
+  `localStorage` still has nothing stored for this device. Both scripts
+  check `localStorage` independently rather than one trusting the other's
+  conclusion, so a staff member's own prior choice on that device always
+  wins regardless of what the business is configured for now or changes
+  to later. `businessThemeOverrideScript()` (`lib/theme.ts`) generates the
+  second script's body; `resolveBusinessThemeOverride()` decides whether
+  to render it at all. Covered by `tests/unit/theme.test.ts`.
+
+  **"Primary color" remains unwired.** Out of scope for this pass by the
+  user's own choice — it still saves to the database and does nothing,
+  same as before this change. The app's actual color scheme is still a
+  fixed Tailwind lime/brand palette throughout.
+
 - 2026-09-18 — Till "New item" quick-add. Requested directly by the user
   after the custom-roles feature shipped: an owner should be able to let a
   specific staff member — without promoting them to Manager — ring up

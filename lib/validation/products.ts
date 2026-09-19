@@ -123,6 +123,40 @@ const openingStockSchema = z.preprocess(
   )
 );
 
+/**
+ * A `YYYY-MM-DD` string from a date input, and nothing else — same shape
+ * as lib/validation/inventory.ts's own expiryDateField, duplicated rather
+ * than imported per this codebase's "each validation file is
+ * self-contained" convention (see that file's own comment on it). Real
+ * calendar validation, not just a regex: rejects 2026-02-31, which a
+ * regex alone would pass and `new Date(...)` would otherwise silently
+ * roll into March.
+ */
+const expiryDateField = z
+  .string({ errorMap: () => ({ message: "Choose a date" }) })
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1));
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === (month ?? 1) - 1 &&
+      date.getUTCDate() === day
+    );
+  }, "That date doesn't exist");
+
+/**
+ * Optional, blank by default — same "optional, blank allowed" shape as
+ * lib/validation/inventory.ts's receiveStockSchema.expiryDate. Only ever
+ * acted on when there is real opening stock to attach it to
+ * (createProductSchema's own superRefine below) and when the product has
+ * no variant axis (app/(app)/products/actions.ts's createProduct() —
+ * create_product() only ever returns the new product's id, so looking
+ * the resulting variant back up is only unambiguous with exactly one).
+ */
+const openingExpiryDateSchema = expiryDateField.optional().or(z.literal(""));
+
 export const variantRowSchema = z.object({
   sku: skuSchema,
   barcode: barcodeSchema,
@@ -130,6 +164,7 @@ export const variantRowSchema = z.object({
   costPrice: costPriceSchema,
   sellingPrice: sellingPriceSchema,
   openingStock: openingStockSchema,
+  expiryDate: openingExpiryDateSchema,
 });
 
 export type VariantRowInput = z.infer<typeof variantRowSchema>;
@@ -222,6 +257,22 @@ export const createProductSchema = productDetailsSchema
         path: ["branchId"],
       });
     }
+
+    // An expiry date only ever means something attached to real, arriving
+    // stock — same rule stock_batches' design (migration 0055) already
+    // applies via receiveStockSchema/addExpiryBatchSchema. Caught here,
+    // next to openingStock's own "needs a branch" check above, so the
+    // person sees it before submitting rather than after a
+    // partially-useful product gets created.
+    data.variants.forEach((variant, index) => {
+      if (variant.expiryDate && !(variant.openingStock > 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter the stock on hand to log an expiry date for it.",
+          path: ["variants", index, "expiryDate"],
+        });
+      }
+    });
   });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

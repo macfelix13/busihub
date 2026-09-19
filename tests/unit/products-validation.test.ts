@@ -197,6 +197,54 @@ describe("createProductSchema — opening stock", () => {
   });
 });
 
+describe("createProductSchema — expiry date", () => {
+  const BRANCH = "11111111-1111-1111-1111-111111111111";
+  const base = {
+    name: "Yoghurt",
+    description: "",
+    category: "",
+    unitOfMeasure: "each",
+    taxCategory: "standard",
+    variantOptionNames: [] as string[],
+    branchId: BRANCH,
+  };
+  const variantWithStock = { sku: "", barcode: "", variantOptions: {}, costPrice: "5", sellingPrice: "8", openingStock: "20" };
+
+  it("accepts a real date attached to real opening stock", () => {
+    const result = createProductSchema.safeParse({
+      ...base,
+      variants: [{ ...variantWithStock, expiryDate: "2026-12-31" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.variants[0]?.expiryDate).toBe("2026-12-31");
+  });
+
+  it("leaves expiry date blank by default", () => {
+    const result = createProductSchema.safeParse({ ...base, variants: [variantWithStock] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.variants[0]?.expiryDate).toBeFalsy();
+  });
+
+  it("rejects a date that doesn't exist, catching what a bare regex would miss", () => {
+    // 2026 is not a leap year — Feb 31 would silently roll into March if
+    // this only checked the YYYY-MM-DD shape.
+    expect(
+      createProductSchema.safeParse({ ...base, variants: [{ ...variantWithStock, expiryDate: "2026-02-31" }] }).success
+    ).toBe(false);
+  });
+
+  it("refuses an expiry date with no real opening stock to attach it to", () => {
+    const result = createProductSchema.safeParse({
+      ...base,
+      variants: [{ ...variantWithStock, openingStock: "0", expiryDate: "2026-12-31" }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.join(".") === "variants.0.expiryDate")).toBe(true);
+    }
+  });
+});
+
 describe("quickAddProductSchema", () => {
   const BRANCH = "11111111-1111-1111-1111-111111111111";
   const base = { name: "Walk-in item", sellingPrice: "15", openingStock: "3", branchId: BRANCH };

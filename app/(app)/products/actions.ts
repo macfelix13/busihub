@@ -272,7 +272,7 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
   // set in the same INSERT as the rest of the row.
   const photoPath = await tryUploadPhotoForCreate(supabase, businessId, formData);
 
-  const { error } = await supabase.rpc("create_product", {
+  const { data: productId, error } = await supabase.rpc("create_product", {
     p_business_id: businessId,
     p_name: name,
     p_description: description || null,
@@ -331,6 +331,45 @@ export async function createProduct(_prevState: FormState, formData: FormData): 
       };
     }
     return { error: "Couldn't create the product. Please try again." };
+  }
+
+  // Best-effort, same "informational annotation, not the source of
+  // truth" treatment app/(app)/inventory/actions.ts's receiveStock()
+  // gives stock_batches (migration 0055) — the product and its opening
+  // stock really were created above regardless of what happens here.
+  // Only attempted with no variant axis: create_product() only ever
+  // returns the new product's id, so looking the single resulting
+  // variant back up by product_id is only unambiguous then — exactly
+  // the same constraint app/(app)/till/actions.ts's quickAddProduct()
+  // already documents for its own read-back of a freshly created
+  // variant.
+  const firstVariant = variants[0];
+  if (
+    type !== "service" &&
+    variantOptionNames.length === 0 &&
+    firstVariant?.expiryDate &&
+    firstVariant.openingStock > 0 &&
+    branchId
+  ) {
+    const { data: variantRow, error: variantLookupError } = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", productId)
+      .maybeSingle();
+
+    if (variantLookupError || !variantRow) {
+      console.error("createProduct: could not look up the created variant to log its expiry date", variantLookupError);
+    } else {
+      const { error: batchError } = await supabase.from("stock_batches").insert({
+        branch_id: branchId,
+        variant_id: variantRow.id,
+        quantity: firstVariant.openingStock,
+        expiry_date: firstVariant.expiryDate,
+      });
+      if (batchError) {
+        console.error("createProduct: stock_batches insert failed (product and stock were still created)", batchError);
+      }
+    }
   }
 
   revalidatePath("/products");

@@ -26,6 +26,8 @@ interface VariantRow {
   sellingPrice: string;
   /** What is already on the shelf. Blank means none. */
   openingStock: string;
+  /** Only ever sent for the no-variants row — see ProductForm's own comment on trackExpiry. */
+  expiryDate: string;
 }
 
 export interface ProductFormBranch {
@@ -49,6 +51,7 @@ function emptyVariant(optionNames: string[]): VariantRow {
     costPrice: "0",
     sellingPrice: "",
     openingStock: "",
+    expiryDate: "",
   };
 }
 
@@ -57,11 +60,19 @@ export function ProductForm({
   branches,
   categories,
   canReceiveStock,
+  trackExpiry,
   initialType = "product",
 }: {
   branches: ProductFormBranch[];
   categories: ProductFormCategory[];
   canReceiveStock: boolean;
+  /**
+   * Settings → Business settings → Inventory's "Track expiry dates"
+   * (migration 0055). Gates the expiry-date box below the same way it
+   * already gates every other expiry-date entry point (Receive Stock,
+   * the item detail page's "Log expiry date" form).
+   */
+  trackExpiry: boolean;
   initialType?: ProductFormType;
 }) {
   const [state, formAction] = useFormState(createProduct, initialState);
@@ -272,6 +283,20 @@ export function ProductForm({
                       onChange={(e) => patchVariant(index, { openingStock: e.target.value })}
                       error={state.fieldErrors?.[`variants.${index}.openingStock`]}
                     />
+                    {/* Only for the no-variants row (always index 0 —
+                        !hasVariants means there is exactly one row): see
+                        the trackExpiry prop's own comment for why this
+                        can't be offered per-row once there's a variant
+                        axis. */}
+                    {!hasVariants && trackExpiry ? (
+                      <Field
+                        label="Expiry date (optional)"
+                        type="date"
+                        value={row.expiryDate}
+                        onChange={(e) => patchVariant(index, { expiryDate: e.target.value })}
+                        error={state.fieldErrors?.[`variants.${index}.expiryDate`]}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
                 {hasVariants && effectiveVariants.length > 1 ? (
@@ -288,6 +313,12 @@ export function ProductForm({
           <Button type="button" variant="secondary" className="self-start" onClick={addRow}>
             + Add variant
           </Button>
+        ) : null}
+
+        {hasVariants && trackExpiry && canReceiveStock && !isService ? (
+          <p className="text-sm text-neutral-500 dark:text-ink-muted">
+            Expiry dates can be logged per variant from each item&apos;s own page once this product is created.
+          </p>
         ) : null}
       </div>
 
@@ -332,6 +363,10 @@ export function ProductForm({
             costPrice: row.costPrice,
             sellingPrice: row.sellingPrice,
             openingStock: canReceiveStock && !isService ? row.openingStock : "",
+            // Only ever sent for the no-variants row — see the
+            // trackExpiry prop's own comment on why a variant axis rules
+            // this out server-side too, not just here.
+            expiryDate: canReceiveStock && !isService && !hasVariants ? row.expiryDate : "",
           }))
         )}
       />

@@ -17,21 +17,31 @@ export default async function NewProductPage({
   const initialType = type === "service" ? "service" : "product";
   const supabase = await createServerSupabaseClient();
   const businessId = await getCurrentBusinessId(supabase);
-  const [canCreate, canReceiveStock, { data: branchRows, error: branchesError }, { data: categoryRows, error: categoriesError }] =
-    await Promise.all([
-      hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
-      // Opening stock goes through the inventory ledger, so it needs
-      // inventory.receive. Someone without it is not shown boxes they
-      // cannot use — create_product would refuse them anyway.
-      hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
-      supabase
-        .from("branches")
-        .select("id, name, is_main")
-        .eq("status", "active")
-        .order("is_main", { ascending: false })
-        .order("name", { ascending: true }),
-      supabase.from("categories").select("id, name, icon").eq("status", "active").order("name"),
-    ]);
+  const [
+    canCreate,
+    canReceiveStock,
+    { data: branchRows, error: branchesError },
+    { data: categoryRows, error: categoriesError },
+    { data: settingsRow },
+  ] = await Promise.all([
+    hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
+    // Opening stock goes through the inventory ledger, so it needs
+    // inventory.receive. Someone without it is not shown boxes they
+    // cannot use — create_product would refuse them anyway.
+    hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
+    supabase
+      .from("branches")
+      .select("id, name, is_main")
+      .eq("status", "active")
+      .order("is_main", { ascending: false })
+      .order("name", { ascending: true }),
+    supabase.from("categories").select("id, name, icon").eq("status", "active").order("name"),
+    // Same gate the Inventory list/item pages already use (migration
+    // 0055) — the expiry-date box on this form is only worth showing
+    // when the business actually tracks expiry dates.
+    supabase.from("business_settings").select("inventory_settings").eq("business_id", businessId).maybeSingle(),
+  ]);
+  const trackExpiry = Boolean((settingsRow?.inventory_settings as { track_expiry?: boolean } | null)?.track_expiry);
 
   // Cosmetic — createProduct() re-checks this server-side regardless.
   if (!canCreate) {
@@ -62,6 +72,7 @@ export default async function NewProductPage({
         branches={branches}
         categories={categories}
         canReceiveStock={canReceiveStock && branches.length > 0}
+        trackExpiry={trackExpiry}
         initialType={initialType}
       />
     </div>

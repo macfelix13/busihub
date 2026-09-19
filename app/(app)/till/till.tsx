@@ -641,7 +641,12 @@ export function Till({
                         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-neutral-50 active:scale-[0.99] motion-reduce:active:scale-100 dark:hover:bg-surface/60"
                       >
                         <span className="flex items-center gap-3">
-                          <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
+                          {/* Bigger than the products list's "sm" — see
+                              this change's own docs/ARCHITECTURE.md
+                              changelog entry. A cashier recognizing a
+                              product by its photo while ringing up a sale
+                              matters more here than list density does. */}
+                          <ProductThumbnail photoUrl={p.photoUrl} size="md" />
                           <span>
                             <span className="font-medium">{p.label}</span>
                             {p.type === "product" ? (
@@ -679,7 +684,11 @@ export function Till({
                     onClick={() => addToCart(p.variantId)}
                     className="flex flex-col items-start gap-1.5 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-lime-500 hover:bg-lime-50 active:scale-[0.98] motion-reduce:active:scale-100 dark:border-surface-line dark:hover:bg-surface/60"
                   >
-                    <ProductThumbnail photoUrl={p.photoUrl} size="sm" />
+                    {/* "lg", same reasoning as the search dropdown above —
+                        the user explicitly accepted taller tiles (fewer
+                        visible per screen before scrolling) in exchange
+                        for a photo actually worth glancing at. */}
+                    <ProductThumbnail photoUrl={p.photoUrl} size="lg" />
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
                     <span className="text-xs text-neutral-500 dark:text-ink-muted">
                       {p.type === "product"

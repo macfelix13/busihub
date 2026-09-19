@@ -684,11 +684,12 @@ export function Till({
                     onClick={() => addToCart(p.variantId)}
                     className="flex flex-col items-start gap-1.5 rounded-xl border border-neutral-200 px-3 py-2.5 text-left transition-colors hover:border-lime-500 hover:bg-lime-50 active:scale-[0.98] motion-reduce:active:scale-100 dark:border-surface-line dark:hover:bg-surface/60"
                   >
-                    {/* "lg", same reasoning as the search dropdown above —
-                        the user explicitly accepted taller tiles (fewer
-                        visible per screen before scrolling) in exchange
-                        for a photo actually worth glancing at. */}
-                    <ProductThumbnail photoUrl={p.photoUrl} size="lg" />
+                    {/* "xl" (112px) — bumped up again after seeing "lg" (80px)
+                        live: still not big enough on screen. Same trade-off
+                        as before, just more of it: taller tiles, fewer
+                        visible per screen before scrolling, for a photo
+                        that's actually easy to make out at a glance. */}
+                    <ProductThumbnail photoUrl={p.photoUrl} size="xl" />
                     <span className="line-clamp-2 text-sm font-medium leading-tight">{p.label}</span>
                     <span className="text-xs text-neutral-500 dark:text-ink-muted">
                       {p.type === "product"

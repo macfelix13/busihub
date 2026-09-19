@@ -5,12 +5,14 @@ const SIZE_CLASSES = {
   sm: "h-10 w-10",
   md: "h-14 w-14",
   lg: "h-20 w-20",
+  xl: "h-28 w-28",
 } as const;
 
 const ICON_SIZE_CLASSES = {
   sm: "h-4 w-4",
   md: "h-6 w-6",
   lg: "h-8 w-8",
+  xl: "h-10 w-10",
 } as const;
 
 /**

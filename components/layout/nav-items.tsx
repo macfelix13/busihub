@@ -133,6 +133,14 @@ export const NAV_TREE: NavEntry[] = [
   group("Settings", SettingsIcon, [
     leaf("Business", "/settings/business", Building, "canManageBusiness"),
     leaf("Payments", "/settings/payments", CreditCard, "canManageBusiness"),
+    // Phase 18 (Subscriptions & entitlements enforcement, 0058) — reuses
+    // canManageBusiness rather than a new permission, same reasoning as
+    // Business/Payments above: this is an Owner-level account concern,
+    // not a staffing or catalog one. Reuses the Wallet icon already
+    // imported for Reports → Receivables rather than adding a new
+    // lucide-react import this sandbox can't verify exists in the
+    // installed version (see this migration's own commit notes).
+    leaf("Billing", "/settings/billing", Wallet, "canManageBusiness"),
     leaf("Staff", "/settings/staff", UserCog, "canManageUsers"),
     // Backend/RLS support for per-business custom roles (permission
     // grants, not just assignment) has existed since 0005/0009 — this is

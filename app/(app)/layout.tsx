@@ -9,6 +9,8 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AppShell } from "@/components/layout/app-shell";
 import type { NavPermissions } from "@/components/layout/nav-items";
 import { resolveBusinessThemeOverride, businessThemeOverrideScript, resolvePrimaryColorOverride, accentOverrideStyle } from "@/lib/theme";
+import { getSubscriptionSummary } from "@/lib/entitlements/queries";
+import { isLockedOutStatus, isGracePeriodStatus, graceDaysRemaining } from "@/lib/entitlements/limits";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -148,6 +150,77 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
+  // Phase 18 (Subscriptions & entitlements enforcement, 0058): a lapsed
+  // subscription locks a business out of the app entirely — exactly the
+  // same "declared but never enforced until now" story the business/
+  // profile status checks above already tell. business_subscriptions.
+  // status has existed since 0006, and this is the first thing that ever
+  // reads it here. suspended/cancelled/expired lock out fully (same UI
+  // shape as the business-status block above); past_due is the grace
+  // window after a trial runs out (process_subscription_lifecycle(),
+  // 0058) and gets a banner, not a wall — see lib/entitlements/limits.ts's
+  // isLockedOutStatus()/isGracePeriodStatus() for the exact rule, and
+  // that same migration's file header for why real billing isn't part
+  // of this phase (a subscription's plan/status is set by a Super Admin
+  // by hand, via admin_set_business_subscription(), until it is).
+  const subscription = await getSubscriptionSummary(supabase, businessId);
+  let subscriptionGraceBanner: React.ReactNode = null;
+
+  if (subscription && isLockedOutStatus(subscription.status)) {
+    const email = supportEmail();
+    const phone = supportPhone();
+    const whatsappDigits = phone.replace(/[^0-9]/g, "");
+    const reason =
+      subscription.status === "suspended"
+        ? "This business's Busihub subscription has been suspended."
+        : subscription.status === "cancelled"
+          ? "This business's Busihub subscription has been cancelled."
+          : "This business's free trial ended and no plan was chosen in time.";
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
+        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-surface-line dark:bg-surface-card">
+          <h1 className="text-lg font-semibold">Subscription required</h1>
+          <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
+            {reason} Contact Busihub support to choose a plan and get back in.
+          </p>
+          <div className="mt-4 flex flex-col items-center gap-1 text-sm">
+            <a href={`mailto:${email}`} className="min-w-0 break-words text-brand-700 hover:underline dark:text-brand-300">
+              {email}
+            </a>
+            <a
+              href={`https://wa.me/${whatsappDigits}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-700 hover:underline dark:text-brand-300"
+            >
+              {phone} (WhatsApp)
+            </a>
+          </div>
+          <div className="mt-5 flex justify-center">
+            <LogoutButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (subscription && isGracePeriodStatus(subscription.status)) {
+    const daysLeft = graceDaysRemaining(subscription.pastDueSince);
+    subscriptionGraceBanner = (
+      <div className="bg-amber-50 px-4 py-2.5 text-center text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        Your free trial has ended.{" "}
+        {daysLeft !== null && daysLeft > 0
+          ? `You have ${daysLeft} day${daysLeft === 1 ? "" : "s"} left before this account is locked.`
+          : "This account will be locked very soon."}{" "}
+        <a href="/settings/billing" className="font-medium underline">
+          Choose a plan
+        </a>
+        .
+      </div>
+    );
+  }
+
   // Settings → Business → Appearance's "Theme" and "Primary color"
   // fields — see lib/theme.ts for why only an explicit "light"/"dark"
   // theme choice does anything (not "system", every business's untouched
@@ -245,6 +318,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         // variables this sets and why.
         <style dangerouslySetInnerHTML={{ __html: accentOverrideStyle(primaryColorOverride) }} />
       ) : null}
+      {subscriptionGraceBanner}
       <AppShell
         permissions={navPermissions}
         businessName={businessName ?? "Busihub"}

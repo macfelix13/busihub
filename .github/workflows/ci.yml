@@ -46,6 +46,12 @@ jobs:
       - name: Run tenant isolation & RBAC security tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/tenant_isolation_and_rbac.sql
 
+      - name: Run subscription entitlement enforcement tests (real, un-relaxed trial plan limits — must run before every other test file below, which assume a business can outgrow the trial plan's limits)
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/entitlements.sql
+
+      - name: Relax trial plan limits for the rest of the test suite (test-database-only, see tests/db-harness/01_relax_trial_plan_for_tests.sql)
+        run: psql -v ON_ERROR_STOP=1 -f tests/db-harness/01_relax_trial_plan_for_tests.sql
+
       - name: Run inventory ledger & permission tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/inventory.sql
 

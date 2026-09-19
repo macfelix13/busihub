@@ -336,24 +336,72 @@ Full detail in `docs/PAYMENTS.md`.
 
 ## 9. Subscription / entitlement architecture
 
+**Status: enforcement is live (Phase 18, migration 0058) — real payment
+collection is not, by deliberate decision. See below.**
+
 - `subscription_plans` (platform-level, Super-Admin managed): name, price,
   billing interval, and a `limits` jsonb column (`max_users`,
   `max_branches`, `max_products`, `max_pos_terminals`, feature flags like
   `advanced_reports`, `storage_mb`, …) — **no plan limit is ever hardcoded
-  in application code**; every gate reads this row.
-- `business_subscriptions`: which plan a business is on, `status` (trial,
-  active, past_due, suspended, cancelled, expired), period dates.
-- A single `lib/entitlements` module resolves "can this business do X right
-  now" by reading the plan's `limits` jsonb plus a live count (e.g.
-  `current branch count < limits.max_branches`), and every place that
-  creates a branch/user/product/terminal calls it before writing — again,
-  both as a friendly UI-level pre-check and as a hard server-side check.
-- Status transitions (trial → active, active → past_due, etc.) are driven
-  by scheduled Edge Functions checking billing state, not by ad hoc writes
-  scattered through the app.
+  in application code**; every gate reads this row, via `lib/entitlements`
+  (UI-level) and `app_plan_limits()`/`app_enforce_limit()` (SQL,
+  server-side) alike.
+- `business_subscriptions`: which plan a business is on, `status`
+  (`trialing`, `active`, `past_due`, `suspended`, `cancelled`, `expired`),
+  period dates, and (0058) `past_due_since` for grace-period tracking.
+- `lib/entitlements` (`limits.ts`: pure, unit-tested resolution functions;
+  `queries.ts`: the Supabase reads behind them) resolves "can this
+  business do X right now" for the UI — a friendly pre-check, e.g. on
+  Settings → Billing's usage display. The REAL, hard gate is server-side
+  and cannot be bypassed by skipping the UI: a `BEFORE INSERT` trigger on
+  `branches` (`enforce_branch_limit()`), and an explicit check inside
+  `create_product()` and `invite_staff_member()` themselves — the same
+  three write paths that already existed, not new endpoints. Currently
+  enforced: `max_branches`, `max_products`, `max_users`. **Not** enforced,
+  each for a specific, documented reason (see migration 0058's own file
+  header): `max_pos_terminals` (no "POS terminal" row exists anywhere in
+  this schema to count), `storage_mb` (nothing counts Storage usage per
+  business yet), and the `features.*` flags (`advanced_reports`,
+  `api_access`, `sms_notifications` — none of these has an existing
+  basic/advanced split or API/SMS surface to gate in the first place).
+- A lapsed subscription (`suspended`/`cancelled`/`expired`) locks a
+  business out of the entire app via `app/(app)/layout.tsx` — the same
+  "declared since an early migration, enforced only now" pattern that
+  file's own `businesses.status` check already followed. `past_due` (the
+  grace window right after a trial ends) shows a banner instead of a
+  wall.
+- Status transitions: **only** a trial running out (`trialing` →
+  `past_due` → `expired`, a 3-day grace window) and fulfilling a
+  Super-Admin-scheduled cancellation (`cancel_at_period_end`) are
+  automated, by `process_subscription_lifecycle()`, called daily by a
+  **Vercel Cron Job** hitting `app/api/cron/subscriptions` (see
+  `vercel.json`) — not a Supabase Edge Function as an earlier draft of
+  this section said. This project has no Supabase Edge Functions tooling
+  anywhere; a Vercel Cron Job needed no new deployment surface on top of
+  the Next.js/Vercel stack everything else already runs on. Every other
+  status change (a business going `active` on a real paid plan, being
+  marked `past_due` for a missed payment, etc.) is a deliberate, logged,
+  human decision — see below.
+- **What is deliberately NOT built yet: real recurring billing.** Nothing
+  in this codebase charges a business anything. The existing Paystack
+  integration (Section 8) is a shop accepting mobile money from ITS OWN
+  customers, not Busihub billing the shop — no Paystack Plans/
+  Subscriptions API usage, no billing webhooks, exist anywhere. Until
+  that is built (a project on the scale of the original Payments phase by
+  itself: a plan-selection/checkout UI, webhook handling for failed
+  payments, proration…), a Super Admin puts a business on a plan/status by
+  hand — `admin_set_business_subscription()`, exposed as a form on
+  `/admin/businesses/[id]` — after being paid some other way. This is the
+  kind of honest, partial completion the project brief calls for: limits
+  are genuinely enforced and a lapsed account is genuinely locked out; the
+  system just doesn't move money yet.
 
-Full detail folded into `docs/DATABASE.md` (subscription tables) as this
-lands.
+Full detail lives here and in migration 0058 itself rather than being
+folded into `docs/DATABASE.md` as an earlier draft of this section said —
+that file's own header scopes it to the foundation schema (migrations
+0001–0011) specifically so later phases, this one included, don't need to
+keep it current; see `docs/DATABASE.md`'s "Foundation-phase schema"
+section for why.
 
 ---
 
@@ -448,7 +496,7 @@ one section of this document expected to change often.
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
 | 17 | Synchronization | **partial — mid-session resilience only, no visible connectivity indicator, see changelog** (a cash/credit sale rung up at the till while the connection drops mid-session queues on the device via IndexedDB and syncs automatically to `/api/sync` once reconnected, idempotently; opening or reloading `/till` from a cold start with no connection still doesn't work — that needs a whole separate offline catalog cache, deliberately scoped out — and there is no service-worker-driven Background Sync retry, by deliberate choice, not oversight; the "You're offline" / "N sales syncing" banner was removed on 2026-09-11 after repeated false-positives on real devices, see changelog — the queue and sync themselves are unaffected, there is just nothing on screen telling a cashier which state they're in) |
-| 18 | Subscriptions & entitlements enforcement | pending |
+| 18 | Subscriptions & entitlements enforcement | **done — limits (max_branches/max_products/max_users) and lockout enforcement are real and verified, see supabase/migrations/0058 + tests/security/entitlements.sql** (real recurring billing/payment collection is a deliberate, documented exception — see Section 9 and 0058's file header; a plan/status is set by a Super Admin by hand until that exists) |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
 | 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
 | 21 | Automated test suite hardening | pending |
@@ -465,6 +513,72 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-19 — Phase 18: Subscriptions & entitlements enforcement
+  (migration 0058). The subscription schema (0006/0010) has existed since
+  the earliest migrations but nothing ever read it — every business,
+  trial or not, had unlimited branches/products/staff and never lost
+  access when its trial ran out. This closes that gap, deliberately
+  scoped to enforcement rather than real billing — see Section 9 for the
+  full design and what's still out (real Paystack recurring billing,
+  `max_pos_terminals`, `storage_mb`, feature flags).
+
+  **What's enforced, hard, server-side, not just in the UI**:
+  `max_branches` (new `BEFORE INSERT` trigger on `branches`),
+  `max_products` (inside `create_product()`), `max_users` (inside
+  `invite_staff_member()`) — all three read a business's live plan via
+  new SQL helpers `app_plan_limits()`/`app_enforce_limit()`, both a
+  no-op for an unlimited (`jsonb null`) limit or a missing subscription
+  row, never a false block over a data gap.
+
+  **What locks a business out**: `app/(app)/layout.tsx` gained a new
+  check, positioned right after the existing `businesses.status` one it
+  deliberately mirrors — `suspended`/`cancelled`/`expired` render the
+  same "contact support" screen that status check already uses;
+  `past_due` (the grace window right after a trial ends) renders a
+  dismissal-free banner instead, linking to the new Settings → Billing
+  page (`app/(app)/settings/billing`), which shows the current plan,
+  trial/renewal countdown, and usage vs. limits for the three enforced
+  resources.
+
+  **What drives status changes**: `process_subscription_lifecycle()`,
+  callable only as `service_role`, run daily by a new Vercel Cron Job
+  (`vercel.json` + `app/api/cron/subscriptions`, secured by a
+  `CRON_SECRET` bearer token) — it automates exactly one judgment-free
+  transition (a trial running out, then its 3-day grace period also
+  running out) plus fulfilling a Super-Admin-scheduled cancellation.
+  Every other transition (a business going `active` on a real paid plan,
+  a manual `past_due`/`suspended`) is a deliberate human action via the
+  new `admin_set_business_subscription()` function, exposed as a form on
+  the Super Admin console's `/admin/businesses/[id]` page — the
+  hand-operated stand-in for real billing this phase deliberately
+  doesn't build (see Section 9).
+
+  **New `lib/entitlements`**: `limits.ts` (pure, unit-tested —
+  `resolveLimitCheck`, `isLockedOutStatus`/`isGracePeriodStatus`,
+  `graceDaysRemaining`, `daysUntil`) and `queries.ts` (the Supabase reads
+  behind the billing page and the Super Admin subscription section).
+
+  **Corrected two stale claims elsewhere in this document while here**:
+  this section previously described the whole subscriptions/entitlements
+  system as future work ("as this lands"); the Super Admin section
+  (Phase 19) wrongly said "there is no subscription concept anywhere in
+  this schema yet" when writing that up, when in fact the schema had
+  existed since 0006 — only enforcement and a management UI were
+  missing. Both corrected in place rather than silently rewritten.
+
+  **Test coverage**: `tests/security/entitlements.sql` exercises the
+  real, un-relaxed trial plan's limits (not a mocked-up one) plus a small
+  fixture-only plan for "one more than the limit" cases, the Super
+  Admin-only gate on `admin_set_business_subscription()`, and all three
+  `process_subscription_lifecycle()` transitions with simulated elapsed
+  time. It has to run before every other security test file that was
+  written pre-Phase-18 and happens to create more branches/staff on a
+  shared fixture business than the real trial plan allows (documented in
+  full in `tests/db-harness/01_relax_trial_plan_for_tests.sql`, which
+  loosens the test database's own trial plan right after) — a test-only
+  concern, never applied to a real Supabase project or to local
+  `npm run db:seed`.
 
 - 2026-09-19 — Sidebar: collapse to an icon-only rail on desktop/tablet.
   Requested directly by the user, alongside confirming the sidebar should
@@ -3657,9 +3771,18 @@ before being called done, per Section 2's completion definition.
   **Explicitly out of scope for this version**: impersonation / support
   login-as-a-business (a separate, higher-risk feature — breaking tenant
   isolation on purpose, even briefly and even for support, needs its own
-  audit-heavy design before any code) and anything about plans or
-  billing (there is no subscription concept anywhere in this schema yet
-  — "which plan" isn't a real question until one is designed).
+  audit-heavy design before any code).
+
+  **Correction (2026-09-19, Phase 18)**: this section originally also
+  listed "anything about plans or billing" as out of scope, reasoning
+  that "there is no subscription concept anywhere in this schema yet" —
+  that was wrong even at the time this page was written: the subscription
+  schema (`subscription_plans`/`business_subscriptions`) has existed
+  since migration 0006, well before this one (0035). What was true is
+  that nothing read it yet, and the Super Admin console had no plan/
+  billing management UI. Phase 18 (0058) added exactly that — a
+  subscription section with a plan/status form on
+  `/admin/businesses/[id]` — see Section 9 for the full picture.
 
   **One known gap, noted rather than silently accepted**: if
   `log_audit_event()` itself fails inside `suspendBusiness`/

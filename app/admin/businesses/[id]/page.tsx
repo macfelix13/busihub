@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { suspendBusiness, reactivateBusiness } from "./actions";
 import { StatusToggleButton } from "@/app/(app)/products/status-toggle-button";
+import { SubscriptionForm } from "./subscription-form";
+import { getSubscriptionSummary, getUsageCounts } from "@/lib/entitlements/queries";
+import { resolveLimitCheck } from "@/lib/entitlements/limits";
+import { formatMoney, toMinorUnits, toNumber } from "@/lib/money/money";
 
 export const metadata = { title: "Business — Busihub Admin" };
 
@@ -47,23 +51,33 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
     notFound();
   }
 
-  const [{ data: owner, error: ownerError }, { data: staffRows, error: staffError }] = await Promise.all([
-    business.created_by
-      ? supabase
-          .from("profiles")
-          .select("id, first_name, last_name, email, phone")
-          .eq("id", business.created_by)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    supabase
-      .from("profiles")
-      .select("id, first_name, last_name, email, status, last_login_at, created_at")
-      .eq("business_id", business.id)
-      .order("created_at", { ascending: true }),
-  ]);
+  const [{ data: owner, error: ownerError }, { data: staffRows, error: staffError }, subscription, usage, { data: planRows, error: plansError }] =
+    await Promise.all([
+      business.created_by
+        ? supabase
+            .from("profiles")
+            .select("id, first_name, last_name, email, phone")
+            .eq("id", business.created_by)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, status, last_login_at, created_at")
+        .eq("business_id", business.id)
+        .order("created_at", { ascending: true }),
+      // Phase 18 (Subscriptions & entitlements enforcement, 0058) — same
+      // RLS this page's other queries already rely on (app_is_super_admin()
+      // covers a Super Admin session regardless of which business_id is
+      // being looked at).
+      getSubscriptionSummary(supabase, business.id),
+      getUsageCounts(supabase, business.id),
+      supabase.from("subscription_plans").select("slug, name").eq("is_active", true).order("sort_order"),
+    ]);
 
   if (ownerError) console.error("AdminBusinessDetailPage: owner query failed", ownerError);
   if (staffError) console.error("AdminBusinessDetailPage: staff query failed", staffError);
+  if (plansError) console.error("AdminBusinessDetailPage: subscription plans query failed", plansError);
+  const plans = planRows ?? [];
 
   const staff = (staffRows ?? []) as StaffRow[];
   const status = business.status as BusinessStatus;
@@ -142,6 +156,54 @@ export default async function AdminBusinessDetailPage({ params }: { params: Prom
             </div>
           ))}
         </dl>
+      </div>
+
+      <div>
+        <h2 className="font-semibold">Subscription</h2>
+        <div className="mt-3 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
+          {subscription ? (
+            <>
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <div>
+                  <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Usage</dt>
+                  <dd className="text-sm text-neutral-800 dark:text-ink">
+                    {usage.branches} branch{usage.branches === 1 ? "" : "es"}
+                    {subscription.plan ? ` (of ${resolveLimitCheck(subscription.plan.limits.max_branches, usage.branches).limit ?? "∞"})` : ""} ·{" "}
+                    {usage.users} staff
+                    {subscription.plan ? ` (of ${resolveLimitCheck(subscription.plan.limits.max_users, usage.users).limit ?? "∞"})` : ""} ·{" "}
+                    {usage.products} product{usage.products === 1 ? "" : "s"}
+                    {subscription.plan ? ` (of ${resolveLimitCheck(subscription.plan.limits.max_products, usage.products).limit ?? "∞"})` : ""}
+                  </dd>
+                </div>
+                {subscription.plan && toNumber(subscription.plan.priceAmount) > 0 ? (
+                  <div>
+                    <dt className="text-sm font-medium text-neutral-500 dark:text-ink-muted">Price</dt>
+                    <dd className="text-sm text-neutral-800 dark:text-ink">
+                      {formatMoney(toMinorUnits(subscription.plan.priceAmount), subscription.plan.currencyCode)} /{" "}
+                      {subscription.plan.billingInterval}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+
+              <SubscriptionForm
+                businessId={business.id}
+                plans={plans}
+                current={{
+                  planSlug: subscription.plan?.slug ?? "",
+                  status: subscription.status,
+                  currentPeriodEnd: subscription.currentPeriodEnd,
+                  cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+                }}
+              />
+            </>
+          ) : (
+            <p className="text-sm text-neutral-500 dark:text-ink-muted">
+              This business has no subscription row at all — that shouldn&apos;t happen past registration. Contact
+              engineering rather than trying to fix it from here.
+            </p>
+          )}
+        </div>
       </div>
 
       <div>

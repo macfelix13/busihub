@@ -23,3 +23,15 @@ export function supportEmail(): string {
 export function supportPhone(): string {
   return process.env.NEXT_PUBLIC_SUPPORT_PHONE ?? "+233543945668";
 }
+
+/**
+ * Shared secret Vercel Cron is expected to send back as
+ * `Authorization: Bearer <value>` (see app/api/cron/subscriptions/route.ts
+ * and vercel.json). No fallback, unlike the two functions above — an
+ * unset CRON_SECRET must fail closed (the route refuses every request,
+ * including Vercel's own) rather than silently accepting an unauthenticated
+ * caller.
+ */
+export function cronSecret(): string | undefined {
+  return process.env.CRON_SECRET;
+}

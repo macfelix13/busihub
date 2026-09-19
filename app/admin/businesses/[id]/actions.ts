@@ -69,3 +69,64 @@ export async function suspendBusiness(businessId: string): Promise<void> {
 export async function reactivateBusiness(businessId: string): Promise<void> {
   await setBusinessStatus(businessId, "active", "platform.business_reactivated");
 }
+
+export interface SubscriptionFormState {
+  error?: string;
+  success?: boolean;
+}
+
+/**
+ * Phase 18 (Subscriptions & entitlements enforcement, 0058) — the
+ * hand-operated stand-in for real recurring billing (see that
+ * migration's own file header). Everything that actually matters here
+ * (plan slug must be real and active, status must be a real enum value,
+ * the grace-period bookkeeping) happens inside
+ * admin_set_business_subscription() itself, re-checking
+ * app_is_super_admin() independently of this action, same as every
+ * other Super Admin write in this file.
+ */
+export async function updateBusinessSubscription(
+  businessId: string,
+  _prevState: SubscriptionFormState,
+  formData: FormData
+): Promise<SubscriptionFormState> {
+  const supabase = await requireSuperAdmin();
+
+  const planSlug = String(formData.get("planSlug") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const periodEndRaw = String(formData.get("currentPeriodEnd") ?? "");
+  const cancelAtPeriodEnd = formData.get("cancelAtPeriodEnd") === "on";
+
+  if (!planSlug || !status) {
+    return { error: "Choose a plan and a status." };
+  }
+
+  // A bare "YYYY-MM-DD" from the date input, midnight UTC — good enough
+  // for an administrative period-end marker (see 0058's file header on
+  // why this isn't tied to a real billing cycle yet), not a precise
+  // billing timestamp.
+  const currentPeriodEnd = periodEndRaw ? new Date(periodEndRaw).toISOString() : null;
+
+  const { error } = await supabase.rpc("admin_set_business_subscription", {
+    p_business_id: businessId,
+    p_plan_slug: planSlug,
+    p_status: status,
+    p_current_period_end: currentPeriodEnd,
+    p_cancel_at_period_end: cancelAtPeriodEnd,
+  });
+
+  if (error) {
+    console.error("updateBusinessSubscription: rpc failed", error);
+    // P0002 (unknown/inactive plan) and 22023 (unknown status) are the
+    // function's own friendly, user-facing messages — safe to forward
+    // verbatim, same convention app/(app)/branches/actions.ts and
+    // app/(app)/products/actions.ts already use for their own raised
+    // errors. Anything else is an unexpected failure, not shown raw
+    // (Section 38).
+    const friendly = error.code === "P0002" || error.code === "22023" ? error.message : "Couldn't update this business's subscription. Please try again.";
+    return { error: friendly };
+  }
+
+  revalidatePath(`/admin/businesses/${businessId}`);
+  return { success: true };
+}

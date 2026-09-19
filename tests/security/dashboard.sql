@@ -66,7 +66,11 @@ select create_product(
 
 -- A second branch that never sells anything. The most useful row on a
 -- branch comparison is the branch with nothing on it, so there has to be
--- one to test with.
+-- one to test with. This would exceed the real 'trial' plan's
+-- max_branches (1, see 0010's seed data) once 0058's entitlement
+-- enforcement lands — see tests/db-harness/01_relax_trial_plan_for_tests.sql,
+-- run between the dev seed and the security test suite, for why this
+-- file doesn't need to know that.
 insert into branches (business_id, name, is_main)
 values ((select id from businesses where slug = 'dashboard-test-shop-d'), 'Dash Quiet Branch', false);
 

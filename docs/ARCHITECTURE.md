@@ -466,6 +466,82 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Bigger product images on the Till. Requested by the user:
+  product photos on the till's search-result rows and browsable grid
+  tiles were the smallest size `components/ui/product-thumbnail.tsx`
+  offers (`size="sm"`, 40px) — a size chosen for a dense list, but too
+  small to actually recognize a product by its photo while ringing up a
+  sale. The component already had a `size` prop (`sm`/`md`/`lg`); this
+  only changes which size two call sites in `app/(app)/till/till.tsx`
+  pass it — no change to the component itself. The search dropdown moved
+  to `size="md"` (56px); the browsable grid tiles moved to `size="lg"`
+  (80px), with the user explicitly accepting that this means taller
+  tiles and fewer visible per screen before scrolling, in exchange for a
+  photo actually worth glancing at. The products list page and product
+  detail page were deliberately left unchanged — the user asked only
+  about the Till.
+
+- 2026-09-19 — Products report and Services report (migration 0056).
+  Requested by the user: the combined Sales report doesn't say whether a
+  business's physical products or its services are doing better, since
+  every figure on it mixes both together.
+
+  **Why this needed a real query rewrite, not just an added filter.**
+  `top_products()` was already line-level (grouped by `sale_items.
+  variant_id`), so it took a plain `and (p_type is null or p.type =
+  p_type)`. `sales_summary()` and `sales_trend()` were not: they total a
+  SALE's `total` column, one number for the whole cart. Since the till
+  lets one checkout mix a product line and a service line (0040's whole
+  point — a retail shampoo plus a haircut, rung up together), there is no
+  way to say "GHS 30 of this GHS 80 sale was the product" from that
+  column alone. Both functions were rebuilt to total from `sale_items`/
+  `refund_items` joined through `product_variants` to `products.type`
+  instead, but ONLY when `p_type` is supplied — every existing caller
+  (the combined Sales report, the dashboard, `profit_and_loss()`, and
+  `tests/security/reports.sql`'s own line-by-line cross-check against
+  `profit_and_loss()`) still gets the exact original query, copied
+  verbatim, so none of those figures move. All three functions were
+  `DROP`ped before being redefined with the added parameter — the same
+  overload trap `0026`/`0040`/`0041`/`0046` already documented: a plain
+  `create or replace` with one more argument creates a co-existing
+  overload rather than replacing the original, and a caller that has
+  never heard of `p_type` would risk resolving to the wrong one.
+
+  **What `sale_count` means once scoped by type.** "Sales that included
+  at least one line of this type." A mixed cart is therefore counted on
+  BOTH the Products report and the Services report for the same period —
+  by design, not a reconciliation bug, and both report pages say so in a
+  one-line note under the summary. Every MONEY column, by contrast, does
+  add back up exactly: `sales_summary('product').gross_total +
+  sales_summary('service').gross_total` always equals
+  `sales_summary(null).gross_total`, since every line belongs to exactly
+  one type — asserted directly in the new
+  `tests/security/report_type_split.sql`, built against a real mixed
+  sale plus a partial refund of just its product line, with every number
+  hand-computed and checked rather than merely "no error thrown."
+
+  **What is deliberately NOT split, raised with and agreed by the user
+  before writing anything.** `payment_method_breakdown()` records a
+  tender once per whole sale (`sale_payments`), with no line-level record
+  of which items it paid for — there is no honest way to say how much of
+  a mixed sale's cash payment was "for the product" without inventing an
+  allocation rule. `staff_performance()` has the same shape of problem:
+  it attributes a sale's FULL total to whoever cashiered it, not to a
+  line. Both stay on the combined Sales report only, where the question
+  is unambiguous. `service_provider_performance()` is the one exception,
+  and needed no changes at all: it already answers "service revenue by
+  whoever rendered it" at the line level (0041/0045), so the new Services
+  report page reuses it exactly as it already existed, as a "Who
+  rendered what" section the Products report has no equivalent of.
+
+  **Verified against a real, throwaway Postgres before shipping**, not
+  just read for correctness — every migration and the full existing
+  `tests/security/*.sql` suite were run end to end (stub → migrations →
+  seed → every test file, the same order `.github/workflows/ci.yml`
+  uses), confirming zero change to any figure when `p_type` is omitted,
+  before the new type-scoped test file was written and run against the
+  same database.
+
 - 2026-09-19 — Business-wide "Primary color". Requested by the user
   after confirming the Theme fix (above) shipped, but "Primary color"
   still visibly did nothing — the same "saves, never read back" gap

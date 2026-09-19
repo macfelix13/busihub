@@ -112,6 +112,9 @@ jobs:
       - name: Run inventory expiry tests
         run: psql -v ON_ERROR_STOP=1 -f tests/security/inventory_expiry.sql
 
+      - name: Run report type-split tests
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/report_type_split.sql
+
   app:
     name: Typecheck, lint, build
     runs-on: ubuntu-latest

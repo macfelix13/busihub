@@ -30,7 +30,7 @@ import { paymentMethodLabel } from "@/lib/validation/sales";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const REPORTS = ["profit-loss", "receivables", "stock", "sales"] as const;
+const REPORTS = ["profit-loss", "receivables", "stock", "sales", "products", "services"] as const;
 type ReportName = (typeof REPORTS)[number];
 
 function isReport(value: string | null): value is ReportName {
@@ -181,7 +181,7 @@ export async function GET(request: Request) {
         amount(row.cost_value),
         amount(row.retail_value),
       ]);
-    } else {
+    } else if (report === "sales") {
       const fromIso = new Date(`${from}T00:00:00Z`).toISOString();
       // Exclusive end, so the last day is wholly inside the period.
       const toDate = new Date(`${to}T00:00:00Z`);
@@ -229,6 +229,45 @@ export async function GET(request: Request) {
           amount(row.sale_count),
           amount(row.net_total),
           null,
+        ]),
+      ];
+    } else {
+      // "products" or "services" (0056) — the Sales report split by line
+      // type. No payment-method or cashier section here: those are
+      // recorded per whole sale, not per line, so they can't honestly be
+      // split by type when a checkout mixes both (see migration 0056's
+      // own header) — they stay on the "sales" export above instead.
+      const isServices = report === "services";
+      const type = isServices ? "service" : "product";
+      const fromIso = new Date(`${from}T00:00:00Z`).toISOString();
+      const toDate = new Date(`${to}T00:00:00Z`);
+      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      const rpcArgs = { p_from: fromIso, p_to: toDate.toISOString(), p_branch_id: branchId, p_type: type };
+
+      const [{ data: summaryRows, error }, { data: productRows }] = await Promise.all([
+        supabase.rpc("sales_summary", { ...rpcArgs, p_status: null }),
+        supabase.rpc("top_products", { ...rpcArgs, p_limit: 100 }),
+      ]);
+      if (error) throw error;
+
+      const summary = ((summaryRows ?? []) as unknown as Record<string, number | string | boolean>[])[0];
+      const products = (productRows ?? []) as unknown as Record<string, number | string | null>[];
+      const sectionLabel = isServices ? "Service" : "Product";
+
+      header = ["Section", "Name", "Detail", "Quantity", "Amount", "Profit"];
+      rows = [
+        ["Summary", "Sales", null, null, amount(summary?.gross_total as number), null],
+        ["Summary", "Less returns", null, null, amount(summary?.refunded_total as number), null],
+        ["Summary", "Net sales", null, null, amount(summary?.net_total as number), null],
+        ["Summary", "Gross profit", null, null, null, amount(summary?.gross_profit as number)],
+        [],
+        ...products.map((row): CsvRow => [
+          sectionLabel,
+          row.product_name as string,
+          row.sku as string | null,
+          amount(row.quantity_sold),
+          amount(row.revenue),
+          amount(row.gross_profit),
         ]),
       ];
     }

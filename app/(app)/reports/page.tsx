@@ -8,10 +8,16 @@ import { getCurrentBusinessId } from "@/lib/auth/current-business";
 export const metadata = { title: "Reports" };
 
 /**
- * Four reports, described by the question each one answers rather than
- * by its accounting name. "Profit and loss" is what a bank calls it;
- * "did the shop make money" is what the shopkeeper wants to know, and
- * both are on the card.
+ * Six reports, described by the question each one answers rather than by
+ * its accounting name. "Profit and loss" is what a bank calls it; "did
+ * the shop make money" is what the shopkeeper wants to know, and both are
+ * on the card.
+ *
+ * Products report and Services report (0056) sit alongside the combined
+ * Sales report rather than replacing it — the combined report is still
+ * where "how people paid" and "who sold what" live, since those are
+ * recorded per whole sale and can't honestly be split by product/service
+ * when a checkout mixes both (see that migration's own header).
  */
 const REPORTS = [
   {
@@ -37,6 +43,18 @@ const REPORTS = [
     title: "Sales report",
     question: "What sold, how was it paid for, and who sold it?",
     detail: "A fixed period you can print or export, rather than a dashboard you browse.",
+  },
+  {
+    href: "/reports/products",
+    title: "Products report",
+    question: "How are your physical products doing on their own?",
+    detail: "Revenue, profit and best sellers for stocked items only — services are excluded.",
+  },
+  {
+    href: "/reports/services",
+    title: "Services report",
+    question: "How is the service side of the business doing on its own?",
+    detail: "Revenue, profit, top services and who rendered them — physical products are excluded.",
   },
 ] as const;
 

@@ -19,7 +19,7 @@ import { PAYMENT_METHODS, MOMO_NETWORKS, normaliseMomoNumber, guessMomoNetwork }
 import { useOnlineStatus } from "@/lib/offline/use-online-status";
 import { enqueueSale } from "@/lib/offline/queue";
 import { playScanSuccessBeep } from "@/lib/ui/scan-beep";
-import { completeSale, signOutCashier, openDrawerNoSale, type FormState } from "./actions";
+import { completeSale, signOutCashier, openDrawerNoSale, quickAddProduct, type FormState } from "./actions";
 
 const initialState: FormState = {};
 
@@ -117,13 +117,17 @@ interface TillProps {
   momoEnabled: boolean;
   /** sales.no_sale (migration 0044) — cosmetic gate for showing the "No sale" button; openDrawerNoSale() re-checks this itself. */
   canOpenDrawer: boolean;
+  /** products.create AND inventory.receive, both — cosmetic gate for
+   *  showing the "New item" button; quickAddProduct() re-checks both
+   *  itself, the real gate. */
+  canQuickAddProduct: boolean;
 }
 
 export function Till({
   branchId,
   branchName,
   cashierName,
-  products,
+  products: initialProducts,
   customers,
   staff,
   providers,
@@ -131,12 +135,20 @@ export function Till({
   allowNegativeStock,
   momoEnabled,
   canOpenDrawer,
+  canQuickAddProduct,
 }: TillProps) {
   const [state, formAction] = useFormState(completeSale, initialState);
   const toast = useToast();
   const isOnline = useOnlineStatus();
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  // Seeded from the page's server-rendered list, then appended to locally
+  // by the "New item" quick-add flow below — never re-fetched, same
+  // "snapshot at page load" philosophy every other figure on this page
+  // already follows (see queuedThisSession's own comment). A page reload
+  // (e.g. switching branch) gets the new item from the server like any
+  // other product from then on.
+  const [products, setProducts] = useState<TillProduct[]>(initialProducts);
   // Cart lines mid-removal: still in `cart` (so the exit animation below
   // has something to animate) but excluded from every total/eligibility
   // calculation and from what's actually submitted — see `activeCart`.
@@ -183,6 +195,18 @@ export function Till({
   const [noSaleError, setNoSaleError] = useState<string | null>(null);
   const [noSaleSlip, setNoSaleSlip] = useState<string | null>(null);
   const [noSalePending, startNoSaleTransition] = useTransition();
+  // "New item" — quick-add a product that was never added to the catalog
+  // (app/(app)/till/actions.ts's quickAddProduct). Same shape as the
+  // No-Sale state above: a plain async function called from a transition,
+  // not useFormState, since the result on success carries the new
+  // product's data, not just a redirect.
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddPrice, setQuickAddPrice] = useState("");
+  const [quickAddQuantity, setQuickAddQuantity] = useState("");
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+  const [quickAddFieldErrors, setQuickAddFieldErrors] = useState<Record<string, string>>({});
+  const [quickAddPending, startQuickAddTransition] = useTransition();
 
   const byId = useMemo(() => new Map(products.map((p) => [p.variantId, p])), [products]);
 
@@ -243,6 +267,52 @@ export function Till({
     });
     setQuery("");
     searchRef.current?.focus();
+  }
+
+  function openQuickAdd() {
+    setQuickAddName("");
+    setQuickAddPrice("");
+    setQuickAddQuantity("");
+    setQuickAddError(null);
+    setQuickAddFieldErrors({});
+    setQuickAddOpen(true);
+  }
+
+  function submitQuickAdd() {
+    setQuickAddError(null);
+    setQuickAddFieldErrors({});
+    startQuickAddTransition(async () => {
+      const result = await quickAddProduct(branchId, quickAddName, quickAddPrice, quickAddQuantity);
+      if (!result.ok || !result.product) {
+        setQuickAddError(result.error ?? "Something went wrong. Please try again.");
+        setQuickAddFieldErrors(result.fieldErrors ?? {});
+        return;
+      }
+      const created = result.product;
+      const newProduct: TillProduct = {
+        variantId: created.variantId,
+        label: created.label,
+        sku: created.sku,
+        barcode: created.barcode,
+        price: created.price,
+        onHand: created.onHand,
+        unit: created.unit,
+        type: "product",
+        durationMinutes: null,
+        photoUrl: null,
+      };
+      setProducts((prev) => [...prev, newProduct].sort((a, b) => a.label.localeCompare(b.label)));
+      // Added directly, rather than via addToCart(newProduct.variantId):
+      // addToCart looks the variant up in `byId`, which is derived from
+      // `products` and would still be one render behind this same state
+      // update. A brand-new variant id can never already be in the cart
+      // and is always type "product", so this is exactly the line
+      // addToCart's own default branch would produce anyway.
+      setCart((lines) => [...lines, { key: crypto.randomUUID(), variantId: newProduct.variantId, quantity: 1 }]);
+      setQuickAddOpen(false);
+      setQuery("");
+      searchRef.current?.focus();
+    });
   }
 
   /**
@@ -545,6 +615,14 @@ export function Till({
             >
               Scan
             </Button>
+            {/* For something that was never added to the catalog — see
+                quickAddProduct()'s own comment for why this needs BOTH
+                products.create and inventory.receive, not just one. */}
+            {canQuickAddProduct ? (
+              <Button type="button" variant="secondary" onClick={openQuickAdd} className="min-h-[52px] shrink-0">
+                New item
+              </Button>
+            ) : null}
           </div>
           {scanError ? <p className="text-sm text-red-600 dark:text-red-400">{scanError}</p> : null}
 
@@ -1076,6 +1154,62 @@ export function Till({
         )}
       </Modal>
     </div>
+
+    {/* "New item" — see quickAddProduct()'s own comment. No print-only
+        counterpart needed here (unlike No-Sale's slip): this modal never
+        produces anything to print, only a new line in the cart, which the
+        eventual sale's receipt already covers. */}
+    <Modal
+      open={quickAddOpen}
+      onClose={() => setQuickAddOpen(false)}
+      size="sm"
+      pending={quickAddPending}
+      title="Add a new item"
+      description="For something that hasn't been added to your catalog yet. Category, SKU, and everything else can be filled in later from Products — this just needs enough to ring it up now."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => setQuickAddOpen(false)} disabled={quickAddPending}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={quickAddPending} onClick={submitQuickAdd}>
+            {quickAddPending ? "Adding…" : "Add and ring up"}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {quickAddError ? (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {quickAddError}
+          </p>
+        ) : null}
+        <Field
+          label="Name"
+          value={quickAddName}
+          onChange={(e) => setQuickAddName(e.target.value)}
+          error={quickAddFieldErrors.name}
+          autoFocus
+        />
+        <Field
+          label="Price"
+          type="number"
+          step="0.01"
+          min={0}
+          value={quickAddPrice}
+          onChange={(e) => setQuickAddPrice(e.target.value)}
+          error={quickAddFieldErrors.sellingPrice}
+        />
+        <Field
+          label="Quantity you have"
+          type="number"
+          step="0.001"
+          min={0.001}
+          value={quickAddQuantity}
+          onChange={(e) => setQuickAddQuantity(e.target.value)}
+          error={quickAddFieldErrors.openingStock}
+        />
+      </div>
+    </Modal>
 
     {/* Print-only: the drawer-open slip. Everything else on this page is
         print:hidden, so printing while this is set sends only the slip to

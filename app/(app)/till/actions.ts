@@ -12,6 +12,7 @@ import { checkoutSchema, normaliseMomoNumber } from "@/lib/validation/sales";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { loadPaystackCredentials, chargeMobileMoney, type MomoNetwork } from "@/lib/paystack/client";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
+import { quickAddProductSchema, duplicateFieldFromError } from "@/lib/validation/products";
 import {
   checkRateLimit,
   recordRateLimitAttempt,
@@ -439,6 +440,157 @@ export async function openDrawerNoSale(branchId: string, reason?: string): Promi
   lines.push("", `Ref: ${typeof auditId === "string" ? auditId.slice(0, 8) : "—"}`);
 
   return { ok: true, slipText: lines.join("\n") };
+}
+
+export interface QuickAddProductResult {
+  ok: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  /** Present only when ok — enough for the till to add the new item to its
+   *  own product list and cart without a full page reload (which would
+   *  lose whatever else was already in the cart). */
+  product?: {
+    variantId: string;
+    label: string;
+    price: number;
+    unit: string;
+    sku: string | null;
+    barcode: string | null;
+    onHand: number;
+  };
+}
+
+/**
+ * "New item" on the Till — for ringing up something that was never added
+ * to the catalog (a walk-in item, a one-off). Deliberately requires BOTH
+ * products.create (to add the catalog row at all) and inventory.receive
+ * (the quantity given is real stock, going through the same ledger a
+ * normal Receive Stock does) — the same two-permission split
+ * app/(app)/products/actions.ts's createProduct() already documents for
+ * opening stock on the full Add Product form (its own 42501 branch: "You
+ * can add the product, but not the opening stock").
+ *
+ * Reuses create_product() rather than a new database function: a name +
+ * price + quantity is exactly a one-variant, no-options product with an
+ * opening stock, just filled in with sensible defaults (unit "each", tax
+ * "standard", no category, no SKU/barcode) instead of asked for. Those
+ * defaults are corrected later from the full Products page by anyone with
+ * products.edit — this form's whole point is speed at the counter, not a
+ * complete catalog entry.
+ *
+ * Unlike the full Add Product form, the quantity here is REQUIRED and
+ * must be positive (quickAddProductSchema) — a brand-new product with no
+ * stock could be added, but create_sale() would immediately refuse to
+ * sell it ("Not enough stock"), leaving the cashier exactly where they
+ * started. Asking for a real quantity up front avoids that dead end.
+ *
+ * Takes plain parameters rather than FormData: the Till calls this
+ * directly from controlled React state inside a transition (same shape as
+ * openDrawerNoSale above), not from a native form submission.
+ */
+export async function quickAddProduct(
+  branchId: string,
+  name: string,
+  sellingPrice: string,
+  openingStock: string
+): Promise<QuickAddProductResult> {
+  const parsed = quickAddProductSchema.safeParse({ name, sellingPrice, openingStock, branchId });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Please fix the errors below.", fieldErrors: zodFieldErrors(parsed.error) };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  let businessId: string;
+  try {
+    businessId = await getCurrentBusinessId(supabase);
+    await requirePermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE);
+    await requirePermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE);
+  } catch (err) {
+    if (err instanceof AuthorizationError) {
+      return { ok: false, error: "Adding a new item from the till needs permission to both add products and receive stock." };
+    }
+    console.error("quickAddProduct: permission/business lookup failed", err);
+    return { ok: false, error: "Something went wrong. Please try again." };
+  }
+
+  const { name: productName, sellingPrice: price, openingStock: quantity, branchId: targetBranchId } = parsed.data;
+
+  const { data: productId, error } = await supabase.rpc("create_product", {
+    p_business_id: businessId,
+    p_name: productName,
+    p_description: null,
+    p_category_id: null,
+    p_unit_of_measure: "each",
+    p_tax_category: "standard",
+    p_variant_option_names: [],
+    p_variants: [
+      {
+        sku: null,
+        barcode: null,
+        variant_options: {},
+        cost_price: 0,
+        selling_price: price,
+        opening_stock: quantity,
+      },
+    ],
+    p_branch_id: targetBranchId,
+    p_type: "product",
+    p_duration_minutes: null,
+    p_photo_url: null,
+  });
+
+  if (error) {
+    console.error("quickAddProduct: create_product rpc failed", error);
+    const dup = error.code === "23505" ? duplicateFieldFromError(error.message ?? "") : null;
+    if (dup) {
+      return { ok: false, error: dup.text, fieldErrors: { [dup.field]: dup.text } };
+    }
+    if (error.code === "P0001" && error.message) {
+      return { ok: false, error: error.message };
+    }
+    if (error.code === "P0002") {
+      return { ok: false, error: "That branch could not be found." };
+    }
+    return { ok: false, error: "Couldn't add this item. Please try again." };
+  }
+
+  // create_product() returns only the new product's id — with no variant
+  // option names, it created exactly one (default) variant, so this
+  // lookup is unambiguous.
+  const { data: variantRow, error: variantError } = await supabase
+    .from("product_variants")
+    .select("id, sku, barcode, selling_price")
+    .eq("product_id", productId)
+    .maybeSingle();
+
+  if (variantError || !variantRow) {
+    console.error("quickAddProduct: could not read back the created variant", variantError);
+    // The product (and its stock) really was created at this point — this
+    // is a display-only failure, not data loss. Say which half happened
+    // rather than implying nothing did.
+    return {
+      ok: false,
+      error: `"${productName}" was added to your catalog, but couldn't be loaded onto the till automatically — search for it by name to ring it up.`,
+    };
+  }
+
+  revalidatePath("/products");
+  revalidatePath("/till");
+
+  return {
+    ok: true,
+    product: {
+      variantId: variantRow.id,
+      label: productName,
+      price: Number(variantRow.selling_price),
+      unit: "each",
+      sku: variantRow.sku,
+      barcode: variantRow.barcode,
+      onHand: quantity,
+    },
+  };
 }
 
 /**

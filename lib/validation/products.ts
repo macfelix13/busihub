@@ -82,7 +82,10 @@ const moneyAmount = (requiredMessage: string) =>
     message: "Must be zero or more",
   });
 
-const sellingPriceSchema = moneyAmount("Enter a selling price");
+// Exported so the Till's quick-add-a-product flow (app/(app)/till/actions.ts)
+// can reuse the exact same "blank is not zero" rule instead of a second,
+// possibly-drifting copy of it.
+export const sellingPriceSchema = moneyAmount("Enter a selling price");
 
 // Cost price genuinely is optional — plenty of small shops don't track
 // it — so blank means zero here, deliberately and in one visible place,
@@ -228,6 +231,79 @@ export function variantFormSchema(optionNames: string[]) {
   return variantRowSchema.superRefine((data, ctx) => {
     validateVariantOptionKeys([data], optionNames, ctx, () => ["variantOptions"]);
   });
+}
+
+/**
+ * How many of a brand-new item the cashier has in hand, for the Till's
+ * quick-add flow below. Unlike openingStockSchema (blank/zero is the
+ * common, valid case on the full Add Product form — a product is often
+ * catalogued before it physically arrives), a quantity here MUST be
+ * positive: the entire point of this form is ringing up something right
+ * now, and create_sale() would refuse a sale against zero stock anyway
+ * (Section: inventory expiry-date changelog entry has the same
+ * "not enough stock" rule) — better to ask for a real number up front
+ * than let the product get created and the sale fail a moment later.
+ */
+const quickAddQuantitySchema = decimalField({
+  decimals: 3,
+  requiredMessage: "Enter how many you have",
+  invalidMessage: "Enter a number",
+}).refine((n) => n > 0, { message: "Enter a quantity greater than zero" });
+
+/**
+ * The Till's "New item" button (app/(app)/till/till.tsx) — for a cashier
+ * ringing up something that was never added to the catalog. Deliberately
+ * just three fields plus the branch it's stocked at: name, price, and how
+ * many are in hand right now. Everything a full catalog entry also has —
+ * category, SKU, unit of measure, tax category — gets a sensible default
+ * in quickAddProduct() (app/(app)/till/actions.ts) and can be corrected
+ * later from the full Products page; the point of this form is speed at
+ * the counter, not completeness. branchId is required (not optional the
+ * way createProductSchema's is) because a quantity here is never zero —
+ * see quickAddQuantitySchema above — so there is always somewhere that
+ * stock has to land.
+ */
+export const quickAddProductSchema = z.object({
+  name: z.string().trim().min(1, "Enter a product name").max(200),
+  sellingPrice: sellingPriceSchema,
+  openingStock: quickAddQuantitySchema,
+  branchId: z.string().uuid("Choose a branch"),
+});
+
+export type QuickAddProductInput = z.infer<typeof quickAddProductSchema>;
+
+/**
+ * Maps a Postgres unique_violation (23505) to the form field it
+ * corresponds to, so the user sees "this SKU is taken" instead of a raw
+ * DB error. Only called once the caller has confirmed error.code ===
+ * "23505" — the constraint name is matched from error.message (which
+ * PostgREST/postgrest-js pass through from Postgres's own error text;
+ * confirmed against a real Postgres instance — see
+ * supabase/migrations/0013's tests — though the exact message text is
+ * only PostgREST-verified once this runs against a real Supabase
+ * project).
+ *
+ * Lives here rather than in app/(app)/products/actions.ts (where it used
+ * to live): that file has "use server" at the top, which makes Next.js
+ * treat every exported function as a Server Action — and Server Actions
+ * must be async, which a plain string-matching helper like this one isn't
+ * and has no reason to be. Moved here so both
+ * app/(app)/products/actions.ts and app/(app)/till/actions.ts's
+ * quick-add-a-product flow (which hits this exact same unique_violation
+ * shape for a duplicate product name) can import a real function instead
+ * of each keeping their own copy.
+ */
+export function duplicateFieldFromError(message: string): { field: string; text: string } | null {
+  if (message.includes("products_business_id_name_key")) {
+    return { field: "name", text: "A product with this name already exists." };
+  }
+  if (message.includes("product_variants_business_id_sku_key")) {
+    return { field: "sku", text: "This SKU is already used by another product." };
+  }
+  if (message.includes("product_variants_business_barcode_idx")) {
+    return { field: "barcode", text: "This barcode is already used by another product." };
+  }
+  return null;
 }
 
 export const productStatusSchema = z.enum(["active", "archived"]);

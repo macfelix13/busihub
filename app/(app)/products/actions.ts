@@ -12,6 +12,7 @@ import {
   productDetailsSchema,
   variantFormSchema,
   isAllowedProductPhotoFile,
+  duplicateFieldFromError,
   type VariantRowInput,
 } from "@/lib/validation/products";
 import { zodFieldErrors } from "@/lib/validation/zod-helpers";
@@ -145,30 +146,6 @@ async function resolveCategoryId(
   }
 
   return { categoryId: created.id };
-}
-
-/**
- * Maps a Postgres unique_violation (23505) to the form field it
- * corresponds to, so the user sees "this SKU is taken" instead of a raw
- * DB error. Only called once the caller has confirmed error.code ===
- * "23505" — the constraint name is matched from error.message (which
- * PostgREST/postgrest-js pass through from Postgres's own error text;
- * confirmed against a real Postgres instance — see
- * supabase/migrations/0013's tests — though the exact message text is
- * only PostgREST-verified once this runs against a real Supabase
- * project).
- */
-function duplicateFieldFromError(message: string): { field: string; text: string } | null {
-  if (message.includes("products_business_id_name_key")) {
-    return { field: "name", text: "A product with this name already exists." };
-  }
-  if (message.includes("product_variants_business_id_sku_key")) {
-    return { field: "sku", text: "This SKU is already used by another product." };
-  }
-  if (message.includes("product_variants_business_barcode_idx")) {
-    return { field: "barcode", text: "This barcode is already used by another product." };
-  }
-  return null;
 }
 
 /**

@@ -466,6 +466,68 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-18 — Till "New item" quick-add. Requested directly by the user
+  after the custom-roles feature shipped: an owner should be able to let a
+  specific staff member — without promoting them to Manager — ring up
+  something that was never added to the catalog, from the Till itself.
+
+  **What was already there vs. what this adds.** Letting an owner pick
+  exactly which permissions a staff member gets was already fully built —
+  the custom-roles feature (above) already lets anyone with `roles.manage`
+  create a role from the complete permission catalog and assign staff to
+  it, so "give this one cashier the ability to add products, but nothing
+  else Manager gets" needed no code change at all. What was genuinely
+  missing was a place to use `products.create` *from the Till itself* —
+  before this phase, the only way to add a product was the full Add
+  Product page under Settings, so a cashier ringing up a walk-in item that
+  had never been catalogued had nowhere to go without leaving the sale.
+
+  **Deliberately two permissions, not one.** `create_sale()` (migration
+  0020) hard-refuses a sale against zero stock, and a brand-new product
+  starts at zero — so a "name + price only" quick-add would let someone
+  create the catalog row and then immediately hit "Not enough stock" on
+  the very sale they were trying to finish. The quick-add form
+  (`quickAddProductSchema`, `lib/validation/products.ts`) therefore asks
+  for a quantity too, and — unlike the full Add Product form, where
+  opening stock is optional and blank means "add it later" — that
+  quantity is *required* and must be positive here, since there is no
+  "later" in the middle of a sale. Recording it goes through the same
+  inventory ledger a normal stock receipt does, so completing it needs
+  `inventory.receive` in addition to `products.create`
+  (`app/(app)/till/actions.ts`'s `quickAddProduct()`, mirroring the exact
+  two-permission split `createProduct()`'s own 42501 branch already
+  documents for opening stock on the full form). The "New item" button on
+  the Till only renders when a staff member's role holds both.
+
+  **No new database function.** `quickAddProduct()` calls the existing
+  `create_product()` RPC (0013 onward) with sensible defaults filled in —
+  unit "each", tax "standard", no category, no SKU/barcode, a single
+  variant with no options — rather than adding a parallel "quick create"
+  function to the database. A name + price + quantity is exactly a
+  one-variant product with an opening stock; everything else about it can
+  be corrected later from the full Products page by anyone with
+  `products.edit`. `duplicateFieldFromError()` moved from
+  products/actions.ts to `lib/validation/products.ts` so both this flow
+  and the full Add Product form can import a real function instead of
+  each keeping a copy — it couldn't stay exported from products/actions.ts
+  itself, since that file's `"use server"` directive makes Next.js treat
+  every exported function as a Server Action, and Server Actions must be
+  async (a build-time error caught by the user's own `npm run build`,
+  not something this project's local Postgres-only verification could
+  have caught).
+
+  **Client-side: appended, not reloaded.** The Till's product list, which
+  used to be a plain prop straight from the server-rendered page load, is
+  now seeded into local state and appended to on a successful quick-add —
+  a full page reload/redirect would have thrown away whatever was already
+  sitting in the cart. This follows the same "snapshot at page load, kept
+  current by hand" philosophy the Till's offline-queue counter already
+  uses for on-hand quantities, documented on that state's own comment. New
+  unit tests for `quickAddProductSchema` cover the one meaningful
+  divergence from the full form's validation: a blank or zero quantity is
+  accepted there (stock arriving later) but rejected here (nothing to
+  ring up otherwise).
+
 - 2026-09-18 — Inventory expiry dates. `business_settings.inventory_settings`
   has carried a `track_expiry` flag since migration `0002`, and the
   Settings → Business form has had a matching "Track expiry dates"

@@ -121,6 +121,8 @@ export default async function TillPage({
     { data: momoEnabled },
     { data: staffRows, error: staffError },
     canOpenDrawer,
+    canCreateProducts,
+    canReceiveStock,
   ] = await Promise.all([
     supabase
       .from("branches")
@@ -158,6 +160,12 @@ export default async function TillPage({
     // "No sale" (migration 0044) — cosmetic here (shows/hides the
     // button); openDrawerNoSale() re-checks this itself, the real gate.
     hasPermission(supabase, businessId, PERMISSIONS.SALES_NO_SALE),
+    // "New item" quick-add — cosmetic here too (shows/hides the button);
+    // quickAddProduct() (./actions.ts) re-checks BOTH of these itself, the
+    // real gate. Requiring both here as well means the button never shows
+    // for someone who'd just hit a permission error the moment they used it.
+    hasPermission(supabase, businessId, PERMISSIONS.PRODUCTS_CREATE),
+    hasPermission(supabase, businessId, PERMISSIONS.INVENTORY_RECEIVE),
   ]);
 
   if (branchesError) console.error("TillPage: branches query failed", branchesError);
@@ -267,6 +275,7 @@ export default async function TillPage({
       allowNegativeStock={allowNegativeStock}
       momoEnabled={Boolean(momoEnabled)}
       canOpenDrawer={Boolean(canOpenDrawer)}
+      canQuickAddProduct={Boolean(canCreateProducts) && Boolean(canReceiveStock)}
     />
   );
 }

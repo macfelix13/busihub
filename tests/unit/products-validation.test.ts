@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createProductSchema,
   variantRowSchema,
+  quickAddProductSchema,
   isAllowedProductPhotoFile,
   ALLOWED_PRODUCT_PHOTO_MIME_TYPES,
   MAX_PRODUCT_PHOTO_BYTES,
@@ -193,6 +194,42 @@ describe("createProductSchema — opening stock", () => {
         variants: [{ ...base.variants[0], openingStock: "12.5005" }],
       }).success
     ).toBe(false);
+  });
+});
+
+describe("quickAddProductSchema", () => {
+  const BRANCH = "11111111-1111-1111-1111-111111111111";
+  const base = { name: "Walk-in item", sellingPrice: "15", openingStock: "3", branchId: BRANCH };
+
+  it("accepts a minimal name + price + quantity + branch", () => {
+    const result = quickAddProductSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sellingPrice).toBe(15);
+      expect(result.data.openingStock).toBe(3);
+    }
+  });
+
+  it("requires a name", () => {
+    expect(quickAddProductSchema.safeParse({ ...base, name: "   " }).success).toBe(false);
+  });
+
+  it("refuses a blank selling price rather than treating it as free", () => {
+    expect(quickAddProductSchema.safeParse({ ...base, sellingPrice: "" }).success).toBe(false);
+  });
+
+  it("requires a positive quantity — unlike the full Add Product form, blank or zero is not a valid answer here", () => {
+    // The whole point of this form is ringing something up right now;
+    // create_sale() refuses a sale against zero stock, so a zero/blank
+    // quantity here would just create a product nobody can actually sell.
+    expect(quickAddProductSchema.safeParse({ ...base, openingStock: "" }).success).toBe(false);
+    expect(quickAddProductSchema.safeParse({ ...base, openingStock: "0" }).success).toBe(false);
+    expect(quickAddProductSchema.safeParse({ ...base, openingStock: "-1" }).success).toBe(false);
+  });
+
+  it("requires a real branch id — there is no 'decide later' the way the full form allows", () => {
+    expect(quickAddProductSchema.safeParse({ ...base, branchId: "" }).success).toBe(false);
+    expect(quickAddProductSchema.safeParse({ ...base, branchId: "not-a-uuid" }).success).toBe(false);
   });
 });
 

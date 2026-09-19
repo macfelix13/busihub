@@ -16,6 +16,43 @@
      an imperceptible nudge, not a visual change. */
   --background: 84 24% 96%; /* #f5f7f2, i.e. canvas.DEFAULT ("warm white") */
   --foreground: 167 69% 10%; /* #082c24, i.e. brand-950 */
+
+  /* Defaults for tailwind.config.ts's CSS-variable-driven brand/lime
+     shades (Settings → Business settings → Appearance's "Primary
+     color" — see lib/theme.ts's header comment). These are "R G B"
+     triples (no commas, no unit, matching Tailwind's own
+     `rgb(var(--x) / <alpha-value>)` convention) of the exact hex values
+     this file used to hardcode directly, so nothing looks different
+     for any business that hasn't customized their color — only
+     app/(app)/layout.tsx's <style> override (rendered when a business
+     has) ever changes these, and only for signed-in app pages. brand-950
+     is deliberately not here: it isn't a CSS variable at all (see
+     tailwind.config.ts's comment on it). */
+  --brand-50: 238 252 243;
+  --brand-100: 214 245 227;
+  --brand-200: 175 233 203;
+  --brand-300: 123 216 171;
+  --brand-400: 67 192 136;
+  --brand-500: 34 165 109;
+  --brand-600: 21 132 89;
+  --brand-700: 18 105 74;
+  --brand-800: 18 83 60;
+  --brand-900: 16 69 51;
+  --lime-50: 249 250 240;
+  --lime-100: 241 243 221;
+  --lime-200: 233 240 178;
+  --lime-300: 232 247 115;
+  --lime-400: 217 242 27;
+  --lime-500: 193 217 12;
+  --lime-600: 155 174 10;
+  --lime-700: 125 140 8;
+  --lime-800: 103 116 7;
+  --lime-900: 86 96 6;
+  /* Text drawn on the accent ramp's "400" stop (buttons, logo/avatar
+     chips) — brand-950's own RGB triple by default, matching what those
+     spots used to hardcode directly (text-brand-950) before this system
+     existed. */
+  --accent-fg: 8 44 36;
 }
 
 .dark {

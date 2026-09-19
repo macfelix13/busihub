@@ -533,8 +533,12 @@ export default async function DashboardPage({
                       <span
                         className={cn(
                           "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg",
+                          // text-accent-fg, not text-brand-950 — same
+                          // Primary-color contrast reasoning as
+                          // components/ui/button.tsx's primary variant:
+                          // bg-lime-400 is dynamic now.
                           isHero
-                            ? "bg-lime-400 text-brand-950"
+                            ? "bg-lime-400 text-accent-fg"
                             : "bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"
                         )}
                       >

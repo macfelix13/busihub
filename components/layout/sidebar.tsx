@@ -82,7 +82,10 @@ export function Sidebar({ permissions, businessName, open, onClose }: SidebarPro
       >
         <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 py-5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-lime-400 text-sm font-bold text-brand-950 shadow-sm">
+            {/* text-accent-fg, not text-brand-950 — same Primary-color
+                contrast reasoning as components/ui/button.tsx's primary
+                variant: bg-lime-400 is dynamic now. */}
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-lime-400 text-sm font-bold text-accent-fg shadow-sm">
               B
             </span>
             <span className="truncate font-semibold text-white">{businessName}</span>

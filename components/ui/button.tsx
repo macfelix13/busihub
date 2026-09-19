@@ -27,7 +27,12 @@ const variantClasses: Record<Variant, string> = {
   // (Complete Sale, Save, Add Product, Pay) now reads unmistakably as
   // THE thing to do next, with the dark green reserved for structural
   // chrome (sidebar, cards) rather than competing with it for attention.
-  primary: "bg-lime-400 text-brand-950 hover:bg-lime-300 focus-visible:outline-lime-400",
+  // text-accent-fg (not the old hardcoded text-brand-950) — see
+  // tailwind.config.ts's own comment on that token: lime-400 is dynamic
+  // now (Settings → Business settings → Appearance's "Primary color"),
+  // so the text drawn on it has to be recomputed for contrast rather
+  // than assumed light-background-dark-text forever.
+  primary: "bg-lime-400 text-accent-fg hover:bg-lime-300 focus-visible:outline-lime-400",
   secondary:
     "bg-white text-neutral-900 border border-neutral-300 hover:bg-neutral-50 focus-visible:outline-neutral-400 dark:border-surface-line dark:bg-surface dark:text-ink dark:hover:bg-surface-card",
   // New 2026-09-11: transparent-background, bordered button — for a

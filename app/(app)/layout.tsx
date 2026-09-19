@@ -8,7 +8,7 @@ import { supportEmail, supportPhone } from "@/lib/env";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AppShell } from "@/components/layout/app-shell";
 import type { NavPermissions } from "@/components/layout/nav-items";
-import { resolveBusinessThemeOverride, businessThemeOverrideScript } from "@/lib/theme";
+import { resolveBusinessThemeOverride, businessThemeOverrideScript, resolvePrimaryColorOverride, accentOverrideStyle } from "@/lib/theme";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -148,17 +148,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  // Settings → Business → Appearance's "Theme" field — see lib/theme.ts
-  // for why only an explicit "light"/"dark" choice does anything here,
-  // and why "system" (every business's untouched default) doesn't.
+  // Settings → Business → Appearance's "Theme" and "Primary color"
+  // fields — see lib/theme.ts for why only an explicit "light"/"dark"
+  // theme choice does anything (not "system", every business's untouched
+  // default), and why only a color that isn't the untouched factory
+  // default does anything either.
   const { data: settingsRow } = await supabase
     .from("business_settings")
     .select("appearance_settings")
     .eq("business_id", businessId)
     .maybeSingle();
-  const businessThemeOverride = resolveBusinessThemeOverride(
-    (settingsRow?.appearance_settings as { theme?: string } | null)?.theme
-  );
+  const appearance = settingsRow?.appearance_settings as { theme?: string; primary_color?: string } | null;
+  const businessThemeOverride = resolveBusinessThemeOverride(appearance?.theme);
+  const primaryColorOverride = resolvePrimaryColorOverride(appearance?.primary_color);
 
   // Cosmetic nav visibility only — every page/action behind these links
   // re-checks the same permission server-side (Section 49). Three more
@@ -234,6 +236,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         // class if needed, before any of AppShell's content paints —
         // see lib/theme.ts's businessThemeOverrideScript() doc comment.
         <script dangerouslySetInnerHTML={{ __html: businessThemeOverrideScript(businessThemeOverride) }} />
+      ) : null}
+      {primaryColorOverride ? (
+        // A plain <style> rather than a script — unlike theme, a color
+        // has no per-device "already chosen" localStorage state to check
+        // first, so there's nothing to defer to the browser for. See
+        // lib/theme.ts's accentOverrideStyle() for exactly which CSS
+        // variables this sets and why.
+        <style dangerouslySetInnerHTML={{ __html: accentOverrideStyle(primaryColorOverride) }} />
       ) : null}
       <AppShell
         permissions={navPermissions}

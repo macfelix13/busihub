@@ -466,6 +466,80 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Business-wide "Primary color". Requested by the user
+  after confirming the Theme fix (above) shipped, but "Primary color"
+  still visibly did nothing — the same "saves, never read back" gap
+  Theme had, in the same Appearance section.
+
+  **Two things made this bigger than Theme.** First, the app's darkest
+  `brand` shade (`brand-950`) is ALSO literally the entire dark-mode page
+  background and sidebar fill (`canvas.dark`/`surface.*` are separately
+  hardcoded to the exact same hex, on purpose — see `tailwind.config.ts`'s
+  own comment). Overriding it per business risked an unlucky color choice
+  making large areas of the app hard to read, so it's the one shade this
+  system deliberately never touches — confirmed with the user before
+  writing any code. Second, the app's main action buttons (Complete Sale,
+  Save, Add Product, Pay) don't use `brand` at all — they use a separate
+  `lime` yellow, a deliberate 2026-09-11 brand decision (`components/ui/
+  button.tsx`'s own comment). Making Primary color only touch `brand`
+  would have left the single most visible color in the app unchanged;
+  the user confirmed buttons should switch too.
+
+  **Mechanism (`lib/theme.ts`).** Every shade of `brand` (except 950) and
+  every shade of `lime` became CSS variables in `tailwind.config.ts`,
+  using Tailwind's `rgb(var(--x) / <alpha-value>)` pattern so opacity
+  modifiers (`bg-brand-500/40`, etc.) keep working. `app/globals.css`
+  defines each variable's default as the exact "R G B" triple of the hex
+  it used to hardcode, so nothing looks different for any business that
+  hasn't customized their color — not one of the 50+ files referencing
+  `brand-*`/`lime-*` classes needed to change, since the class names
+  themselves are unchanged; only what they resolve to did.
+  `generateAccentRamp()` turns one business-chosen hex into all ten
+  shades (a fixed lightness ladder, 97% down to 20%, at the input color's
+  own hue/saturation) — `brand` and `lime` end up sharing this ONE ramp
+  when customized, which is what actually unifies the app's two
+  historically-separate accent hues (green links/badges, yellow
+  buttons/focus rings) into the business's single chosen color.
+  `app/(app)/layout.tsx` renders a plain `<style>` block (not a script —
+  unlike Theme, a color has no per-device localStorage state to defer
+  to) setting these variables on `:root`, right alongside the Theme
+  override script, only for signed-in app pages.
+
+  **The untouched-default problem, same shape as Theme's "system", worse
+  stakes.** `appearance_settings.primary_color` has defaulted to
+  `#22a56d` for every business since 0002 — every business that has
+  never touched this field (all of them, since it never worked) is on
+  that exact value today. Unlike Theme, there's no separate "unset"
+  sentinel in this schema — a color is always a concrete hex. Treating
+  `#22a56d` as "not customized" (`resolvePrimaryColorOverride()`) avoids
+  repainting every business's buttons/links/focus-rings the moment this
+  shipped; the trade-off is that a business would have to deliberately
+  re-enter that exact hex, byte for byte, to be mistaken for "hasn't
+  customized it" — accepted and explained rather than silently shipped.
+
+  **On-color text, newly dynamic.** `components/ui/button.tsx`'s primary
+  variant, the sidebar/header logo and avatar chips, and one dashboard
+  highlight cell used to hardcode `text-brand-950` on the assumption
+  their `lime-400` background was always light. Since that background is
+  dynamic now, all five were switched to a new `text-accent-fg` token,
+  computed per business via WCAG relative luminance
+  (`accentForegroundTriple()`) so a dark chosen color gets white text
+  instead of unreadable dark-on-dark. `components/ui/checkbox.tsx`'s
+  checked-state fill similarly moved from the fixed `text-brand-950` to
+  the now-dynamic `text-brand-700` — safe there since it never sits on a
+  dark background the way the button/badge chips do.
+
+  **Known, deliberate gaps, not silently dropped.** A handful of
+  lower-stakes `lime-*` decorative uses (the dashboard sales chart's bar
+  color, the onboarding checklist card's accent, the barcode scanner's
+  viewfinder) pick up the new color automatically as a side effect of the
+  Tailwind-variable conversion, and were not individually re-verified for
+  contrast — acceptable since none of them pair a dynamic background with
+  fixed foreground text the way the button/badge chips did. Covered by
+  `tests/unit/theme.test.ts`'s new `generateAccentRamp`/
+  `accentForegroundTriple`/`accentOverrideStyle`/
+  `resolvePrimaryColorOverride` cases.
+
 - 2026-09-19 — Business-wide default theme. Requested by the user after
   reporting that Settings → Business → Appearance's "Theme" dropdown
   "is not functioning" — confirmed by reading the code: the form saved

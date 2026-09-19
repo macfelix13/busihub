@@ -72,7 +72,10 @@ export function AppShell({
             {notificationSlot}
             <div className="hidden h-6 w-px bg-neutral-300/60 dark:bg-white/10 sm:block" aria-hidden="true" />
             <div className="hidden items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm shadow-neutral-900/5 dark:bg-surface-card sm:flex">
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-lime-400 text-xs font-semibold text-brand-950">
+              {/* text-accent-fg, not text-brand-950 — same Primary-color
+                  contrast reasoning as components/ui/button.tsx's primary
+                  variant: bg-lime-400 is dynamic now. */}
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-lime-400 text-xs font-semibold text-accent-fg">
                 {initialsFor(userLabel)}
               </span>
               <span className="max-w-[10rem] truncate text-sm font-medium text-neutral-700 dark:text-ink">

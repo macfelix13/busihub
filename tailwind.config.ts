@@ -9,23 +9,39 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Every shade except 950 is now a CSS variable, not a literal hex
+        // — Settings → Business settings → Appearance's "Primary color"
+        // (app/(app)/layout.tsx + lib/theme.ts's accentOverrideStyle())
+        // overrides these on :root for a signed-in business that has
+        // chosen a color, which is why the values below read as plain
+        // numbers rather than hex strings: `rgb(var(--brand-500) /
+        // <alpha-value>)` is Tailwind's documented pattern for a
+        // themeable color that still supports opacity modifiers
+        // (`bg-brand-500/40` etc.) — see app/globals.css for what these
+        // variables default to (the exact hex values this file used to
+        // hardcode, so nothing looks different until a business actually
+        // customizes their color) and lib/theme.ts's own header comment
+        // for exactly which shades this system touches and why 950 is
+        // excluded.
         brand: {
-          50: "#eefcf3",
-          100: "#d6f5e3",
-          200: "#afe9cb",
-          300: "#7bd8ab",
-          400: "#43c088",
-          500: "#22a56d",
-          600: "#158459",
-          700: "#12694a",
-          800: "#12533c",
-          900: "#104533",
-          // Retuned 2026-09-11 to Busihub's exact brand spec (was
-          // #06271c) — same role as before (sidebar bg, dashboard hero
-          // card, the app's one "primary dark green" surface), just the
-          // precise shade the brand guide names. app/globals.css's
-          // light-mode --foreground is hand-kept equal to this value —
-          // update both together if this ever changes again.
+          50: "rgb(var(--brand-50) / <alpha-value>)",
+          100: "rgb(var(--brand-100) / <alpha-value>)",
+          200: "rgb(var(--brand-200) / <alpha-value>)",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          600: "rgb(var(--brand-600) / <alpha-value>)",
+          700: "rgb(var(--brand-700) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
+          // NOT a CSS variable, unlike every shade above — this is the
+          // entire dark-mode page background and sidebar fill (identical
+          // to canvas.dark/surface.* below, on purpose, see canvas's own
+          // comment), not an accent. Confirmed with the user before
+          // building the Primary color feature: overriding this per
+          // business risked an unlucky color choice making large areas
+          // of the app hard to read, so it stays Busihub's fixed dark
+          // green no matter what a business picks.
           950: "#082c24",
         },
         // A second, brighter accent used ONLY on top of the dark surfaces
@@ -35,18 +51,30 @@ const config: Config = {
         // the vivid "Busihub Lime Yellow" the brand actually calls for; 400
         // is now the real brand hex, with the rest of the ramp rebuilt
         // around it at the same hue/saturation.
+        //
+        // Every shade here is a CSS variable too, for the same
+        // Primary-color reason as `brand` above — with no shade excluded
+        // this time, since lime is never used as a large background
+        // fill anywhere (see lib/theme.ts's header comment).
         lime: {
-          50: "#f9faf0",
-          100: "#f1f3dd",
-          200: "#e9f0b2",
-          300: "#e8f773",
-          400: "#d9f21b",
-          500: "#c1d90c",
-          600: "#9bae0a",
-          700: "#7d8c08",
-          800: "#677407",
-          900: "#566006",
+          50: "rgb(var(--lime-50) / <alpha-value>)",
+          100: "rgb(var(--lime-100) / <alpha-value>)",
+          200: "rgb(var(--lime-200) / <alpha-value>)",
+          300: "rgb(var(--lime-300) / <alpha-value>)",
+          400: "rgb(var(--lime-400) / <alpha-value>)",
+          500: "rgb(var(--lime-500) / <alpha-value>)",
+          600: "rgb(var(--lime-600) / <alpha-value>)",
+          700: "rgb(var(--lime-700) / <alpha-value>)",
+          800: "rgb(var(--lime-800) / <alpha-value>)",
+          900: "rgb(var(--lime-900) / <alpha-value>)",
         },
+        // Text color for anything painted on top of the accent ramp's
+        // "400" stop (buttons, the sidebar/header logo & avatar chips) —
+        // dark green by default (matching today's hardcoded text-brand-950
+        // on those exact spots), recomputed for contrast whenever a
+        // business's chosen color makes that stop dark rather than light.
+        // See lib/theme.ts's accentForegroundTriple().
+        "accent-fg": "rgb(var(--accent-fg) / <alpha-value>)",
         // The page background behind cards — distinct from card white and
         // from brand-950 (sidebar/hero cards), so the two don't have to
         // share one token doing two jobs. canvas.dark retuned to the exact

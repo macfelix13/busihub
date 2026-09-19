@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validation/auth";
 import { finishPendingRegistrationIfNeeded } from "@/lib/auth/finish-pending-registration";
@@ -88,6 +89,36 @@ export async function login(
     return {
       error: "You're signed in, but we couldn't finish setting up your business. Please contact support.",
     };
+  }
+
+  // Same reasoning as lib/auth/sign-out.ts's own revalidatePath call: a
+  // browser tab's client-side Router Cache doesn't know an account just
+  // changed, so without this a page the PREVIOUS account visited earlier
+  // in this tab's life could still be cached when this new session
+  // clicks back to it — server-side data is never actually shared
+  // between businesses, but on screen it could look exactly like it was.
+  revalidatePath("/", "layout");
+
+  // A profile with no linked business (profiles.business_id null) can
+  // only be a Super Admin — the table's own check constraint
+  // (profiles_business_required_unless_super_admin, 0004) guarantees it.
+  // Every page under (app), including /dashboard, requires a business_id
+  // (app/(app)/layout.tsx) and would just bounce this account straight
+  // back to /login — so send it to /admin instead of down that dead end.
+  // A business owner who has ALSO been made a Super Admin still has a
+  // business_id and lands on /dashboard as always; only a dedicated,
+  // business-less admin account is affected.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_id")
+    .eq("id", user?.id ?? "")
+    .maybeSingle();
+
+  if (profile && profile.business_id === null) {
+    redirect("/admin");
   }
 
   redirect("/dashboard");

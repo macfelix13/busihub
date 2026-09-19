@@ -466,6 +466,73 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-19 — Fix: "Forgot password" and "Confirm signup" email links
+  landed on the marketing homepage instead of the update-password screen
+  or the app. Reported by the user while testing the reset-password flow.
+
+  **Root cause.** Both templates (Authentication → Emails in the Supabase
+  dashboard) used the default `{{ .ConfirmationURL }}` variable, which
+  always routes through Supabase's own `/auth/v1/verify` endpoint —  that
+  endpoint replies with the session appended as a URL `#access_token=...`
+  fragment, regardless of whether the requesting client asked for the
+  PKCE flow (this app's `@supabase/ssr` clients do, by default). A
+  fragment is never sent to any server — browsers keep it client-side
+  only — so `app/auth/confirm/route.ts` never even saw the request: the
+  browser just landed on the configured Site URL with an inert fragment
+  attached, which looked exactly like the link dropping the user on the
+  marketing homepage. Two other things were checked and corrected along
+  the way but turned out not to be the actual cause: `NEXT_PUBLIC_APP_URL`
+  (was stale in the current Vercel build — fixed with a cache-free
+  redeploy, good hygiene regardless) and the Supabase "Redirect URLs"
+  allow list (already permissive enough).
+
+  **Fix.** Both templates were changed, in the Supabase dashboard, to
+  link at `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=...&next=...`
+  instead (`type=recovery` for Reset Password, `type=email` for Confirm
+  signup) — Supabase's own documented pattern for a custom Next.js
+  confirmation route, rather than a workaround. `app/auth/confirm/route.ts`
+  was extended to accept this shape, verifying it with
+  `supabase.auth.verifyOtp({ token_hash, type })`; the existing `?code=`
+  PKCE-exchange handling is kept as a fallback for anything else that
+  might still link here that way. No database change — this was entirely
+  an email-template-plus-callback-route fix.
+
+- 2026-09-19 — Login sends a business-less account to /admin, not
+  /dashboard. Follow-on from setting up a dedicated Super Admin account
+  (one with no business of its own, per app/admin/layout.tsx's own
+  comment on the intended shape): `profiles.business_id` can only be
+  null when `is_super_admin` is true (the table's own check constraint,
+  0004), but the login action always redirected to `/dashboard`
+  regardless — and every page under `(app)`, `/dashboard` included,
+  requires a `business_id` and would just bounce that account straight
+  back to `/login`. A business owner who has ALSO been made a Super
+  Admin still has a `business_id` and is unaffected — this only changes
+  the redirect for an account with none at all.
+
+- 2026-09-19 — Stale client-side cache after switching accounts on the
+  same device. Requested by the user: signing out of one business and
+  into another on the same browser could briefly show the PREVIOUS
+  business's products on the Till/Products pages.
+
+  **Root cause.** Not a database or RLS issue — every RLS policy on
+  `products`/`product_variants` was already checked and is correctly
+  scoped, and neither page queries anything outside RLS. The actual
+  culprit is Next.js App Router's client-side Router Cache: it keeps a
+  short-lived, in-memory cache of pages already visited in this browser
+  tab, keyed only by URL — it has no way to know a different account just
+  signed in. Sign-in and sign-out are both Server Action redirects
+  (`redirect()`), which are soft, in-app navigations, not full page
+  reloads, so nothing was telling the browser to throw that cache away
+  when the session actually changed.
+
+  **Fix.** `revalidatePath("/", "layout")` added to both `lib/auth/
+  sign-out.ts` and `app/(auth)/login/actions.ts`, right before their
+  respective redirects — the standard, documented Next.js pattern for
+  exactly this situation. No database change, no RLS change; this is
+  purely about forcing a fresh fetch on the next navigation rather than
+  possibly reusing anything left over from the previous session in the
+  same tab.
+
 - 2026-09-19 — Support requests (migration 0057) and a Super Admin console
   home page. Requested by the user: every business's dashboard should
   show how to reach Busihub support, and the Super Admin console should

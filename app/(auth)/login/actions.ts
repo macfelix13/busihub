@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validation/auth";
 import { finishPendingRegistrationIfNeeded } from "@/lib/auth/finish-pending-registration";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import {
   checkRateLimit,
   recordRateLimitAttempt,
@@ -55,6 +56,13 @@ export async function login(
   const rateStatus = await checkRateLimit(supabase, rateKey);
   if (!rateStatus.allowed && rateStatus.retryAfter) {
     return { error: lockoutMessage(rateStatus.retryAfter) };
+  }
+
+  // 2026-09 20-point audit, gap #12 (bot protection) — a no-op until a
+  // real Cloudflare account is configured, see lib/turnstile.ts.
+  const turnstileOk = await verifyTurnstileToken(formData.get("cf-turnstile-response"));
+  if (!turnstileOk) {
+    return { error: "We couldn't verify you're not a bot. Please try again." };
   }
 
   const { error } = await supabase.auth.signInWithPassword(parsed.data);

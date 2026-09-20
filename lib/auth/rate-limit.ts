@@ -26,6 +26,20 @@ export const LOGIN_LOCKOUT_MINUTES = 15;
 export const RESET_MAX_REQUESTS = 3;
 export const RESET_LOCKOUT_MINUTES = 15;
 
+/**
+ * Registration REQUESTS (2026-09 20-point audit, gap #11) — same
+ * request-count shape as RESET_MAX_REQUESTS above and for the same
+ * reason: a signUp() for an email that already has an account still
+ * sends no new mail and still does real work (a Supabase Auth call plus,
+ * once Turnstile is configured, a challenge round-trip), so this is
+ * about limiting attempts, not failures. Before this, nothing stopped a
+ * script from creating unlimited businesses/accounts, or from using this
+ * form to spam confirmation emails at an address that isn't the caller's.
+ * Keyed by the submitted email, same convention as `login:`/`reset:`.
+ */
+export const REGISTER_MAX_REQUESTS = 5;
+export const REGISTER_LOCKOUT_MINUTES = 60;
+
 export interface RateLimitStatus {
   allowed: boolean;
   retryAfter: Date | null;

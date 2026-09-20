@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { login, type LoginFormState } from "./actions";
 
 const initialState: LoginFormState = {};
@@ -38,6 +39,8 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
+
+        <TurnstileWidget />
 
         <SubmitButton pendingText="Signing in…" className="mt-2 w-full">
           Sign in

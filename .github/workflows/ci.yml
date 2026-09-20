@@ -147,6 +147,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 2026-09 20-point audit, gap #20 (dependency scanning) — this repo
+      # had no automated check for known-vulnerable dependencies at all
+      # before this. audit-level=high: fails the build on a high or
+      # critical advisory, not on every low/moderate one Dependabot
+      # (.github/dependabot.yml) already tracks and opens PRs for on its
+      # own schedule — this CI gate is specifically to stop a NEW high or
+      # critical vulnerability from reaching main un-noticed via a normal
+      # dependency bump. NOTE, stated plainly rather than implied: this
+      # was added without being able to run `npm audit` against this
+      # project's real dependency tree first (this sandbox's network
+      # egress blocks the npm registry's audit endpoint) — the very next
+      # run of this step may fail immediately if an advisory already
+      # exists in the current lockfile. That would not be a bug in this
+      # step; it would be this step doing its job for the first time.
+      - name: Audit dependencies for known vulnerabilities
+        run: npm audit --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 

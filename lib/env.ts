@@ -74,3 +74,32 @@ export function paystackPlatformSecretKey(): string | undefined {
 export function paystackPlatformPublicKey(): string | undefined {
   return process.env.PAYSTACK_PUBLIC_KEY;
 }
+
+/**
+ * Cloudflare Turnstile (2026-09 20-point audit, gap #12 — bot protection).
+ * NEXT_PUBLIC_ on purpose: a site key is meant to be public, it's what the
+ * widget script on the page itself sends to Cloudflare.
+ *
+ * Deliberately optional, with no fallback: returns null until a real
+ * Cloudflare account exists and its site key is set as an env var. Every
+ * call site (components/auth/turnstile-widget.tsx, lib/turnstile.ts)
+ * treats null as "not configured yet" and skips the whole feature rather
+ * than failing — so this environment, local dev, and any preview deploy
+ * made before a Cloudflare account is set up all keep working exactly as
+ * they did before this was added. It only starts actually protecting
+ * anything once both this and turnstileSecretKey() below are set for
+ * real, in Vercel's project environment variables for the deployment
+ * that should enforce it.
+ */
+export function turnstileSiteKey(): string | null {
+  return process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || null;
+}
+
+/**
+ * SERVER ONLY — the matching secret key for turnstileSiteKey() above,
+ * used by lib/turnstile.ts to verify a solved challenge with Cloudflare.
+ * Never prefixed NEXT_PUBLIC_; never sent to the browser.
+ */
+export function turnstileSecretKey(): string | null {
+  return process.env.TURNSTILE_SECRET_KEY || null;
+}

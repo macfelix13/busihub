@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # npm packages (this app itself). Weekly rather than daily — a POS
+  # system in daily production use doesn't need same-day dependency PRs,
+  # and daily would just be more noise to triage for the same coverage.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    # Security updates are never rate-limited by the schedule above or by
+    # open-pull-requests-limit — Dependabot always opens those as soon as
+    # a real advisory affects a dependency, regardless of these settings.
+
+  # The GitHub Actions used by .github/workflows/ci.yml itself
+  # (actions/checkout, actions/setup-node, etc.) — these are dependencies
+  # too, and a pinned action version can carry the same kind of known
+  # vulnerability as an npm package.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

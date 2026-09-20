@@ -623,6 +623,66 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Ran a full audit against a generic 20-point security
+  checklist (hidden keys, git secrets, RLS coverage, encryption at rest,
+  server-side auth, tenant isolation, field tampering, session cookies,
+  password hashing, rate limiting, bot protection, SQL injection, input
+  validation, XSS, file uploads, API response minimization, security
+  headers, HTTPS, dependency scanning), checked against the actual code
+  rather than assumed — 17 of 20 came back clean (see the standalone
+  report delivered alongside this entry for the full item-by-item
+  evidence). Three genuine gaps were found and fixed here:
+  1. **Registration had no rate limiting** (`app/(auth)/register/actions.ts`)
+     — login, the till's PIN re-login, and password-reset requests were
+     already rate-limited (`lib/auth/rate-limit.ts`, "security-audit Gap
+     #1" from an earlier pass) but `signUp()` itself never was. Added the
+     same request-count-limited shape as `requestPasswordReset` (5
+     requests / 60 minutes, keyed by the submitted email —
+     `REGISTER_MAX_REQUESTS`/`REGISTER_LOCKOUT_MINUTES`).
+  2. **No bot protection anywhere.** Wired up Cloudflare Turnstile
+     (implicit-render widget, `components/auth/turnstile-widget.tsx`) on
+     the three public, unauthenticated forms that can be hit by a script
+     with no account at all — register, login, reset-password. Server
+     side, `lib/turnstile.ts`'s `verifyTurnstileToken()` checks the token
+     with Cloudflare before any of those three actions do their real
+     work. Deliberately inert until a real Cloudflare account exists:
+     `turnstileSiteKey()`/`turnstileSecretKey()` (`lib/env.ts`) return
+     null with `NEXT_PUBLIC_TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`
+     unset, and every call site treats that as "not configured yet," not
+     a failure — this environment, local dev, and CI all keep working
+     exactly as before until those two env vars are set for real in
+     Vercel. `next.config.mjs`'s CSP gained
+     `https://challenges.cloudflare.com` on `script-src` and `frame-src`
+     (both required per Cloudflare's own CSP docs) for the widget to load
+     at all. The till's own "switch user" re-login
+     (`app/(app)/till/actions.ts`) deliberately was NOT given this — it
+     requires an existing session behind the `(app)` layout already, so
+     it isn't reachable by an anonymous bot the way the other three are.
+  3. **No dependency scanning.** Added `.github/dependabot.yml` (weekly,
+     npm + github-actions ecosystems) and an `npm audit --audit-level=high`
+     step in `.github/workflows/ci.yml`'s `app` job, right after `npm ci`.
+     Stated plainly: this was added without being able to run `npm audit`
+     against the real dependency tree first (this environment's network
+     egress blocks the npm registry's audit endpoint) — the very next CI
+     run may fail here for the first time, which would mean this step is
+     doing its job, not that it's broken.
+
+  One more thing surfaced while checking session-cookie security (item 9,
+  which came back clean overall) and left as informational rather than
+  fixed: the main Supabase auth session cookie is not `httpOnly`, which
+  is Supabase's own documented default architecture, not a Busihub
+  misconfiguration — `createBrowserClient` reads it directly via
+  `document.cookie` to restore a session client-side, which two auth-
+  recovery pages (`accept-invite`, `update-password`) genuinely need.
+  Making it `httpOnly` would mean reworking those two flows through a
+  server action instead, which is a real architectural change, not a
+  config flip — noted here rather than done unilaterally. This is exactly
+  why item 15 (escaping user content) matters as a compensating control:
+  it was checked especially carefully as a result and came back clean too
+  (only three `dangerouslySetInnerHTML` uses in the app, all backed by a
+  Zod enum or a regex-validated hex color reduced to numeric RGB math
+  before ever reaching a `<script>`/`<style>` tag).
+
 - 2026-09-20 — Follow-up to the tenant-isolation entry directly below this
   one: after fixing busihub35@gmail.com, checked the rest of the platform
   for the same misconfiguration (`select ... from profiles where

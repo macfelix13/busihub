@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { supabaseAppUrl } from "@/lib/env";
 import { checkRateLimit, recordRateLimitAttempt, RESET_MAX_REQUESTS, RESET_LOCKOUT_MINUTES } from "@/lib/auth/rate-limit";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export interface ResetPasswordState {
   submitted?: boolean;
@@ -28,7 +29,14 @@ export async function requestPasswordReset(
   // requests are silently no-ops rather than sending another email.
   const rateKey = `reset:${email}`;
   const rateStatus = await checkRateLimit(supabase, rateKey);
-  if (rateStatus.allowed) {
+  // 2026-09 20-point audit, gap #12 (bot protection) — a no-op until a
+  // real Cloudflare account is configured, see lib/turnstile.ts. Checked
+  // before touching Supabase at all, same as the other two forms, but
+  // still folded into the same "always say submitted" response below so
+  // a failed challenge can't be told apart from a rate limit or an
+  // unknown email from the outside either.
+  const turnstileOk = await verifyTurnstileToken(formData.get("cf-turnstile-response"));
+  if (rateStatus.allowed && turnstileOk) {
     // Always return the same "submitted" response whether or not the
     // email exists, and now also whether or not it was just rate-limited
     // — this endpoint must not be usable to enumerate accounts or

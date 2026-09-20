@@ -14,12 +14,20 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      // https://challenges.cloudflare.com: Turnstile's widget script
+      // (components/auth/turnstile-widget.tsx, 2026-09 20-point audit,
+      // gap #12) — both script-src and frame-src are required per
+      // Cloudflare's own docs (developers.cloudflare.com/turnstile/reference/content-security-policy),
+      // since the widget loads a script here AND renders its challenge in
+      // an iframe from the same origin. No connect-src entry needed —
+      // that's only required for Turnstile's optional pre-clearance mode,
+      // which this app doesn't use.
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co",
-      "frame-src https://checkout.paystack.com",
+      "frame-src https://checkout.paystack.com https://challenges.cloudflare.com",
       "base-uri 'self'",
       "form-action 'self'",
     ].join("; "),

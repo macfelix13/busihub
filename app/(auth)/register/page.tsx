@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { registerBusiness, type RegisterFormState } from "./actions";
 
 const initialState: RegisterFormState = {};
@@ -50,6 +51,8 @@ export default function RegisterPage() {
           error={state.fieldErrors?.password}
         />
         <p className="-mt-2 text-xs text-neutral-500 dark:text-ink-muted">At least 10 characters, with an uppercase letter, lowercase letter, and a number.</p>
+
+        <TurnstileWidget />
 
         <SubmitButton pendingText="Creating your account…" className="mt-2 w-full">
           Create account

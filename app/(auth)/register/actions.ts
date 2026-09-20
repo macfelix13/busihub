@@ -4,6 +4,14 @@ import { redirect } from "next/navigation";
 import { supabaseAppUrl } from "@/lib/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { registerSchema } from "@/lib/validation/auth";
+import { verifyTurnstileToken } from "@/lib/turnstile";
+import {
+  checkRateLimit,
+  recordRateLimitAttempt,
+  lockoutMessage,
+  REGISTER_MAX_REQUESTS,
+  REGISTER_LOCKOUT_MINUTES,
+} from "@/lib/auth/rate-limit";
 
 export interface RegisterFormState {
   error?: string;
@@ -52,6 +60,25 @@ export async function registerBusiness(
 
   const supabase = await createServerSupabaseClient();
 
+  // 2026-09 20-point audit, gap #11: this endpoint had no limit at all on
+  // how many accounts/businesses could be created from one address, or
+  // how many confirmation emails could be triggered at someone else's
+  // address. Request-count limited (not success/failure — same reasoning
+  // as requestPasswordReset in app/(auth)/reset-password/actions.ts),
+  // keyed by the submitted email. registerSchema already trims + lowers it.
+  const rateKey = `register:${email}`;
+  const rateStatus = await checkRateLimit(supabase, rateKey);
+  if (!rateStatus.allowed && rateStatus.retryAfter) {
+    return { error: lockoutMessage(rateStatus.retryAfter) };
+  }
+
+  // Gap #12 (bot protection): a no-op until a real Cloudflare account is
+  // configured — see lib/turnstile.ts's own comment.
+  const turnstileOk = await verifyTurnstileToken(formData.get("cf-turnstile-response"));
+  if (!turnstileOk) {
+    return { error: "We couldn't verify you're not a bot. Please try again." };
+  }
+
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
@@ -76,6 +103,8 @@ export async function registerBusiness(
       emailRedirectTo: `${supabaseAppUrl()}/auth/confirm?next=/dashboard`,
     },
   });
+
+  await recordRateLimitAttempt(supabase, rateKey, !signUpError, REGISTER_MAX_REQUESTS, REGISTER_LOCKOUT_MINUTES);
 
   if (signUpError) {
     // Log the real error server-side (never forward raw internal errors to

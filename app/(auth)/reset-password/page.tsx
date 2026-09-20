@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { requestPasswordReset, type ResetPasswordState } from "./actions";
 
 const initialState: ResetPasswordState = {};
@@ -34,6 +35,9 @@ export default function ResetPasswordPage() {
           </p>
         ) : null}
         <Field label="Email" name="email" type="email" required autoComplete="email" />
+
+        <TurnstileWidget />
+
         <SubmitButton pendingText="Sending…" className="w-full">
           Send reset link
         </SubmitButton>

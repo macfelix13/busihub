@@ -28,7 +28,7 @@ jobs:
       PGUSER: postgres
       PGDATABASE: busihub_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Apply auth/role stub (approximates Supabase on plain Postgres)
         run: psql -v ON_ERROR_STOP=1 -f tests/db-harness/00_stub_supabase.sql
@@ -137,7 +137,7 @@ jobs:
       PIN_SESSION_SECRET: placeholder-secret-placeholder-secret-placeholder
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -184,7 +184,7 @@ jobs:
     # fork or a PR from an untrusted branch never gets DB credentials.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check SUPABASE_DB_URL is configured
         id: check

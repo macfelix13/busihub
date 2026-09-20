@@ -623,6 +623,36 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — By request: Busihub's official administrative/support
+  email is now `busihub35@gmail.com`, replacing the personal Gmail
+  address (`macfelix13@gmail.com`) that had been the fallback since
+  2026-09-06 (see that entry below for why a real address was needed at
+  all). Changed in `lib/env.ts`'s `supportEmail()` fallback, which is
+  what feeds the suspended/expired lockout screen (`app/(app)/layout.tsx`)
+  and Settings → Billing. While making this change, found and fixed a
+  real drift that had nothing to do with this request: the dashboard's
+  "Need help?" card (`app/(app)/dashboard/support-card.tsx`) had its own
+  separate hardcoded support email (`frametek93@gmail.com`) that had
+  never been wired to `supportEmail()` at all — a business owner on that
+  card and a business owner on Settings → Billing were seeing two
+  genuinely different addresses. That card now calls `supportEmail()`
+  too (safe from a client component — `NEXT_PUBLIC_SUPPORT_EMAIL` is
+  inlined into the client bundle at build time same as any other
+  `NEXT_PUBLIC_` var), so there is now exactly one place this address is
+  defined, not two.
+  IMPORTANT, not something a code change can do: Supabase's outgoing
+  SMTP (staff-invite emails, password resets — see the 2026-09-06 entry)
+  is configured in the Supabase dashboard to send through
+  `macfelix13@gmail.com`'s own Gmail app password. This code change does
+  NOT touch that — actual system emails will keep coming from the old
+  address until someone generates a Gmail App Password for
+  `busihub35@gmail.com` and updates Supabase's Auth → SMTP settings by
+  hand. Also unrelated and left alone on purpose:
+  `app/(app)/till/actions.ts`'s `pos@busihub.app` fallback is a
+  per-business receipt sender address (used only when a specific
+  business hasn't set its own email), not Busihub's own administrative
+  contact — a different concept that this request wasn't about.
+
 - 2026-09-20 — Fixed plan sync getting permanently stuck after a TEST/LIVE
   Paystack key switch. Reported directly: after switching
   `PAYSTACK_SECRET_KEY` from a test key to a live key, resaving any plan

@@ -4,20 +4,32 @@ export function supabaseAppUrl(): string {
 }
 
 /**
- * Busihub's own support contact — not any tenant's, Busihub's. Shown on
- * the suspended/closed-account screen (app/(app)/layout.tsx) and
- * anywhere else platform-level contact info is needed. Read from an env
- * var rather than hardcoded only in JSX so it can be changed later with a
- * Vercel env var update and redeploy, not a code change.
+ * Busihub's own official administrative/support contact — not any
+ * tenant's, Busihub's, and the same one address for every business on
+ * the platform, the console's own support inbox, and anything
+ * marketing-facing. Shown on the suspended/closed-account screen
+ * (app/(app)/layout.tsx), Settings -> Billing, and the dashboard's "Need
+ * help?" card (app/(app)/dashboard/support-card.tsx) — read from here
+ * rather than hardcoded per page so a future change is one edit, not a
+ * hunt through every place it's mentioned (a real one of those existed
+ * until this pass: the dashboard card had its own separate hardcoded
+ * address that had drifted out of sync with this one — see the
+ * changelog entry for when and why that got consolidated here too).
  *
- * The email fallback is a real, working Gmail address (macfelix13@gmail.com)
- * for now, not the placeholder-looking "support@busihub.app" this used to
- * be — that domain was never actually registered, so that address could
- * never have received mail. Swap it here (or via the env var) once a real
- * busihub.app mailbox exists.
+ * Read from an env var rather than hardcoded only in JSX so it can be
+ * changed later with a Vercel env var update and redeploy, not a code
+ * change — set NEXT_PUBLIC_SUPPORT_EMAIL to override the fallback below
+ * without touching code at all.
+ *
+ * The fallback is a real, working Gmail address (busihub35@gmail.com,
+ * set 2026-09-20 as the official one going forward — replacing an
+ * earlier personal placeholder), not the placeholder-looking
+ * "support@busihub.app" this used to be — that domain was never actually
+ * registered, so that address could never have received mail. Swap it
+ * here (or via the env var) once a real busihub.app mailbox exists.
  */
 export function supportEmail(): string {
-  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "macfelix13@gmail.com";
+  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "busihub35@gmail.com";
 }
 
 export function supportPhone(): string {

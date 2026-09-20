@@ -6,11 +6,19 @@ import { Mail, Phone, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/button";
 import { submitSupportRequest, type SupportRequestFormState } from "./support-actions";
+import { supportEmail } from "@/lib/env";
 
 // Busihub's own support contact — not the business's, and the same for
-// every business on the platform. If this ever needs to change, it
-// changes here once, not per business.
-const SUPPORT_EMAIL = "frametek93@gmail.com";
+// every business on the platform. The email now comes from lib/env.ts's
+// supportEmail() (safe to call client-side: NEXT_PUBLIC_ vars are inlined
+// into the client bundle at build time) rather than its own separate
+// hardcoded constant — this card used to hardcode a DIFFERENT address
+// than every other page that shows Busihub's support contact, a real
+// drift nobody had noticed until it was consolidated (see
+// docs/ARCHITECTURE.md's changelog). The phone number keeps its own
+// locally-formatted display constant below (Settings -> Billing shows
+// the plain +233 form; this card's nicer "054 394 5668" spacing is
+// cosmetic and not worth a shared formatter for one digit string).
 const SUPPORT_PHONE_DISPLAY = "054 394 5668";
 const SUPPORT_PHONE_TEL = "+233543945668";
 const SUPPORT_WHATSAPP_URL = "https://wa.me/233543945668";
@@ -26,6 +34,7 @@ const initialState: SupportRequestFormState = {};
  * anywhere yet, by design (see this feature's docs/ARCHITECTURE.md entry).
  */
 export function SupportCard() {
+  const email = supportEmail();
   const [state, formAction] = useFormState(submitSupportRequest, initialState);
   // useFormState's own `state` only changes value (a fresh object) when a
   // submission actually completes, so it's the right thing to key "just
@@ -53,11 +62,11 @@ export function SupportCard() {
 
       <div className="mt-3 flex flex-col gap-2 text-sm">
         <a
-          href={`mailto:${SUPPORT_EMAIL}`}
+          href={`mailto:${email}`}
           className="flex items-center gap-2 text-brand-700 hover:underline dark:text-brand-300"
         >
           <Mail className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          {SUPPORT_EMAIL}
+          {email}
         </a>
         <a
           href={`tel:${SUPPORT_PHONE_TEL}`}

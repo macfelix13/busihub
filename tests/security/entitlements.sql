@@ -44,6 +44,19 @@
 --      payment failure in a row does NOT reset the past_due grace clock,
 --      and that a null period end from platform_billing_link_subscription()
 --      leaves the existing one alone rather than clobbering it.
+--   9. Self-serve plan switching (migration 0062): start_plan_checkout()
+--      rejects re-subscribing to the plan the business is already active
+--      on, but DOES allow starting checkout for a DIFFERENT plan while
+--      already active (0061 blocked this at the UI layer only — 0062
+--      removes it everywhere). platform_billing_activate_subscription()
+--      records from_plan_id on a switch and resets cancel_at_period_end.
+--      platform_billing_link_subscription()'s new trailing parameter
+--      (p_previous_subscription_disabled) defaults to null so the old
+--      4-argument call shape still works, and its audit entry records
+--      the subscription code being closed out by the switch; it also now
+--      unconditionally resets cancel_at_period_end to false, since a
+--      fresh subscription.create can never describe an already-cancelled
+--      subscription.
 --
 -- This file runs directly after tests/security/tenant_isolation_and_rbac.sql
 -- (which hardcodes an exact business count and must stay first — see its
@@ -980,8 +993,151 @@ end $$;
 
 reset role;
 
+-- ── 9. self-serve plan switching (0062) ───────────────────────────────────
+
+-- A second plan, also linked to Paystack, distinct from ent-plan-billing
+-- — switching needs two real linked plans to switch between. biz_a is
+-- still active on ent-plan-billing at this point, with
+-- cancel_at_period_end already set true by the cancel-scheduled test
+-- above — a real, meaningful value for the switch below to reset, not
+-- one that just happens to already be false.
+insert into subscription_plans (
+  slug, name, description, price_amount, currency_code, billing_interval, limits, is_active, sort_order, paystack_plan_code
+) values (
+  'ent-plan-billing-2', 'Ent Plan Billing 2 (fixture only)', 'Second test-harness-only plan for plan-switch tests.',
+  199, 'GHS', 'month', jsonb_build_object(), true, 97, 'PLN_ent_billing_test_2'
+)
+on conflict (slug) do nothing;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001400';
+
+-- Rejects re-subscribing to the plan already active.
+do $$
+declare v_plan uuid;
+begin
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+  begin
+    perform start_plan_checkout(v_plan);
+    raise exception 'TEST FAILED: start_plan_checkout accepted a re-subscribe to the plan already active';
+  exception
+    when sqlstate 'P0001' then
+      raise notice 'PASS: start_plan_checkout rejects re-subscribing to the plan already active (%)', sqlerrm;
+  end;
+end $$;
+
+-- DOES allow starting checkout for a DIFFERENT linked plan while already
+-- active — the whole point of this migration.
+create temporary table tmp_switch_ref (reference uuid);
+grant insert, select on tmp_switch_ref to authenticated;
+
+do $$
+declare v_plan2 uuid; v_reference uuid;
+begin
+  select id into v_plan2 from subscription_plans where slug = 'ent-plan-billing-2';
+  v_reference := start_plan_checkout(v_plan2);
+  insert into tmp_switch_ref values (v_reference);
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+do $$
+declare v_biz uuid; v_plan2 uuid; v_reference uuid; v_row record;
+begin
+  select biz_a into v_biz from ent_ids;
+  select id into v_plan2 from subscription_plans where slug = 'ent-plan-billing-2';
+  select reference into v_reference from tmp_switch_ref;
+
+  select * into v_row from platform_billing_checkouts where reference = v_reference;
+  if v_row.business_id <> v_biz or v_row.plan_id <> v_plan2 or v_row.consumed_at is not null then
+    raise exception 'TEST FAILED: start_plan_checkout''s switch checkout row does not match (got %)', to_jsonb(v_row);
+  end if;
+  raise notice 'PASS: start_plan_checkout records a pending checkout for a switch to a different plan while already active';
+end $$;
+
+drop table tmp_switch_ref;
+
+set role service_role;
+
+-- The end-to-end switch, first half: activating the new plan records
+-- from_plan_id and resets cancel_at_period_end.
+do $$
+declare v_biz uuid; v_plan1 uuid; v_plan2 uuid; v_row business_subscriptions%rowtype; v_metadata jsonb;
+begin
+  select biz_a into v_biz from ent_ids;
+  select id into v_plan1 from subscription_plans where slug = 'ent-plan-billing';
+  select id into v_plan2 from subscription_plans where slug = 'ent-plan-billing-2';
+
+  perform platform_billing_activate_subscription(v_biz, v_plan2, 'CUS_ent_test_2');
+
+  select * into v_row from business_subscriptions where business_id = v_biz;
+  if v_row.plan_id <> v_plan2 or v_row.cancel_at_period_end or v_row.paystack_customer_code <> 'CUS_ent_test_2' then
+    raise exception 'TEST FAILED: platform_billing_activate_subscription did not switch plans cleanly (got %)', to_jsonb(v_row);
+  end if;
+
+  select metadata into v_metadata from audit_logs
+    where business_id = v_biz and action = 'platform.subscription_activated'
+    order by created_at desc limit 1;
+  if (v_metadata->>'from_plan_id')::uuid <> v_plan1 then
+    raise exception 'TEST FAILED: platform_billing_activate_subscription''s audit entry did not record from_plan_id (got %)', v_metadata;
+  end if;
+  raise notice 'PASS: platform_billing_activate_subscription switches plans, resets cancel_at_period_end, and records from_plan_id';
+end $$;
+
+-- The end-to-end switch, second half: platform_billing_link_subscription()
+-- closes out the OLD subscription code in its own audit entry, resets
+-- cancel_at_period_end again (belt-and-suspenders), and the OLD
+-- 4-argument call shape (no explicit p_previous_subscription_disabled)
+-- still works via the new parameter's default.
+-- Old 4-argument shape — defaults p_previous_subscription_disabled to
+-- null. Split into its own top-level statement (its own implicit
+-- transaction) from the second call below on purpose: audit_logs.created_at
+-- is now() (transaction-start time, not statement time — two inserts in
+-- the SAME transaction would tie, making "order by created_at desc limit
+-- 1" pick an arbitrary one of the two rather than the later one).
+do $$
+declare v_biz uuid; v_metadata jsonb;
+begin
+  select biz_a into v_biz from ent_ids;
+  perform platform_billing_link_subscription(v_biz, 'SUB_ent_test_2a', 'tok_ent_test_2a', now() + interval '30 days');
+  select metadata into v_metadata from audit_logs
+    where business_id = v_biz and action = 'platform.subscription_linked'
+    order by created_at desc limit 1;
+  if (v_metadata->>'previous_subscription_disabled') is not null then
+    raise exception 'TEST FAILED: a 4-argument call to platform_billing_link_subscription did not default previous_subscription_disabled to null (got %)', v_metadata;
+  end if;
+  raise notice 'PASS: the old 4-argument platform_billing_link_subscription call shape still works, via the new parameter''s default';
+end $$;
+
+-- New 5-argument shape, the real switch: records the subscription code
+-- THIS call is about to overwrite (SUB_ent_test_2a, just set above by a
+-- separate transaction) as previous_paystack_subscription_code, and
+-- cancel_at_period_end stays reset to false.
+do $$
+declare v_biz uuid; v_metadata jsonb;
+begin
+  select biz_a into v_biz from ent_ids;
+  perform platform_billing_link_subscription(v_biz, 'SUB_ent_test_2', 'tok_ent_test_2', now() + interval '30 days', true);
+
+  select metadata into v_metadata from audit_logs
+    where business_id = v_biz and action = 'platform.subscription_linked'
+    order by created_at desc limit 1;
+  if v_metadata->>'previous_paystack_subscription_code' <> 'SUB_ent_test_2a'
+     or (v_metadata->>'previous_subscription_disabled')::boolean is not true then
+    raise exception 'TEST FAILED: platform_billing_link_subscription did not record the closed-out previous subscription (got %)', v_metadata;
+  end if;
+
+  if (select cancel_at_period_end from business_subscriptions where business_id = v_biz) then
+    raise exception 'TEST FAILED: cancel_at_period_end was true after a fresh subscription.create link';
+  end if;
+  raise notice 'PASS: platform_billing_link_subscription records the previous subscription it closed out, and keeps cancel_at_period_end false';
+end $$;
+
+reset role;
+
 -- ── cleanup ────────────────────────────────────────────────────────────
 
 drop table ent_ids;
 
-do $$ begin raise notice 'All entitlements (0058/0059/0060/0061) tests passed.'; end $$;
+do $$ begin raise notice 'All entitlements (0058/0059/0060/0061/0062) tests passed.'; end $$;

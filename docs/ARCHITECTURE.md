@@ -337,15 +337,15 @@ Full detail in `docs/PAYMENTS.md`.
 ## 9. Subscription / entitlement architecture
 
 **Status: enforcement is live (Phase 18, migration 0058), and real payment
-collection now exists (Phase 19, shipped in two deliveries — migration
-0060's Paystack plan sync, then migration 0061's self-serve checkout,
-billing webhook, and cancellation). A business can genuinely subscribe
-and pay Busihub through Paystack today. What's still deliberately out of
-scope: switching between two already-active self-serve plans (stays a
-Super-Admin-by-hand operation), and — until a real Paystack TEST-mode
-run-through has been done post-deployment — full confidence that the
-live webhook/checkout payload shapes match what this code expects. See
-below.**
+collection now exists (Phase 19, shipped in three deliveries — migration
+0060's Paystack plan sync, migration 0061's self-serve checkout, billing
+webhook, and cancellation, then migration 0062's self-serve plan
+switching). A business can genuinely subscribe, switch plans, and cancel
+through Paystack today, entirely on its own — no step in that path
+requires a Super Admin. The one thing still deliberately not exercised:
+until a real Paystack TEST-mode run-through has been done
+post-deployment, full confidence that the live webhook/checkout payload
+shapes match what this code expects. See below.**
 
 - `subscription_plans` (platform-level, Super-Admin managed): name, price,
   billing interval, and a `limits` jsonb column (`max_users`,
@@ -458,22 +458,52 @@ below.**
   Admin can still put a business on a plan/status by hand —
   `admin_set_business_subscription()`, on `/admin/businesses/[id]` — for
   anything self-serve doesn't cover.
-  What's still deliberately out of scope: **switching between two
-  already-active self-serve plans** — Settings → Billing only offers the
-  upgrade picker when the business isn't already active on a
-  Paystack-managed plan, and routes an already-active business to
-  support instead. Extending self-serve to that case would mean handling
-  Paystack's own plan-change/proration semantics, which hasn't been
-  designed. One honest caveat about what "verified" means for this
-  piece specifically: SQL changes are checked against a real local
-  Postgres 16 and TypeScript against the project's own toolchain, same as
-  everywhere else in this codebase, but the live Paystack contract itself
-  (webhook payload shapes, the checkout redirect, the Plan API's actual
-  responses) cannot be exercised from a sandbox with no reachable
-  Paystack account — a real Paystack TEST-mode run-through (subscribe
-  with a test card, confirm the webhook lands and the business goes
-  active, then test cancellation) is required after deployment, before
-  this is trusted with a live key.
+  **Switching between two already-active self-serve plans now works too**
+  (migration 0062) — a business Owner/Manager never needs a Super Admin
+  to move to a different Paystack-linked plan, whether they're trialing,
+  past_due, expired (from the lockout wall itself, above), or already
+  active on a different self-serve plan. Settings → Billing shows the
+  same plan picker regardless of current status, with the button reading
+  "Switch to X" instead of "Subscribe to X" once already active.
+  Paystack has no "change this subscription's plan" API, so under the
+  hood a switch is: a brand new checkout on the new plan (the exact same
+  `start_plan_checkout()`/webhook path as a first-ever subscribe — no
+  separate code path exists for "switch"), and once Paystack's
+  `subscription.create` confirms the new one, `_link_subscription`
+  explicitly disables the business's PREVIOUS Paystack subscription
+  (a Paystack API call, best-effort — logged and recorded on that same
+  audit entry if it fails, never allowed to block linking the new,
+  already-paid-for subscription) so the business isn't left on two live,
+  auto-renewing subscriptions being charged for both. That "disable the
+  old one" step deliberately waits until the new subscription is
+  confirmed, rather than happening at the moment the new plan is first
+  activated: doing it earlier risked an out-of-order webhook (Paystack's
+  own confirmation that the old subscription was disabled, arriving with
+  no ordering guarantee against the new subscription's own
+  `subscription.create`) matching on the old subscription code before it
+  had been superseded, and wrongly marking the BRAND NEW subscription as
+  ending soon. `_link_subscription` also now unconditionally resets
+  `cancel_at_period_end` to false as a second layer of protection against
+  that same class of stale-event-ordering risk — a fresh
+  `subscription.create` can never legitimately describe an
+  already-cancelled subscription. `start_plan_checkout()` also gained one
+  small guard: it rejects trying to "switch" to the exact plan a business
+  is already active on, rather than charging them again for nothing. See
+  migration 0062's own header for the full reasoning.
+  One honest caveat about what "verified" means for this piece
+  specifically, unchanged from 0061: SQL changes are checked against a
+  real local Postgres 16 and TypeScript against the project's own
+  toolchain, same as everywhere else in this codebase, but the live
+  Paystack contract itself (webhook payload shapes, the checkout
+  redirect, the Plan API's actual responses, and now specifically whether
+  disabling an old subscription right after a new one activates behaves
+  the way Paystack's docs describe) cannot be exercised from a sandbox
+  with no reachable Paystack account — a real Paystack TEST-mode
+  run-through (subscribe to plan A, confirm the webhook lands and the
+  business goes active, switch to plan B, and confirm in the Paystack
+  dashboard that plan A's subscription actually shows disabled
+  afterward — not just locally — then test cancellation too) is required
+  after deployment, before this is trusted with a live key.
 
 Full detail lives here and in migration 0058 itself rather than being
 folded into `docs/DATABASE.md` as an earlier draft of this section said —
@@ -592,6 +622,38 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-20 — Phase 19 follow-up: self-serve plan switching (migration
+  0062). Explicit request: a business owner should never need a Super
+  Admin to upgrade or downgrade — that gap is now closed. Settings →
+  Billing's plan picker shows regardless of current subscription status,
+  including while already active on a different self-serve plan, with
+  the button reading "Switch to X" instead of "Subscribe to X" once
+  active. Paystack has no "change this subscription's plan" endpoint, so
+  a switch is a brand new checkout on the new plan (identical code path
+  to a first-ever subscribe) followed by explicitly disabling the
+  business's previous Paystack subscription once the new one is
+  confirmed by `subscription.create` — deliberately sequenced that way,
+  not at the moment the new plan first activates, to avoid a real
+  stale-event-ordering race where an out-of-order "old subscription
+  disabled" confirmation could wrongly mark the BRAND NEW subscription as
+  ending soon (`platform_billing_link_subscription()` also now
+  unconditionally resets `cancel_at_period_end` to false as a second
+  layer of protection against the same risk). `start_plan_checkout()`
+  gained a guard against "switching" to the plan already active, and
+  `platform_billing_activate_subscription()`'s audit entry now records
+  `from_plan_id` so a switch is distinguishable from a first subscribe in
+  the log. Verified with 5 new test cases against a real local Postgres
+  16 (the full switch end-to-end, the re-subscribe guard, and that the
+  old 4-argument `platform_billing_link_subscription()` call shape still
+  works via its new parameter's default) and a full TypeScript
+  cross-check — no new errors beyond this sandbox's own documented
+  artifact classes. What still can't be verified here: whether disabling
+  an old Paystack subscription right after a new one activates behaves
+  the way Paystack's docs describe — needs a real TEST-mode run-through
+  (subscribe, then switch plans, then confirm in the Paystack dashboard
+  that the old subscription actually shows disabled) before this is
+  trusted with a live key.
 
 - 2026-09-20 — Phase 19, part 2 of 2: self-serve checkout, billing webhook,
   cancellation (migration 0061). Money can now actually move: a business

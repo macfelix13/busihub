@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhookSignature } from "@/lib/paystack/webhook";
 import { paystackPlatformSecretKey } from "@/lib/env";
+import { disableSubscription } from "@/lib/paystack/platform-client";
 
 /**
  * Where Paystack tells us about Busihub's OWN subscription billing — a
@@ -157,6 +158,18 @@ async function handleChargeSuccess(admin: Admin, event: PaystackPlatformEvent) {
  * so this matches by paystack_customer_code instead — set moments
  * earlier by handleChargeSuccess(), and the one identifier both events
  * are confident to share.
+ *
+ * Also (0062) where a self-serve PLAN SWITCH closes out the business's
+ * PREVIOUS Paystack subscription, if it had one — Paystack has no "change
+ * this subscription's plan" endpoint, so a switch is a brand new
+ * subscription (this event) plus explicitly disabling the old one, or
+ * the business would end up billed for both. Deliberately done HERE,
+ * after the new subscription is already confirmed, rather than back in
+ * handleChargeSuccess when the new plan is first activated locally — see
+ * migration 0062's own header for the stale-event-ordering race that
+ * sequencing avoids. Best-effort: a failure to disable the old one is
+ * logged and recorded on this same event's audit entry, never allowed to
+ * block linking the new (already paid for) subscription.
  */
 async function handleSubscriptionCreate(admin: Admin, event: PaystackPlatformEvent) {
   const subscriptionCode = event.data?.subscription_code;
@@ -168,14 +181,16 @@ async function handleSubscriptionCreate(admin: Admin, event: PaystackPlatformEve
 
   const { data: subscription, error } = await admin
     .from("business_subscriptions")
-    .select("business_id")
+    .select("business_id, paystack_subscription_code, paystack_email_token")
     .eq("paystack_customer_code", customerCode)
     .maybeSingle();
   if (error) {
     throw new Error(`business lookup by customer_code failed: ${error.message}`);
   }
-  const businessId = (subscription as { business_id: string } | null)?.business_id ?? null;
-  if (!businessId) {
+  const row = subscription as
+    | { business_id: string; paystack_subscription_code: string | null; paystack_email_token: string | null }
+    | null;
+  if (!row?.business_id) {
     // Order-of-arrival edge case: subscription.create landed before the
     // charge.success that sets paystack_customer_code. Acknowledged, not
     // retried forever — if this genuinely matters it will also show up
@@ -185,11 +200,25 @@ async function handleSubscriptionCreate(admin: Admin, event: PaystackPlatformEve
     return;
   }
 
+  let previousDisabled: boolean | null = null;
+  if (row.paystack_subscription_code && row.paystack_subscription_code !== subscriptionCode && row.paystack_email_token) {
+    const result = await disableSubscription({ code: row.paystack_subscription_code, token: row.paystack_email_token });
+    previousDisabled = result.ok;
+    if (!result.ok) {
+      console.error("handleSubscriptionCreate: could not disable previous Paystack subscription during a plan switch", {
+        businessId: row.business_id,
+        previousCode: row.paystack_subscription_code,
+        message: result.message,
+      });
+    }
+  }
+
   const { error: linkError } = await admin.rpc("platform_billing_link_subscription", {
-    p_business_id: businessId,
+    p_business_id: row.business_id,
     p_paystack_subscription_code: subscriptionCode,
     p_paystack_email_token: event.data?.email_token ?? null,
     p_current_period_end: event.data?.next_payment_date ?? null,
+    p_previous_subscription_disabled: previousDisabled,
   });
   if (linkError) {
     throw new Error(`platform_billing_link_subscription failed: ${linkError.message}`);

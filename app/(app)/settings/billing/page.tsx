@@ -77,31 +77,30 @@ export default async function BillingSettingsPage({
     getUsageCounts(supabase, businessId),
   ]);
 
-  // Only offered when NOT already on an active, Paystack-managed
-  // subscription — switching from one self-serve plan to another is
-  // deliberately out of scope for this delivery (migration 0061's own
-  // header explains why). A trialing/past_due/expired/cancelled business,
-  // or one a Super Admin put on an active plan by hand with no Paystack
-  // link at all, still sees the picker.
+  // Whether this business is already on an active, Paystack-managed
+  // subscription — decides whether "Cancel subscription" shows below,
+  // and (0062) is also passed to SubscribeButton just to pick its label
+  // ("Subscribe" vs "Switch"). It no longer gates whether the plan picker
+  // itself shows: migration 0062 removed the restriction on switching
+  // away from an already-active self-serve plan — see that migration's
+  // own header for why a switch needed real design (Paystack has no
+  // "change plan" endpoint), not just a UI change.
   const alreadySelfServeActive = subscription?.status === "active" && Boolean(subscription.paystackSubscriptionCode);
 
-  let otherPlans: OtherPlanRow[] = [];
-  if (!alreadySelfServeActive) {
-    let query = supabase
-      .from("subscription_plans")
-      .select("id, name, price_amount, currency_code, billing_interval")
-      .eq("is_active", true)
-      .not("paystack_plan_code", "is", null)
-      .order("sort_order", { ascending: true });
-    if (subscription?.planId) {
-      query = query.neq("id", subscription.planId);
-    }
-    const { data: planRows, error: plansError } = await query;
-    if (plansError) {
-      console.error("BillingSettingsPage: other-plans query failed", plansError);
-    }
-    otherPlans = (planRows ?? []) as OtherPlanRow[];
+  let query = supabase
+    .from("subscription_plans")
+    .select("id, name, price_amount, currency_code, billing_interval")
+    .eq("is_active", true)
+    .not("paystack_plan_code", "is", null)
+    .order("sort_order", { ascending: true });
+  if (subscription?.planId) {
+    query = query.neq("id", subscription.planId);
   }
+  const { data: planRows, error: plansError } = await query;
+  if (plansError) {
+    console.error("BillingSettingsPage: other-plans query failed", plansError);
+  }
+  const otherPlans = (planRows ?? []) as OtherPlanRow[];
 
   // Purely informational — never authoritative. The webhook
   // (app/api/webhooks/paystack-platform) is what actually activates the
@@ -260,11 +259,13 @@ export default async function BillingSettingsPage({
             </div>
           </div>
 
-          {!alreadySelfServeActive && otherPlans.length > 0 ? (
+          {otherPlans.length > 0 ? (
             <div>
-              <h2 className="font-semibold">Upgrade</h2>
+              <h2 className="font-semibold">{alreadySelfServeActive ? "Change plan" : "Upgrade"}</h2>
               <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
-                Subscribe with Paystack — your card or mobile money is charged automatically each period from then on.
+                {alreadySelfServeActive
+                  ? "Switch to a different plan with Paystack — your next charge moves to the new plan's price, and the old subscription is closed out automatically."
+                  : "Subscribe with Paystack — your card or mobile money is charged automatically each period from then on."}
               </p>
               <div className="mt-3 flex flex-col gap-3">
                 {otherPlans.map((plan) => (
@@ -278,7 +279,7 @@ export default async function BillingSettingsPage({
                         {formatMoney(toMinorUnits(plan.price_amount), plan.currency_code)} / {plan.billing_interval}
                       </p>
                     </div>
-                    <SubscribeButton planId={plan.id} planName={plan.name} />
+                    <SubscribeButton planId={plan.id} planName={plan.name} mode={alreadySelfServeActive ? "switch" : "subscribe"} />
                   </div>
                 ))}
               </div>
@@ -289,10 +290,7 @@ export default async function BillingSettingsPage({
 
       <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-surface-line dark:bg-surface-card">
         <h2 className="font-semibold">Have a billing question, or need a plan not listed above?</h2>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">
-          Reach out and we&apos;ll sort it out — this also covers switching between two self-serve plans, which isn&apos;t
-          self-serve yet.
-        </p>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-ink-muted">Reach out and we&apos;ll sort it out.</p>
         <div className="mt-3 flex flex-col items-start gap-1 text-sm">
           <a href={`mailto:${email}`} className="text-brand-700 hover:underline dark:text-brand-300">
             {email}

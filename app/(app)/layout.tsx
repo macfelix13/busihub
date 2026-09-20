@@ -11,6 +11,8 @@ import type { NavPermissions } from "@/components/layout/nav-items";
 import { resolveBusinessThemeOverride, businessThemeOverrideScript, resolvePrimaryColorOverride, accentOverrideStyle } from "@/lib/theme";
 import { getSubscriptionSummary } from "@/lib/entitlements/queries";
 import { isLockedOutStatus, isGracePeriodStatus, graceDaysRemaining } from "@/lib/entitlements/limits";
+import { formatMoney, toMinorUnits } from "@/lib/money/money";
+import { SubscribeButton } from "@/app/(app)/settings/billing/subscribe-button";
 
 /**
  * Every route under (app) requires a signed-in user with a linked
@@ -177,6 +179,32 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ? "This business's Busihub subscription has been cancelled."
           : "This business's free trial ended and no plan was chosen in time.";
 
+    // Self-serve billing (0061) gave a business a way to pay its own way
+    // back in without waiting on a Super Admin — but only offered here for
+    // `expired` (a trial that simply ran out with no plan chosen), and only
+    // to whoever could actually act on it (business.manage — the same gate
+    // settings/billing/page.tsx itself uses, since that page is otherwise
+    // unreachable from behind this same wall). suspended/cancelled stay
+    // contact-only on purpose: those are Busihub's own decisions, not
+    // something a business should be able to pay its way around before
+    // support has looked at it.
+    let expiredPlans: { id: string; name: string; price_amount: string; currency_code: string; billing_interval: string }[] = [];
+    if (subscription.status === "expired") {
+      const canSelfServe = await hasPermission(supabase, businessId, PERMISSIONS.BUSINESS_MANAGE);
+      if (canSelfServe) {
+        const { data: planRows, error: plansError } = await supabase
+          .from("subscription_plans")
+          .select("id, name, price_amount, currency_code, billing_interval")
+          .eq("is_active", true)
+          .not("paystack_plan_code", "is", null)
+          .order("sort_order", { ascending: true });
+        if (plansError) {
+          console.error("(app) layout: expired-lockout plans query failed", plansError);
+        }
+        expiredPlans = planRows ?? [];
+      }
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-canvas px-4 dark:bg-canvas-dark">
         <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-surface-line dark:bg-surface-card">
@@ -184,6 +212,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="mt-2 text-sm text-neutral-500 dark:text-ink-muted">
             {reason} Contact Busihub support to choose a plan and get back in.
           </p>
+
+          {expiredPlans.length > 0 ? (
+            <div className="mt-4 border-t border-neutral-100 pt-4 text-left dark:border-surface-line">
+              <p className="text-sm font-medium">Or subscribe yourself right now:</p>
+              <div className="mt-2 flex flex-col gap-2">
+                {expiredPlans.map((plan) => (
+                  <div
+                    key={plan.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 px-3 py-2.5 dark:border-surface-line"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{plan.name}</p>
+                      <p className="text-xs text-neutral-500 dark:text-ink-muted">
+                        {formatMoney(toMinorUnits(plan.price_amount), plan.currency_code)} / {plan.billing_interval}
+                      </p>
+                    </div>
+                    <SubscribeButton planId={plan.id} planName={plan.name} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-4 flex flex-col items-center gap-1 text-sm">
             <a href={`mailto:${email}`} className="min-w-0 break-words text-brand-700 hover:underline dark:text-brand-300">
               {email}

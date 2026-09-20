@@ -336,10 +336,15 @@ Full detail in `docs/PAYMENTS.md`.
 
 ## 9. Subscription / entitlement architecture
 
-**Status: enforcement is live (Phase 18, migration 0058). Real payment
-collection (Phase 19) is under construction, in two deliveries — the
-first (migration 0060, Paystack plan sync) has shipped; the second
-(self-serve checkout, a billing webhook, and cancellation) has not. See
+**Status: enforcement is live (Phase 18, migration 0058), and real payment
+collection now exists (Phase 19, shipped in two deliveries — migration
+0060's Paystack plan sync, then migration 0061's self-serve checkout,
+billing webhook, and cancellation). A business can genuinely subscribe
+and pay Busihub through Paystack today. What's still deliberately out of
+scope: switching between two already-active self-serve plans (stays a
+Super-Admin-by-hand operation), and — until a real Paystack TEST-mode
+run-through has been done post-deployment — full confidence that the
+live webhook/checkout payload shapes match what this code expects. See
 below.**
 
 - `subscription_plans` (platform-level, Super-Admin managed): name, price,
@@ -397,7 +402,15 @@ below.**
   "declared since an early migration, enforced only now" pattern that
   file's own `businesses.status` check already followed. `past_due` (the
   grace window right after a trial ends) shows a banner instead of a
-  wall.
+  wall, with a link to `/settings/billing` to self-serve upgrade before
+  the wall arrives. Since migration 0061, the wall itself offers the same
+  self-serve checkout directly for `expired` specifically (a trial that
+  simply ran out with no plan chosen) — the only gate is `business.manage`
+  on the caller, the same one `/settings/billing` itself enforces, since
+  that page is otherwise unreachable from behind this wall. `suspended`/
+  `cancelled` stay contact-only on purpose: those are Busihub's own
+  decisions, not something a business should be able to pay its way
+  around before support has reviewed it.
 - Status transitions: **only** a trial running out (`trialing` →
   `past_due` → `expired`, a 3-day grace window) and fulfilling a
   Super-Admin-scheduled cancellation (`cancel_at_period_end`) are
@@ -410,40 +423,57 @@ below.**
   status change (a business going `active` on a real paid plan, being
   marked `past_due` for a missed payment, etc.) is a deliberate, logged,
   human decision — see below.
-- **What is deliberately NOT built yet: a business actually paying
-  Busihub.** Nothing in this codebase charges a business anything yet.
-  The existing Paystack integration (Section 8) is a shop accepting
-  mobile money from ITS OWN customers, not Busihub billing the shop — a
-  second, separate Paystack integration, Busihub's own account
+- **A business can now actually pay Busihub.** A second, separate
+  Paystack integration — Busihub's own account
   (`PAYSTACK_PLATFORM_SECRET_KEY`/`PUBLIC_KEY`, `lib/paystack/platform-client.ts`,
-  sharing no runtime code with the per-shop one), is what this requires,
-  and only its plan-sync half exists so far (migration 0060, above). No
-  self-serve checkout page, no billing webhook, and no cancellation flow
-  exist yet — a business still cannot pay Busihub for itself today. Until
-  those are built, a Super Admin puts a business on a plan/status by hand
-  — `admin_set_business_subscription()`, exposed as a form on
-  `/admin/businesses/[id]` — after being paid some other way. This is the
-  kind of honest, partial completion the project brief calls for: limits
-  are genuinely enforced and a lapsed account is genuinely locked out; a
-  Super Admin can now see and manage exactly what a plan costs and
-  whether it's synced to Paystack; the system still doesn't move a
-  business's own money yet. The decision on mechanism has been made
-  (Paystack, auto-recurring via its Subscriptions API — charging a
-  business's card/mobile money automatically each period, rather than a
-  manual pay-each-period flow) but only the plan-catalog half of building
-  it is done. The remaining half — a `/settings/billing` self-serve
-  checkout button, a platform-level webhook handling `charge.success`/
-  `invoice.payment_failed`/`subscription.disable` events, and wiring a
-  failed renewal into the existing `past_due` grace-period path so no new
-  lifecycle logic is needed — is designed but not yet built. One honest
-  caveat about what "verified" means for this piece specifically: SQL
-  changes are checked against a real local Postgres 16 and TypeScript
-  against the project's own toolchain, same as everywhere else in this
-  codebase, but the live Paystack contract itself (webhook payload
-  shapes, the checkout redirect, the Plan API's actual responses) cannot
-  be exercised from a sandbox with no reachable Paystack account — that
-  needs a real test-mode run-through after deployment before it is
-  trusted with a live key.
+  sharing no runtime code with the per-shop integration in Section 8,
+  which is a shop accepting mobile money from ITS OWN customers, not
+  Busihub billing the shop) — now handles both halves: plan-catalog sync
+  (migration 0060) and actual money movement (migration 0061). From
+  Settings → Billing (or the `expired`-lockout wall, above), an
+  Owner/Manager can start checkout for any Paystack-linked plan
+  (`start_plan_checkout()`, redirects to Paystack's hosted payment page —
+  Ghana's mobile money as well as cards, whatever the Paystack account
+  itself is configured to accept) and cancel their own subscription
+  (schedules cancellation at period end via Paystack's API — the local
+  `cancel_at_period_end` flag only ever flips once Paystack's own
+  webhook confirms it, never from the cancel request itself). The
+  `/api/webhooks/paystack-platform` handler is the single source of
+  truth for whether money actually moved — never the checkout redirect,
+  never a client-side call. It verifies the signature, records the event
+  in `platform_paystack_events` for idempotency BEFORE acting on it (a
+  duplicate is ack'd 200 and ignored; if the handler itself throws, the
+  just-inserted record is deleted so Paystack's own retry isn't
+  permanently suppressed), then dispatches to one of five
+  service-role-only `platform_billing_*` functions: `_activate_subscription`
+  (the first `charge.success`, matched by the reference this app
+  generated), `_link_subscription` (the separate, later
+  `subscription.create` event, matched by `paystack_customer_code` since
+  it carries no reference field of its own), `_record_renewal`,
+  `_record_payment_failed` (reuses the existing `past_due` 3-day grace
+  window rather than inventing new lifecycle logic — guarded so a
+  second/third failed retry on an already-`past_due` subscription never
+  resets that grace clock, or Paystack's own multi-day retry schedule
+  could extend it indefinitely), and `_record_cancel_scheduled`. A Super
+  Admin can still put a business on a plan/status by hand —
+  `admin_set_business_subscription()`, on `/admin/businesses/[id]` — for
+  anything self-serve doesn't cover.
+  What's still deliberately out of scope: **switching between two
+  already-active self-serve plans** — Settings → Billing only offers the
+  upgrade picker when the business isn't already active on a
+  Paystack-managed plan, and routes an already-active business to
+  support instead. Extending self-serve to that case would mean handling
+  Paystack's own plan-change/proration semantics, which hasn't been
+  designed. One honest caveat about what "verified" means for this
+  piece specifically: SQL changes are checked against a real local
+  Postgres 16 and TypeScript against the project's own toolchain, same as
+  everywhere else in this codebase, but the live Paystack contract itself
+  (webhook payload shapes, the checkout redirect, the Plan API's actual
+  responses) cannot be exercised from a sandbox with no reachable
+  Paystack account — a real Paystack TEST-mode run-through (subscribe
+  with a test card, confirm the webhook lands and the business goes
+  active, then test cancellation) is required after deployment, before
+  this is trusted with a live key.
 
 Full detail lives here and in migration 0058 itself rather than being
 folded into `docs/DATABASE.md` as an earlier draft of this section said —
@@ -562,6 +592,37 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-20 — Phase 19, part 2 of 2: self-serve checkout, billing webhook,
+  cancellation (migration 0061). Money can now actually move: a business
+  Owner/Manager can start checkout for any Paystack-linked plan from
+  Settings → Billing (`start_plan_checkout()`, redirects to Paystack's
+  hosted payment page) and cancel their own subscription (schedules
+  cancellation at period end via Paystack's API). The new
+  `/api/webhooks/paystack-platform` handler — never the checkout redirect,
+  never a client-side call — is the only source of truth for whether a
+  business actually paid: it verifies the signature, records the event for
+  idempotency before acting on it, and dispatches `charge.success` /
+  `subscription.create` / `invoice.payment_failed` / `subscription.disable`
+  / `subscription.not_renew` to one of five new service-role-only
+  `platform_billing_*` functions. Payment-failure handling reuses Phase
+  18's existing 3-day past_due→expired grace window rather than inventing
+  new lifecycle logic, and is guarded so a second/third failed retry on an
+  already-past_due subscription never resets that grace clock. Switching
+  between two already-active self-serve plans stays out of scope on
+  purpose — Settings → Billing says so and routes it to support.
+  Additionally, `app/(app)/layout.tsx`'s subscription lockout wall (Phase
+  18) now offers the same self-serve checkout directly to a business that
+  has fallen all the way through to `expired` — before this, an expired
+  business had no way back in except a Super Admin acting by hand, since
+  the wall gates every route under `(app)`, Settings → Billing included.
+  Deliberately not extended to `suspended`/`cancelled`: those are Busihub's
+  own decisions, not something a business should be able to pay its way
+  around before support has reviewed it. What still can't be verified from
+  this sandbox: the live shape of Paystack's actual webhook/checkout
+  payloads — a real Paystack TEST-mode run-through (subscribe with a test
+  card, confirm the webhook lands and the business goes active, then test
+  cancellation) is required before this is trusted with a live key.
 
 - 2026-09-20 — Phase 19, part 1 of 2: Paystack plan sync (migration 0060).
   The two-part "let a business self-serve upgrade with real money moving

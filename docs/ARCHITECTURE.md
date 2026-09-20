@@ -623,6 +623,34 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Added "Continue with Google" to /login and /register
+  (components/auth/google-signin-button.tsx), Apple deliberately deferred
+  (needs a paid Apple Developer account — separate follow-up). This is a
+  client-side `signInWithOAuth()` call (has to run in the browser, since
+  it does a full-page redirect to Google — no Server Action can do that),
+  using the same app/auth/confirm/route.ts callback the email-confirmation
+  and password-reset links already use for their own PKCE `code` exchange
+  — @supabase/ssr's OAuth flow uses that identical shape, so no new
+  callback route was needed.
+  What DID need to change: a brand-new Google sign-in never has a
+  business name the way an email/password signUp() does (the provider
+  only ever hands back a name/email/photo) — lib/auth/finish-pending-registration.ts's
+  `finishPendingRegistrationIfNeeded()` used to treat "no profile, no
+  pending business metadata" as a silent no-op, which would have left a
+  first-time Google sign-in stuck bouncing between /login and /dashboard
+  forever (every (app) page requires a profile). It now returns a
+  three-way result (`already_set_up` / `created_business` /
+  `needs_business_name`), and app/auth/confirm/route.ts sends the third
+  case on to a new one-time step, app/(auth)/onboarding/business, before
+  continuing to wherever it was originally headed (carried through as
+  `next`). That page best-effort prefills the name fields from whatever
+  Google sent, but always leaves them editable, and calls the same
+  register_business() RPC every other signup path uses.
+  No new env vars: Google's Client ID/Secret live in Supabase's own
+  dashboard (Authentication → Providers → Google), not in this app's
+  code or Vercel config — the app only ever calls
+  `supabase.auth.signInWithOAuth({ provider: "google" })`.
+
 - 2026-09-20 — Ran a full audit against a generic 20-point security
   checklist (hidden keys, git secrets, RLS coverage, encryption at rest,
   server-side auth, tenant isolation, field tampering, session cookies,

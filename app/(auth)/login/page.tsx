@@ -5,6 +5,7 @@ import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { login, type LoginFormState } from "./actions";
 
 const initialState: LoginFormState = {};
@@ -16,6 +17,14 @@ export default function LoginPage() {
     <>
       <h1 className="mb-1 text-xl font-semibold">Sign in</h1>
       <p className="mb-6 text-sm text-neutral-500 dark:text-ink-muted">Welcome back to Busihub.</p>
+
+      <GoogleSignInButton label="Sign in with Google" />
+
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-surface-line" />
+        <span className="text-xs font-medium text-neutral-400 dark:text-ink-muted">OR SIGN IN WITH EMAIL</span>
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-surface-line" />
+      </div>
 
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {state.error ? (

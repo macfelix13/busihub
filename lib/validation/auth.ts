@@ -34,3 +34,26 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * Google/Apple sign-in (2026-09) never collects a business name upfront
+ * the way registerSchema's form does — the provider only ever hands back
+ * a name, email, and maybe a photo. This is the same business-side fields
+ * from registerSchema, reused for the "what's your business called?" step
+ * shown once, right after a brand-new OAuth sign-in, before landing
+ * anywhere else — see app/(auth)/onboarding/business/actions.ts and
+ * app/auth/confirm/route.ts for where this fits in the flow.
+ */
+export const completeBusinessSchema = z.object({
+  businessName: z.string().trim().min(2, "Business name must be at least 2 characters").max(120),
+  ownerFirstName: z.string().trim().min(1, "First name is required").max(60),
+  ownerLastName: z.string().trim().max(60).optional().default(""),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9\s-]{7,20}$/, "Enter a valid phone number")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type CompleteBusinessInput = z.infer<typeof completeBusinessSchema>;

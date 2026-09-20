@@ -8,6 +8,7 @@ import { useFormState } from "react-dom";
 import { Field } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { GoogleSignInButton } from "@/components/auth/google-signin-button";
 import { registerBusiness, type RegisterFormState } from "./actions";
 
 const initialState: RegisterFormState = {};
@@ -19,6 +20,14 @@ export default function RegisterPage() {
     <>
       <h1 className="mb-1 text-xl font-semibold">Register your business</h1>
       <p className="mb-6 text-sm text-neutral-500 dark:text-ink-muted">Start your 14-day free trial — no card required.</p>
+
+      <GoogleSignInButton label="Sign up with Google" />
+
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-surface-line" />
+        <span className="text-xs font-medium text-neutral-400 dark:text-ink-muted">OR REGISTER WITH EMAIL</span>
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-surface-line" />
+      </div>
 
       <form action={formAction} className="flex flex-col gap-4" noValidate>
         {state.error ? (

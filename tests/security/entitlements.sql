@@ -26,6 +26,13 @@
 --      and — via app_validate_plan_limits() — rejects an unrecognised
 --      limits key or a negative limit value rather than silently
 --      accepting a typo that would enforce nothing.
+--   7. admin_upsert_subscription_plan()'s new p_paystack_plan_code
+--      parameter (migration 0060) stores and updates the value given,
+--      rejects the same Paystack plan being linked to two different rows,
+--      and — called the old, pre-0060 way with only ten arguments — still
+--      works via the parameter's default rather than erroring, confirming
+--      the old 10-argument signature was actually dropped (not left
+--      behind as a stale, un-synced overload — see 0060's own header).
 --
 -- This file runs directly after tests/security/tenant_isolation_and_rbac.sql
 -- (which hardcodes an exact business count and must stay first — see its
@@ -573,6 +580,79 @@ begin
   end;
 end $$;
 
+-- ── 7. admin_upsert_subscription_plan(): paystack_plan_code (0060) ───────
+
+-- Creating a plan with a Paystack plan code stores it.
+do $$
+declare v_id uuid; v_code text;
+begin
+  v_id := admin_upsert_subscription_plan(
+    null, 'ent-plan-paystack-a', 'Ent Plan Paystack A', null, 50, 'GHS', 'month', jsonb_build_object(), true, 0,
+    'PLN_ent_test_a'
+  );
+  select paystack_plan_code into v_code from subscription_plans where id = v_id;
+  if v_code <> 'PLN_ent_test_a' then
+    raise exception 'TEST FAILED: paystack_plan_code was not stored on create (got %)', v_code;
+  end if;
+  raise notice 'PASS: creating a plan with a Paystack plan code stores it';
+end $$;
+
+-- Updating a plan can change its Paystack plan code.
+do $$
+declare v_id uuid; v_code text;
+begin
+  select id into v_id from subscription_plans where slug = 'ent-plan-paystack-a';
+  perform admin_upsert_subscription_plan(
+    v_id, 'ent-plan-paystack-a', 'Ent Plan Paystack A', null, 50, 'GHS', 'month', jsonb_build_object(), true, 0,
+    'PLN_ent_test_a_v2'
+  );
+  select paystack_plan_code into v_code from subscription_plans where id = v_id;
+  if v_code <> 'PLN_ent_test_a_v2' then
+    raise exception 'TEST FAILED: paystack_plan_code was not updated (got %)', v_code;
+  end if;
+  raise notice 'PASS: updating a plan can change its Paystack plan code';
+end $$;
+
+-- The same Paystack plan code cannot be linked to two different plans —
+-- a real occurrence would mean something went wrong during sync, not a
+-- legitimate state, so it is rejected rather than silently duplicated.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-paystack-b', 'Ent Plan Paystack B', null, 75, 'GHS', 'month', jsonb_build_object(), true, 0,
+      'PLN_ent_test_a_v2'
+    );
+    raise exception 'TEST FAILED: a duplicate paystack_plan_code across two plans was accepted';
+  exception
+    when sqlstate '23505' then
+      raise notice 'PASS: a duplicate paystack_plan_code across two plans is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+-- Called the old, pre-0060 way (ten arguments, the exact signature 0059
+-- shipped) still works — the default is what makes this possible, and
+-- it proves the old 10-argument function was actually dropped rather
+-- than left behind as a separate, stale overload: if it had been left
+-- behind, THIS call would hit that old copy and paystack_plan_code would
+-- never even be a column it knows about, while the row's existing
+-- 'PLN_ent_test_a_v2' would be untouched — instead, calling through the
+-- new function with the parameter omitted explicitly nulls it, which is
+-- what proves the call actually landed on the new, 11-parameter function.
+do $$
+declare v_id uuid; v_code text;
+begin
+  select id into v_id from subscription_plans where slug = 'ent-plan-paystack-a';
+  perform admin_upsert_subscription_plan(
+    v_id, 'ent-plan-paystack-a', 'Ent Plan Paystack A (old call shape)', null, 50, 'GHS', 'month', jsonb_build_object(), true, 0
+  );
+  select paystack_plan_code into v_code from subscription_plans where id = v_id;
+  if v_code is not null then
+    raise exception 'TEST FAILED: a 10-argument call did not land on the new function (paystack_plan_code is still %)', v_code;
+  end if;
+  raise notice 'PASS: the old 10-argument call shape still works, via the new parameter''s default';
+end $$;
+
 reset role;
 reset request.jwt.claim.sub;
 
@@ -580,4 +660,4 @@ reset request.jwt.claim.sub;
 
 drop table ent_ids;
 
-do $$ begin raise notice 'All entitlements (0058/0059) tests passed.'; end $$;
+do $$ begin raise notice 'All entitlements (0058/0059/0060) tests passed.'; end $$;

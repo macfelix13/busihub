@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/auth/is-super-admin";
+import { createOrUpdatePaystackPlan, type PaystackPlanInterval } from "@/lib/paystack/platform-client";
+import { toMinorUnits } from "@/lib/money/money";
 
 /**
  * Re-checks isSuperAdmin() independently rather than trusting the page
@@ -55,6 +57,65 @@ function buildLimitsJson(formData: FormData): Record<string, unknown> {
 }
 
 /**
+ * Only 'month' and 'year' map to a Paystack billing interval — 'none'
+ * (the free/one-time convention this codebase already uses for the trial
+ * plan, see 0010's seed data) has nothing for Paystack's Plan API to
+ * charge on a schedule, so it is never synced at all. A price of exactly
+ * 0 is excluded for the same reason regardless of interval: nothing
+ * self-serve should ever charge a business GHS 0 on a recurring basis.
+ */
+function paystackIntervalFor(billingInterval: string): PaystackPlanInterval | null {
+  if (billingInterval === "month") return "monthly";
+  if (billingInterval === "year") return "annually";
+  return null;
+}
+
+/**
+ * Best-effort sync to Busihub's own Paystack account (lib/paystack/platform-client.ts)
+ * — deliberately never throws and never blocks the plan save. A plan that
+ * fails to sync just isn't offered on the self-serve checkout page once
+ * that exists (migration 0061); it can still be assigned to a business by
+ * hand today, exactly as it already can be. Returns the paystack_plan_code
+ * to store: the freshly-synced one, the existing one if this plan isn't
+ * syncable at all (cleared to null), or the existing one unchanged if a
+ * sync attempt failed.
+ */
+async function resolvePaystackPlanCode(params: {
+  existingCode: string | null;
+  name: string;
+  description: string | null;
+  priceAmount: number;
+  currencyCode: string;
+  billingInterval: string;
+}): Promise<string | null> {
+  const { existingCode, name, description, priceAmount, currencyCode, billingInterval } = params;
+  const interval = paystackIntervalFor(billingInterval);
+
+  if (interval === null || priceAmount <= 0) {
+    return null;
+  }
+
+  const result = await createOrUpdatePaystackPlan({
+    existingPlanCode: existingCode,
+    name,
+    amountMinorUnits: toMinorUnits(priceAmount),
+    interval,
+    currencyCode,
+    description,
+  });
+
+  if (!result.ok) {
+    console.error("resolvePaystackPlanCode: Paystack sync failed, keeping existing code", {
+      existingCode,
+      message: result.message,
+    });
+    return existingCode;
+  }
+
+  return result.planCode;
+}
+
+/**
  * Bound to an existing plan's id from the edit page (upsertSubscriptionPlan.bind(null, plan.id))
  * or to null from the "New plan" page — mirrors updateBusinessSubscription's
  * own bind-then-useFormState shape (app/admin/businesses/[id]/actions.ts).
@@ -93,6 +154,32 @@ export async function upsertSubscriptionPlan(
     return { error: "Sort order must be a whole number." };
   }
 
+  // Read the plan's own current Paystack link, if it has one, BEFORE
+  // deciding whether to create a new Paystack Plan or update the existing
+  // one — a plain .select() rather than a new RPC, since subscription_plans_select
+  // (0009) already lets a Super Admin read any row.
+  let existingPaystackPlanCode: string | null = null;
+  if (planId) {
+    const { data: existingPlan, error: existingPlanError } = await supabase
+      .from("subscription_plans")
+      .select("paystack_plan_code")
+      .eq("id", planId)
+      .maybeSingle();
+    if (existingPlanError) {
+      console.error("upsertSubscriptionPlan: existing plan lookup failed", existingPlanError);
+    }
+    existingPaystackPlanCode = (existingPlan as { paystack_plan_code: string | null } | null)?.paystack_plan_code ?? null;
+  }
+
+  const paystackPlanCode = await resolvePaystackPlanCode({
+    existingCode: existingPaystackPlanCode,
+    name,
+    description: description || null,
+    priceAmount,
+    currencyCode,
+    billingInterval,
+  });
+
   const { error } = await supabase.rpc("admin_upsert_subscription_plan", {
     p_id: planId,
     p_slug: slug,
@@ -104,6 +191,7 @@ export async function upsertSubscriptionPlan(
     p_limits: buildLimitsJson(formData),
     p_is_active: isActive,
     p_sort_order: sortOrder,
+    p_paystack_plan_code: paystackPlanCode,
   });
 
   if (error) {

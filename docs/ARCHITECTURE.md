@@ -336,8 +336,11 @@ Full detail in `docs/PAYMENTS.md`.
 
 ## 9. Subscription / entitlement architecture
 
-**Status: enforcement is live (Phase 18, migration 0058) — real payment
-collection is not, by deliberate decision. See below.**
+**Status: enforcement is live (Phase 18, migration 0058). Real payment
+collection (Phase 19) is under construction, in two deliveries — the
+first (migration 0060, Paystack plan sync) has shipped; the second
+(self-serve checkout, a billing webhook, and cancellation) has not. See
+below.**
 
 - `subscription_plans` (platform-level, Super-Admin managed): name, price,
   billing interval, and a `limits` jsonb column (`max_users`,
@@ -358,7 +361,19 @@ collection is not, by deliberate decision. See below.**
   isn't supported; retire one with "Active" unchecked instead (the
   assignment dropdown on `/admin/businesses/[id]` already only lists
   active plans) — a real delete would first need to decide what happens
-  to a business still on it.
+  to a business still on it. Since migration 0060, saving a paid
+  monthly/yearly plan also creates or updates a matching Paystack "Plan"
+  object in Busihub's own Paystack account (`lib/paystack/platform-client.ts`,
+  entirely separate from any shop's own Paystack credentials — see this
+  section's payment-collection paragraph below) and stores its
+  `plan_code` on `subscription_plans.paystack_plan_code`. This sync is
+  best-effort: a Paystack hiccup logs an error and leaves the plan saved
+  with its previous (or no) code rather than blocking the save, and
+  `/admin/plans` shows a visible "Not linked to Paystack" badge on any
+  paid plan missing one, rather than hiding the gap. A free or one-time
+  (`billing_interval = 'none'`) plan never gets a Paystack plan at all.
+  Nothing about this changes what any business can already do — plan
+  sync alone doesn't let anyone pay anything yet (see below).
 - `business_subscriptions`: which plan a business is on, `status`
   (`trialing`, `active`, `past_due`, `suspended`, `cancelled`, `expired`),
   period dates, and (0058) `past_due_since` for grace-period tracking.
@@ -395,25 +410,40 @@ collection is not, by deliberate decision. See below.**
   status change (a business going `active` on a real paid plan, being
   marked `past_due` for a missed payment, etc.) is a deliberate, logged,
   human decision — see below.
-- **What is deliberately NOT built yet: real recurring billing.** Nothing
-  in this codebase charges a business anything. The existing Paystack
-  integration (Section 8) is a shop accepting mobile money from ITS OWN
-  customers, not Busihub billing the shop — no Paystack Plans/
-  Subscriptions API usage, no billing webhooks, exist anywhere. Until
-  that is built (a project on the scale of the original Payments phase by
-  itself: a plan-selection/checkout UI, webhook handling for failed
-  payments, proration…), a Super Admin puts a business on a plan/status by
-  hand — `admin_set_business_subscription()`, exposed as a form on
+- **What is deliberately NOT built yet: a business actually paying
+  Busihub.** Nothing in this codebase charges a business anything yet.
+  The existing Paystack integration (Section 8) is a shop accepting
+  mobile money from ITS OWN customers, not Busihub billing the shop — a
+  second, separate Paystack integration, Busihub's own account
+  (`PAYSTACK_PLATFORM_SECRET_KEY`/`PUBLIC_KEY`, `lib/paystack/platform-client.ts`,
+  sharing no runtime code with the per-shop one), is what this requires,
+  and only its plan-sync half exists so far (migration 0060, above). No
+  self-serve checkout page, no billing webhook, and no cancellation flow
+  exist yet — a business still cannot pay Busihub for itself today. Until
+  those are built, a Super Admin puts a business on a plan/status by hand
+  — `admin_set_business_subscription()`, exposed as a form on
   `/admin/businesses/[id]` — after being paid some other way. This is the
   kind of honest, partial completion the project brief calls for: limits
-  are genuinely enforced and a lapsed account is genuinely locked out; the
-  system just doesn't move money yet. Migration 0059 (`/admin/plans`)
-  narrows this gap on one side only — Super Admin can now set what a plan
-  costs and what it includes — but a business still cannot pay Busihub
-  for it themselves; that half (which payment mechanism collects the
-  money, and whether it's a recurring auto-charge or a manual
-  pay-each-period/pay-by-transfer flow) is a decision still being scoped
-  as of this writing, not yet designed or built.
+  are genuinely enforced and a lapsed account is genuinely locked out; a
+  Super Admin can now see and manage exactly what a plan costs and
+  whether it's synced to Paystack; the system still doesn't move a
+  business's own money yet. The decision on mechanism has been made
+  (Paystack, auto-recurring via its Subscriptions API — charging a
+  business's card/mobile money automatically each period, rather than a
+  manual pay-each-period flow) but only the plan-catalog half of building
+  it is done. The remaining half — a `/settings/billing` self-serve
+  checkout button, a platform-level webhook handling `charge.success`/
+  `invoice.payment_failed`/`subscription.disable` events, and wiring a
+  failed renewal into the existing `past_due` grace-period path so no new
+  lifecycle logic is needed — is designed but not yet built. One honest
+  caveat about what "verified" means for this piece specifically: SQL
+  changes are checked against a real local Postgres 16 and TypeScript
+  against the project's own toolchain, same as everywhere else in this
+  codebase, but the live Paystack contract itself (webhook payload
+  shapes, the checkout redirect, the Plan API's actual responses) cannot
+  be exercised from a sandbox with no reachable Paystack account — that
+  needs a real test-mode run-through after deployment before it is
+  trusted with a live key.
 
 Full detail lives here and in migration 0058 itself rather than being
 folded into `docs/DATABASE.md` as an earlier draft of this section said —
@@ -532,6 +562,30 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-20 — Phase 19, part 1 of 2: Paystack plan sync (migration 0060).
+  The two-part "let a business self-serve upgrade with real money moving
+  to Busihub" request is now underway — Paystack, auto-recurring, was the
+  chosen mechanism. This first delivery is schema-and-sync only: a new
+  `subscription_plans.paystack_plan_code` column, and
+  `admin_upsert_subscription_plan()` (0059) extended with a new trailing
+  `p_paystack_plan_code` parameter (its old 10-argument signature was
+  explicitly dropped first — Postgres identifies a function by its full
+  argument list, so appending a parameter without dropping the old
+  signature would have left it reachable as a stale, un-synced overload;
+  see the migration's own header). Saving a paid monthly/yearly plan in
+  `/admin/plans` now also creates or updates a matching Paystack "Plan"
+  object in Busihub's OWN Paystack account — a new, separate integration
+  (`lib/paystack/platform-client.ts`, `PAYSTACK_PLATFORM_SECRET_KEY`) from
+  the existing per-shop one (Section 8), sharing no runtime code with it.
+  The sync is best-effort and visibly surfaced, never silently assumed:
+  a Paystack failure logs an error and keeps the plan's previous/no code
+  rather than blocking the save, and the plans list/edit pages show
+  exactly which plans are and aren't linked. Nothing here lets a business
+  pay anything yet — no checkout page, no billing webhook, no
+  cancellation flow exist — that is the second delivery, not yet built.
+  See Section 9's rewritten payment-collection paragraph for the full
+  design of what's still open and why this shipped in two pieces.
 
 - 2026-09-19 — Phase 18 follow-up: Super Admin plan catalog management
   (migration 0059). Phase 18 (below) enforced `subscription_plans` but

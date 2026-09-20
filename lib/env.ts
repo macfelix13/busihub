@@ -35,3 +35,22 @@ export function supportPhone(): string {
 export function cronSecret(): string | undefined {
   return process.env.CRON_SECRET;
 }
+
+/**
+ * Busihub's OWN Paystack account — distinct from, and unrelated to, every
+ * shop's own Paystack credentials in business_payment_settings
+ * (lib/paystack/client.ts). Those let a SHOP collect from its own
+ * customers; this is Busihub collecting subscription payments from a
+ * shop. Read directly from the environment, never encrypted-at-rest like
+ * a shop's key (lib/crypto/secret-box.ts) — there is exactly one of
+ * these, it is a deployment-level secret set once in Vercel, not
+ * end-user-supplied data stored per business. See
+ * lib/paystack/platform-client.ts for what calls this.
+ */
+export function paystackPlatformSecretKey(): string | undefined {
+  return process.env.PAYSTACK_PLATFORM_SECRET_KEY;
+}
+
+export function paystackPlatformPublicKey(): string | undefined {
+  return process.env.PAYSTACK_PLATFORM_PUBLIC_KEY;
+}

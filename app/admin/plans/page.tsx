@@ -14,6 +14,7 @@ interface PlanRow {
   billing_interval: string;
   is_active: boolean;
   sort_order: number;
+  paystack_plan_code: string | null;
 }
 
 /**
@@ -30,7 +31,7 @@ export default async function AdminPlansPage() {
 
   const { data: planRows, error } = await supabase
     .from("subscription_plans")
-    .select("id, slug, name, price_amount, currency_code, billing_interval, is_active, sort_order")
+    .select("id, slug, name, price_amount, currency_code, billing_interval, is_active, sort_order, paystack_plan_code")
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -76,6 +77,15 @@ export default async function AdminPlansPage() {
                         {!plan.is_active ? (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                             Inactive
+                          </span>
+                        ) : null}
+                        {/* Only a paid monthly/yearly plan is ever meant to link to
+                            Paystack — see actions.ts's own paystackIntervalFor(). A
+                            free or one-time plan showing no badge here is normal,
+                            not a sync failure. */}
+                        {toNumber(plan.price_amount) > 0 && plan.billing_interval !== "none" && !plan.paystack_plan_code ? (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                            Not linked to Paystack
                           </span>
                         ) : null}
                       </div>

@@ -17,6 +17,7 @@ interface PlanRow {
   limits: Partial<PlanLimits> | null;
   is_active: boolean;
   sort_order: number;
+  paystack_plan_code: string | null;
 }
 
 /**
@@ -59,7 +60,9 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
   // /admin/plans's own list, which shows inactive plans too.
   const { data: plan, error } = await supabase
     .from("subscription_plans")
-    .select("id, slug, name, description, price_amount, currency_code, billing_interval, limits, is_active, sort_order")
+    .select(
+      "id, slug, name, description, price_amount, currency_code, billing_interval, limits, is_active, sort_order, paystack_plan_code"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -95,6 +98,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ id: s
             limits: normalizeLimits(row.limits),
             isActive: row.is_active,
             sortOrder: row.sort_order,
+            paystackPlanCode: row.paystack_plan_code,
           }}
         />
       </div>

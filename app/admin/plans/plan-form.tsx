@@ -42,6 +42,12 @@ export interface PlanFormValues {
   limits: PlanLimits;
   isActive: boolean;
   sortOrder: number;
+  paystackPlanCode: string | null;
+}
+
+/** Mirrors app/admin/plans/actions.ts's own paystackIntervalFor() — kept in sync by hand. */
+function isPaystackSyncable(priceAmount: string, billingInterval: string): boolean {
+  return Number(priceAmount) > 0 && (billingInterval === "month" || billingInterval === "year");
 }
 
 /**
@@ -104,6 +110,23 @@ export function PlanForm({ plan }: { plan?: PlanFormValues }) {
           options={BILLING_INTERVAL_OPTIONS}
         />
       </div>
+
+      {plan ? (
+        <p className="text-sm text-neutral-500 dark:text-ink-muted">
+          Paystack:{" "}
+          {plan.paystackPlanCode ? (
+            <span className="font-medium text-neutral-700 dark:text-ink">
+              linked ({plan.paystackPlanCode}) — self-serve upgrade can offer this plan once that page exists.
+            </span>
+          ) : isPaystackSyncable(plan.priceAmount, plan.billingInterval) ? (
+            <span className="font-medium text-amber-700 dark:text-amber-400">
+              not linked yet — save this plan again, or check that Busihub&apos;s Paystack account is configured.
+            </span>
+          ) : (
+            <span>not applicable — only a paid monthly or yearly plan gets linked.</span>
+          )}
+        </p>
+      ) : null}
 
       <div>
         <h3 className="text-sm font-medium text-neutral-800 dark:text-ink">Limits</h3>

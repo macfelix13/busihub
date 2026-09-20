@@ -623,6 +623,40 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Follow-up to the tenant-isolation entry directly below this
+  one: after fixing busihub35@gmail.com, checked the rest of the platform
+  for the same misconfiguration (`select ... from profiles where
+  is_super_admin = true`, joined to `businesses` — now the standing way to
+  audit this) and found it was not an isolated case. Two more real,
+  actively-used accounts had `is_super_admin = true` while also owning a
+  real business: macfelix13@gmail.com (Big Dreams Ltd.) and
+  macfelix21@gmail.com (Smart Supermarket) — both hitting the exact same
+  `app_is_super_admin()` RLS bypass on their own ordinary dashboards,
+  which is what was actually behind the original report that Big Dreams
+  Ltd.'s products and sales were "found in" other businesses: it wasn't
+  Big Dreams Ltd. leaking specifically, it was macfelix13@gmail.com's own
+  session seeing every business merged together the same way
+  busihub35@gmail.com's did.
+  Fixed differently from busihub35@gmail.com's case on purpose: that
+  account's business was empty test data, safe to detach entirely
+  (`business_id = null`). These two are real, in-use businesses, so
+  detaching them would have broken the owners' own access. Instead,
+  `is_super_admin` was cleared on both (same `busihub.privileged_write`
+  session-flag mechanism, `prevent_protected_profile_changes()`, 0009) and
+  `business_id` left untouched — each keeps running its own business
+  exactly as before, just without platform-wide visibility. No code
+  change needed for this half: the RLS policies were always correct
+  (`business_id = own business OR is_super_admin()`) — the bug was purely
+  that `is_super_admin` was set on accounts it should never have been set
+  on. Confirmed after: `select ... where is_super_admin = true` returns
+  exactly one row, busihub35@gmail.com, `business_id` null.
+  Open question this doesn't answer: how these two accounts came to have
+  `is_super_admin = true` in the first place, since `bootstrap_super_admin()`
+  (0035) requires deliberately running it by hand against a specific
+  user id — worth keeping in mind that the audit query above is now the
+  only reliable way to know the true list, not assuming it matches
+  whatever was last discussed.
+
 - 2026-09-20 — Fixed a real tenant-isolation leak found in production, not
   a hypothetical: a profile was both a business owner (`business_id` set)
   and `is_super_admin = true` at the same time — created by granting Super

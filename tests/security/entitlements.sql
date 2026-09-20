@@ -20,6 +20,12 @@
 --   5. business_subscriptions itself is still Super-Admin-only to write
 --      directly (RLS, unchanged by this migration) — a business owner's
 --      own direct UPDATE attempt silently matches zero rows.
+--   6. admin_upsert_subscription_plan() (migration 0059) is Super-Admin-
+--      only, creates and updates subscription_plans rows correctly,
+--      rejects a duplicate slug/unknown billing_interval/unknown plan id,
+--      and — via app_validate_plan_limits() — rejects an unrecognised
+--      limits key or a negative limit value rather than silently
+--      accepting a typo that would enforce nothing.
 --
 -- This file runs directly after tests/security/tenant_isolation_and_rbac.sql
 -- (which hardcodes an exact business count and must stay first — see its
@@ -430,8 +436,148 @@ end $$;
 
 reset role;
 
+-- ── 6. admin_upsert_subscription_plan() (0059): plan catalog CRUD ────────
+
+-- Not reachable by a plain business owner.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001400';
+
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-x', 'Ent Plan X', null, 10, 'GHS', 'month',
+      jsonb_build_object('max_users', 1, 'max_branches', 1, 'max_products', 1, 'max_pos_terminals', 1, 'storage_mb', 1,
+        'features', jsonb_build_object('advanced_reports', false, 'api_access', false, 'sms_notifications', false)),
+      true, 50
+    );
+    raise exception 'TEST FAILED: a plain business owner was able to call admin_upsert_subscription_plan';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: admin_upsert_subscription_plan is Super-Admin-only (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001420';
+
+-- A Super Admin can create a new plan; it lands with exactly the fields given.
+do $$
+declare v_id uuid; v_row subscription_plans%rowtype;
+begin
+  v_id := admin_upsert_subscription_plan(
+    null, 'Ent-Plan-New', 'Ent Plan New', '  a test plan  ', 199.99, 'ghs', 'month',
+    jsonb_build_object('max_users', 4, 'max_branches', null, 'max_products', 10, 'max_pos_terminals', 1, 'storage_mb', 100,
+      'features', jsonb_build_object('advanced_reports', true, 'api_access', false, 'sms_notifications', false)),
+    true, 50
+  );
+  select * into v_row from subscription_plans where id = v_id;
+  if v_row.slug <> 'ent-plan-new' or v_row.name <> 'Ent Plan New' or v_row.description <> 'a test plan'
+     or v_row.price_amount <> 199.99 or v_row.currency_code <> 'GHS' or v_row.limits ->> 'max_branches' is not null
+     or (v_row.limits ->> 'max_users')::int <> 4 then
+    raise exception 'TEST FAILED: created plan does not match what was given (%)', to_jsonb(v_row);
+  end if;
+  raise notice 'PASS: a Super Admin can create a new plan (slug lowercased, description trimmed, limits stored as given)';
+end $$;
+
+-- Duplicate slug is rejected.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-new', 'Ent Plan Dup', null, 0, 'GHS', 'month', jsonb_build_object(), true, 0
+    );
+    raise exception 'TEST FAILED: a duplicate plan slug was accepted';
+  exception
+    when sqlstate '23505' then
+      raise notice 'PASS: a duplicate plan slug is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+-- An unknown billing_interval is rejected.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-bad-interval', 'Bad Interval', null, 0, 'GHS', 'fortnight', jsonb_build_object(), true, 0
+    );
+    raise exception 'TEST FAILED: an unknown billing_interval was accepted';
+  exception
+    when sqlstate '22023' then
+      raise notice 'PASS: an unknown billing_interval is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+-- A typo'd limits key is rejected, rather than silently doing nothing.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-bad-limit-key', 'Bad Limit Key', null, 0, 'GHS', 'month',
+      jsonb_build_object('max_branch', 1), true, 0
+    );
+    raise exception 'TEST FAILED: an unrecognised limits key (max_branch) was accepted';
+  exception
+    when sqlstate '22023' then
+      raise notice 'PASS: an unrecognised limits key is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+-- A negative limit value is rejected.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      null, 'ent-plan-negative-limit', 'Negative Limit', null, 0, 'GHS', 'month',
+      jsonb_build_object('max_branches', -1), true, 0
+    );
+    raise exception 'TEST FAILED: a negative limit value was accepted';
+  exception
+    when sqlstate '22023' then
+      raise notice 'PASS: a negative limit value is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+-- Updating an existing plan by id changes it in place (same id, new price).
+do $$
+declare v_id uuid; v_returned_id uuid; v_price numeric;
+begin
+  select id into v_id from subscription_plans where slug = 'ent-plan-new';
+  v_returned_id := admin_upsert_subscription_plan(
+    v_id, 'ent-plan-new', 'Ent Plan New (renamed)', null, 249.50, 'GHS', 'month',
+    jsonb_build_object('max_users', 4, 'max_branches', null, 'max_products', 10, 'max_pos_terminals', 1, 'storage_mb', 100,
+      'features', jsonb_build_object('advanced_reports', true, 'api_access', false, 'sms_notifications', false)),
+    true, 50
+  );
+  select price_amount into v_price from subscription_plans where id = v_id;
+  if v_returned_id <> v_id or v_price <> 249.50 then
+    raise exception 'TEST FAILED: updating an existing plan by id did not take effect (returned id %, price %)', v_returned_id, v_price;
+  end if;
+  raise notice 'PASS: updating an existing plan by id changes it in place';
+end $$;
+
+-- An unknown plan id on an update is rejected, not silently a no-op.
+do $$
+begin
+  begin
+    perform admin_upsert_subscription_plan(
+      '00000000-0000-0000-0000-000000009999', 'ent-plan-ghost', 'Ghost Plan', null, 0, 'GHS', 'month', jsonb_build_object(), true, 0
+    );
+    raise exception 'TEST FAILED: an update with an unknown plan id was accepted';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: an update with an unknown plan id is rejected (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
 -- ── cleanup ────────────────────────────────────────────────────────────
 
 drop table ent_ids;
 
-do $$ begin raise notice 'All entitlements (0058) tests passed.'; end $$;
+do $$ begin raise notice 'All entitlements (0058/0059) tests passed.'; end $$;

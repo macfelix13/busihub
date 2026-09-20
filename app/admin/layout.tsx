@@ -46,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           Platform
         </span>
         {/* Plain links, no active-route highlighting — this layout is a
-            Server Component and the console is small enough (4 pages)
+            Server Component and the console is small enough (5 sections)
             that usePathname's client-component cost isn't worth it yet. */}
         <nav className="flex flex-wrap items-center gap-1 text-sm">
           <Link href="/admin" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
@@ -54,6 +54,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
           <Link href="/admin/businesses" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
             Businesses
+          </Link>
+          <Link href="/admin/plans" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
+            Plans
           </Link>
           <Link href="/admin/support" className="rounded-lg px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-ink-muted dark:hover:bg-surface/60 dark:hover:text-ink">
             Support

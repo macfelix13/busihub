@@ -345,7 +345,20 @@ collection is not, by deliberate decision. See below.**
   `advanced_reports`, `storage_mb`, …) — **no plan limit is ever hardcoded
   in application code**; every gate reads this row, via `lib/entitlements`
   (UI-level) and `app_plan_limits()`/`app_enforce_limit()` (SQL,
-  server-side) alike.
+  server-side) alike. Until migration 0059 this table had no UI at all —
+  only ever seeded once (0010) and never touched again. Super Admin can
+  now create and edit plans (name, price, limits) from `/admin/plans`,
+  via `admin_upsert_subscription_plan()`, the same "hand-operated,
+  Super-Admin-only, logged" shape as `admin_set_business_subscription()`
+  below. A companion helper, `app_validate_plan_limits()`, rejects any
+  `limits` key outside the ones this codebase actually reads and any
+  numeric value that isn't null (unlimited) or a non-negative whole
+  number — the schema this jsonb column doesn't otherwise have, so a
+  typo'd key can no longer silently enforce nothing. Deleting a plan
+  isn't supported; retire one with "Active" unchecked instead (the
+  assignment dropdown on `/admin/businesses/[id]` already only lists
+  active plans) — a real delete would first need to decide what happens
+  to a business still on it.
 - `business_subscriptions`: which plan a business is on, `status`
   (`trialing`, `active`, `past_due`, `suspended`, `cancelled`, `expired`),
   period dates, and (0058) `past_due_since` for grace-period tracking.
@@ -394,7 +407,13 @@ collection is not, by deliberate decision. See below.**
   `/admin/businesses/[id]` — after being paid some other way. This is the
   kind of honest, partial completion the project brief calls for: limits
   are genuinely enforced and a lapsed account is genuinely locked out; the
-  system just doesn't move money yet.
+  system just doesn't move money yet. Migration 0059 (`/admin/plans`)
+  narrows this gap on one side only — Super Admin can now set what a plan
+  costs and what it includes — but a business still cannot pay Busihub
+  for it themselves; that half (which payment mechanism collects the
+  money, and whether it's a recurring auto-charge or a manual
+  pay-each-period/pay-by-transfer flow) is a decision still being scoped
+  as of this writing, not yet designed or built.
 
 Full detail lives here and in migration 0058 itself rather than being
 folded into `docs/DATABASE.md` as an earlier draft of this section said —
@@ -496,7 +515,7 @@ one section of this document expected to change often.
 | 15 | Notifications | **done — in-app only, see changelog** (SMS/email deferred until a gateway/provider account exists; purchase-order and PIN-lockout alerts deferred to a later pass) |
 | 16 | Offline/PWA | **partial — installability only, see changelog** (real app icons, manifest, and a static-asset-caching service worker with a branded offline fallback page; no offline sale queue — that's Phase 17) |
 | 17 | Synchronization | **partial — mid-session resilience only, no visible connectivity indicator, see changelog** (a cash/credit sale rung up at the till while the connection drops mid-session queues on the device via IndexedDB and syncs automatically to `/api/sync` once reconnected, idempotently; opening or reloading `/till` from a cold start with no connection still doesn't work — that needs a whole separate offline catalog cache, deliberately scoped out — and there is no service-worker-driven Background Sync retry, by deliberate choice, not oversight; the "You're offline" / "N sales syncing" banner was removed on 2026-09-11 after repeated false-positives on real devices, see changelog — the queue and sync themselves are unaffected, there is just nothing on screen telling a cashier which state they're in) |
-| 18 | Subscriptions & entitlements enforcement | **done — limits (max_branches/max_products/max_users) and lockout enforcement are real and verified, see supabase/migrations/0058 + tests/security/entitlements.sql** (real recurring billing/payment collection is a deliberate, documented exception — see Section 9 and 0058's file header; a plan/status is set by a Super Admin by hand until that exists) |
+| 18 | Subscriptions & entitlements enforcement | **done — limits (max_branches/max_products/max_users) and lockout enforcement are real and verified, see supabase/migrations/0058 + tests/security/entitlements.sql; Super Admin can also now create/edit the plan catalog itself (price, limits, name) via `/admin/plans`, migration 0059** (real recurring billing/payment collection — a business paying Busihub directly to self-serve upgrade — is still a deliberate, documented exception; see Section 9 and 0058's file header; a plan/status is set by a Super Admin by hand until that exists) |
 | 19 | Super Admin | **done — full `/admin` console (layout guard + RLS backstop + audit logging), see supabase/migrations/0035_super_admin_console.sql** |
 | 20 | Audit/security monitoring surfaces | **done — see app/(app)/settings/audit-log/page.tsx; coverage extended in the 2026-09 review to refunds/voids, branch and business-settings changes, and customer credit-limit changes (docs/SECURITY_AUDIT_2026-09.md)** |
 | 21 | Automated test suite hardening | pending |
@@ -513,6 +532,30 @@ before being called done, per Section 2's completion definition.
 ---
 
 ## Changelog
+
+- 2026-09-19 — Phase 18 follow-up: Super Admin plan catalog management
+  (migration 0059). Phase 18 (below) enforced `subscription_plans` but
+  gave Super Admin no way to actually manage that catalog — every plan
+  had only ever come from 0010's one-time seed data. New
+  `admin_upsert_subscription_plan()` (Super-Admin-only, same
+  hand-operated/logged shape as `admin_set_business_subscription()`) is
+  the write path behind a new `/admin/plans` console section: a list of
+  every plan (active and retired), and a create/edit form for name,
+  slug, price, currency, billing interval, the three enforced limits plus
+  the two not-yet-enforced ones, and the three feature flags. A new
+  companion helper, `app_validate_plan_limits()`, rejects any `limits`
+  key outside the ones this codebase actually reads, and any numeric
+  value that isn't null (unlimited) or a non-negative whole number — the
+  schema this jsonb column never otherwise had, closing off the specific
+  failure mode of a typo'd limit key silently enforcing nothing. Deleting
+  a plan isn't supported (retire one with "Active" unchecked instead —
+  see this migration's own comment for why). This is only the pricing/
+  limits side of the two-part request that prompted it; a business
+  actually paying Busihub to self-serve an upgrade — real money moving to
+  Busihub, not to a shop's own Paystack account — is a separate, larger
+  piece (which payment mechanism, recurring vs. manual) still being
+  scoped, not built by this entry. See Section 9's updated
+  `subscription_plans` paragraph for the fuller design.
 
 - 2026-09-19 — Phase 18: Subscriptions & entitlements enforcement
   (migration 0058). The subscription schema (0006/0010) has existed since

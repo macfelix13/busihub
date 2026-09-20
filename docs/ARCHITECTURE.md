@@ -425,7 +425,7 @@ shapes match what this code expects. See below.**
   human decision — see below.
 - **A business can now actually pay Busihub.** A second, separate
   Paystack integration — Busihub's own account
-  (`PAYSTACK_PLATFORM_SECRET_KEY`/`PUBLIC_KEY`, `lib/paystack/platform-client.ts`,
+  (`PAYSTACK_SECRET_KEY`/`PAYSTACK_PUBLIC_KEY`, `lib/paystack/platform-client.ts`,
   sharing no runtime code with the per-shop integration in Section 8,
   which is a shop accepting mobile money from ITS OWN customers, not
   Busihub billing the shop) — now handles both halves: plan-catalog sync
@@ -623,6 +623,32 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Renamed the two env vars behind Busihub's own Paystack
+  account, by request: `PAYSTACK_PLATFORM_SECRET_KEY` /
+  `PAYSTACK_PLATFORM_PUBLIC_KEY` are now `PAYSTACK_SECRET_KEY` /
+  `PAYSTACK_PUBLIC_KEY` (the `lib/env.ts` function names stay
+  `paystackPlatformSecretKey()`/`paystackPlatformPublicKey()` — only the
+  deployed Vercel variable name got shorter, so every call site still
+  says which of the two Paystack integrations a value came from). Purely
+  a naming change with no code-path difference; there was never a real
+  collision risk with the per-shop integration's credentials, since those
+  are never env vars at all (they're rows in `business_payment_settings`,
+  encrypted at rest — see `lib/crypto/secret-box.ts`). Prompted directly
+  by this being the actual cause of the "still can't connect Paystack"
+  reports: the Vercel project had a variable named `PAYSTACK_SECRET_KEY`
+  with a real value already sitting in it, but the code was only ever
+  reading `PAYSTACK_PLATFORM_SECRET_KEY` — a name that simply didn't
+  exist in that Vercel project — so every plan save's Paystack sync
+  failed with "isn't configured yet" no matter what was entered.
+  Corrected an inaccurate claim made while diagnosing this: the public
+  key (`paystackPlatformPublicKey()`) is defined but not actually called
+  anywhere in this codebase today — every platform checkout goes through
+  Paystack's hosted redirect page (`initializeSubscriptionCheckout()`'s
+  `authorization_url`), which only needs the secret key server-side.
+  Setting the public key doesn't hurt and is worth having in place for
+  if an inline/client-side flow is ever added, but it is not, contrary
+  to what was said at the time, required for checkout to work today.
+
 - 2026-09-20 — Two Super Admin console fixes, both reported directly:
   (1) Saving a plan in `/admin/plans` that fails to sync to Paystack (bad
   or missing platform key, Paystack rejecting the request, a network
@@ -731,7 +757,7 @@ before being called done, per Section 2's completion definition.
   see the migration's own header). Saving a paid monthly/yearly plan in
   `/admin/plans` now also creates or updates a matching Paystack "Plan"
   object in Busihub's OWN Paystack account — a new, separate integration
-  (`lib/paystack/platform-client.ts`, `PAYSTACK_PLATFORM_SECRET_KEY`) from
+  (`lib/paystack/platform-client.ts`, `PAYSTACK_SECRET_KEY`) from
   the existing per-shop one (Section 8), sharing no runtime code with it.
   The sync is best-effort and visibly surfaced, never silently assumed:
   a Paystack failure logs an error and keeps the plan's previous/no code

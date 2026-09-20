@@ -36,7 +36,7 @@ function requireSecretKey(): string {
   const key = paystackPlatformSecretKey();
   if (!key) {
     throw new Error(
-      "PAYSTACK_PLATFORM_SECRET_KEY is not set — Busihub's own Paystack account isn't configured yet."
+      "PAYSTACK_SECRET_KEY is not set — Busihub's own Paystack account isn't configured yet."
     );
   }
   return key;

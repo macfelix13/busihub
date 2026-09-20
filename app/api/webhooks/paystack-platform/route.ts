@@ -9,7 +9,7 @@ import { disableSubscription } from "@/lib/paystack/platform-client";
  * This is a completely separate integration from
  * app/api/webhooks/paystack/[businessId] (a SHOP's own Paystack account,
  * collecting from ITS OWN customers): one fixed URL, one fixed secret
- * key (PAYSTACK_PLATFORM_SECRET_KEY), no per-business lookup at all.
+ * key (PAYSTACK_SECRET_KEY), no per-business lookup at all.
  *
  * Same three disciplines as the per-shop webhook, for the same reasons
  * (see that route's own comment): the signature is checked against the
@@ -288,7 +288,7 @@ async function handleSubscriptionCancelled(admin: Admin, event: PaystackPlatform
 export async function POST(request: Request) {
   const secretKey = paystackPlatformSecretKey();
   if (!secretKey) {
-    console.error("POST /api/webhooks/paystack-platform: PAYSTACK_PLATFORM_SECRET_KEY is not configured");
+    console.error("POST /api/webhooks/paystack-platform: PAYSTACK_SECRET_KEY is not configured");
     return new Response("Not configured", { status: 500 });
   }
 

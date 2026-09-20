@@ -46,11 +46,19 @@ export function cronSecret(): string | undefined {
  * these, it is a deployment-level secret set once in Vercel, not
  * end-user-supplied data stored per business. See
  * lib/paystack/platform-client.ts for what calls this.
+ *
+ * The env var itself is named PAYSTACK_SECRET_KEY/PAYSTACK_PUBLIC_KEY (no
+ * "PLATFORM" in the Vercel variable name, by request, since there's no
+ * naming collision to avoid — the per-shop credentials above are never
+ * env vars at all, only rows in the database). The function names below
+ * keep saying "Platform" on purpose, so it stays obvious at every call
+ * site which of the two Paystack integrations a value came from, even
+ * though the deployed variable name is shorter.
  */
 export function paystackPlatformSecretKey(): string | undefined {
-  return process.env.PAYSTACK_PLATFORM_SECRET_KEY;
+  return process.env.PAYSTACK_SECRET_KEY;
 }
 
 export function paystackPlatformPublicKey(): string | undefined {
-  return process.env.PAYSTACK_PLATFORM_PUBLIC_KEY;
+  return process.env.PAYSTACK_PUBLIC_KEY;
 }

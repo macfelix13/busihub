@@ -26,7 +26,12 @@ interface PlanRow {
  * needs to see it either way, same reasoning as
  * app/admin/businesses/page.tsx's own "all" status filter.
  */
-export default async function AdminPlansPage() {
+export default async function AdminPlansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ paystackError?: string }>;
+}) {
+  const { paystackError } = await searchParams;
   const supabase = await createServerSupabaseClient();
 
   const { data: planRows, error } = await supabase
@@ -53,6 +58,17 @@ export default async function AdminPlansPage() {
           <Button>New plan</Button>
         </Link>
       </div>
+
+      {paystackError ? (
+        <p
+          role="status"
+          className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200"
+        >
+          The plan itself was saved, but syncing it to Paystack failed: {paystackError}. It will show as
+          &quot;Not linked to Paystack&quot; below until this is fixed and the plan is saved again — check that
+          Busihub&apos;s Paystack platform keys are set correctly, then retry.
+        </p>
+      ) : null}
 
       {error ? (
         <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">

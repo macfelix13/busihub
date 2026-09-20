@@ -59,13 +59,22 @@ export default async function AdminHomePage() {
     if (error) console.error(`AdminHomePage: ${label} count failed`, error);
   }
 
+  // href on a tile is what makes it "functional" rather than a dead
+  // number — each points at the existing /admin/businesses filter that
+  // already shows exactly that slice (its status searchParam already
+  // supports all four statuses plus "new", added alongside this). Staff
+  // has no href: nothing in the admin console lists staff across every
+  // business today, so this tile stays a plain count rather than linking
+  // somewhere that doesn't actually show what the label promises —
+  // building that platform-wide staff directory is a real feature of its
+  // own, not a one-line link.
   const stats = [
-    { label: "Total businesses", value: totalBusinesses ?? 0, icon: Building2 },
-    { label: "Active", value: activeBusinesses ?? 0, icon: TrendingUp },
-    { label: "Suspended", value: suspendedBusinesses ?? 0, icon: PauseCircle },
-    { label: "Closed", value: closedBusinesses ?? 0, icon: Archive },
-    { label: "New signups (7 days)", value: newSignups ?? 0, icon: TrendingUp },
-    { label: "Staff, platform-wide", value: totalStaff ?? 0, icon: Users },
+    { label: "Total businesses", value: totalBusinesses ?? 0, icon: Building2, href: "/admin/businesses?status=all" },
+    { label: "Active", value: activeBusinesses ?? 0, icon: TrendingUp, href: "/admin/businesses?status=active" },
+    { label: "Suspended", value: suspendedBusinesses ?? 0, icon: PauseCircle, href: "/admin/businesses?status=suspended" },
+    { label: "Closed", value: closedBusinesses ?? 0, icon: Archive, href: "/admin/businesses?status=closed" },
+    { label: "New signups (7 days)", value: newSignups ?? 0, icon: TrendingUp, href: "/admin/businesses?status=new" },
+    { label: "Staff, platform-wide", value: totalStaff ?? 0, icon: Users, href: null },
   ];
 
   const openCount = openSupportRequests ?? 0;
@@ -80,8 +89,8 @@ export default async function AdminHomePage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
-          return (
-            <Card key={stat.label} className="p-4">
+          const card = (
+            <Card className="p-4" hoverable={Boolean(stat.href)}>
               <div className="flex items-start justify-between gap-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-ink-muted">
                   {stat.label}
@@ -92,6 +101,13 @@ export default async function AdminHomePage() {
               </div>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{stat.value}</p>
             </Card>
+          );
+          return stat.href ? (
+            <Link key={stat.label} href={stat.href} className="block">
+              {card}
+            </Link>
+          ) : (
+            <div key={stat.label}>{card}</div>
           );
         })}
       </div>

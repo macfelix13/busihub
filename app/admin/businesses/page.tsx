@@ -38,8 +38,8 @@ export default async function AdminBusinessesPage({
   searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
   const { q, status, page } = await searchParams;
-  const activeStatus: BusinessStatus | "all" =
-    status === "suspended" || status === "closed" || status === "all" ? status : "active";
+  const activeStatus: BusinessStatus | "all" | "new" =
+    status === "suspended" || status === "closed" || status === "all" || status === "new" ? status : "active";
   const pageNumber = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
 
   const supabase = await createServerSupabaseClient();
@@ -55,7 +55,17 @@ export default async function AdminBusinessesPage({
     .order("created_at", { ascending: false })
     .range((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE - 1);
 
-  if (activeStatus !== "all") {
+  if (activeStatus === "new") {
+    // Mirrors the Overview page's own "New signups (7 days)" tile
+    // (app/admin/page.tsx) exactly, so that number and this filtered list
+    // always agree — a business's status (active/suspended/closed) is a
+    // separate axis from how recently it signed up, so this is a filter
+    // on created_at instead of the status column, and deliberately does
+    // NOT also constrain status (a brand-new business could already be
+    // suspended).
+    const sevenDaysAgo = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    query = query.gte("created_at", sevenDaysAgo);
+  } else if (activeStatus !== "all") {
     query = query.eq("status", activeStatus);
   }
   if (q && q.trim().length > 0) {
@@ -115,9 +125,9 @@ export default async function AdminBusinessesPage({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SegmentedControl
-          options={(["active", "suspended", "closed", "all"] as const).map((option) => ({
+          options={(["active", "suspended", "closed", "all", "new"] as const).map((option) => ({
             key: option,
-            label: option === "all" ? "All" : option.charAt(0).toUpperCase() + option.slice(1),
+            label: option === "all" ? "All" : option === "new" ? "New (7d)" : option.charAt(0).toUpperCase() + option.slice(1),
             active: activeStatus === option,
             href: { pathname: "/admin/businesses", query: { ...(q ? { q } : {}), status: option } },
           }))}

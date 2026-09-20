@@ -72,13 +72,21 @@ function paystackIntervalFor(billingInterval: string): PaystackPlanInterval | nu
 
 /**
  * Best-effort sync to Busihub's own Paystack account (lib/paystack/platform-client.ts)
- * — deliberately never throws and never blocks the plan save. A plan that
- * fails to sync just isn't offered on the self-serve checkout page once
- * that exists (migration 0061); it can still be assigned to a business by
- * hand today, exactly as it already can be. Returns the paystack_plan_code
- * to store: the freshly-synced one, the existing one if this plan isn't
- * syncable at all (cleared to null), or the existing one unchanged if a
- * sync attempt failed.
+ * — deliberately never throws and never blocks the plan save itself (the
+ * plan's own fields still save via admin_upsert_subscription_plan even
+ * when this fails). A plan that fails to sync just isn't offered on the
+ * self-serve checkout page (migration 0061); it can still be assigned to
+ * a business by hand today, exactly as it already can be.
+ *
+ * Returns both the paystack_plan_code to store (the freshly-synced one,
+ * null if this plan isn't syncable at all, or the existing one unchanged
+ * if a sync attempt failed) AND, when a sync was actually attempted and
+ * failed, the reason why. Until this, that reason was only ever
+ * console.error()'d — the Super Admin saw the save "succeed" (redirected
+ * back to /admin/plans as normal) with no indication anything went wrong,
+ * and the only visible symptom was the plan quietly staying "Not linked
+ * to Paystack" on that list with no explanation. syncError lets the
+ * caller surface it instead.
  */
 async function resolvePaystackPlanCode(params: {
   existingCode: string | null;
@@ -87,12 +95,12 @@ async function resolvePaystackPlanCode(params: {
   priceAmount: number;
   currencyCode: string;
   billingInterval: string;
-}): Promise<string | null> {
+}): Promise<{ planCode: string | null; syncError: string | null }> {
   const { existingCode, name, description, priceAmount, currencyCode, billingInterval } = params;
   const interval = paystackIntervalFor(billingInterval);
 
   if (interval === null || priceAmount <= 0) {
-    return null;
+    return { planCode: null, syncError: null };
   }
 
   const result = await createOrUpdatePaystackPlan({
@@ -109,10 +117,10 @@ async function resolvePaystackPlanCode(params: {
       existingCode,
       message: result.message,
     });
-    return existingCode;
+    return { planCode: existingCode, syncError: result.message ?? "Paystack didn't say why." };
   }
 
-  return result.planCode;
+  return { planCode: result.planCode, syncError: null };
 }
 
 /**
@@ -171,7 +179,7 @@ export async function upsertSubscriptionPlan(
     existingPaystackPlanCode = (existingPlan as { paystack_plan_code: string | null } | null)?.paystack_plan_code ?? null;
   }
 
-  const paystackPlanCode = await resolvePaystackPlanCode({
+  const { planCode: paystackPlanCode, syncError: paystackSyncError } = await resolvePaystackPlanCode({
     existingCode: existingPaystackPlanCode,
     name,
     description: description || null,
@@ -218,6 +226,18 @@ export async function upsertSubscriptionPlan(
   // reads this table", so this is the same all-affected-paths tradeoff
   // suspendBusiness/reactivateBusiness already accept for /admin/businesses.
   revalidatePath("/admin/businesses");
+
+  // The plan's own fields (name, price, limits, etc.) are saved either
+  // way at this point — admin_upsert_subscription_plan already succeeded
+  // above. This only reports whether the SEPARATE Paystack sync attempted
+  // just above also worked, so a sync failure (missing/invalid platform
+  // key, Paystack rejecting the request, a network error reaching
+  // Paystack) is something the Super Admin actually sees, instead of a
+  // silent redirect that looks identical to full success while the plan
+  // quietly stays "Not linked to Paystack".
+  if (paystackSyncError) {
+    redirect(`/admin/plans?paystackError=${encodeURIComponent(paystackSyncError)}`);
+  }
 
   redirect("/admin/plans");
 }

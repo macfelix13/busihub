@@ -623,6 +623,38 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Two Super Admin console fixes, both reported directly:
+  (1) Saving a plan in `/admin/plans` that fails to sync to Paystack (bad
+  or missing platform key, Paystack rejecting the request, a network
+  error reaching Paystack) used to only `console.error()` the reason —
+  the page still redirected back to `/admin/plans` looking exactly like a
+  full success, and the only visible symptom was the plan quietly staying
+  "Not linked to Paystack" with no explanation anywhere in the UI. This
+  is what was actually behind "I'm still unable to connect my Paystack as
+  super admin": the save itself was working (the plan's own fields
+  always save via `admin_upsert_subscription_plan` regardless), only the
+  separate Paystack sync was silently failing. `resolvePaystackPlanCode()`
+  (`app/admin/plans/actions.ts`) now returns why a sync failed, and
+  `upsertSubscriptionPlan()` redirects with that reason in a
+  `paystackError` query param, which `/admin/plans` now renders as a red
+  banner at the top of the page. (2) The Admin Overview page's six stat
+  tiles (`app/admin/page.tsx`) were already backed by real Supabase
+  counts — not fake data — but were plain, non-interactive cards. Four of
+  them (`Total businesses`, `Active`, `Suspended`, `Closed`) now link
+  straight into `/admin/businesses` with the matching `status` filter,
+  which already existed. `New signups (7 days)` now links there too via a
+  new `status=new` option added to `/admin/businesses` (filters
+  `created_at` within the last 7 days — a separate axis from a business's
+  active/suspended/closed status, so it doesn't also constrain status).
+  `Staff, platform-wide` deliberately stays a plain count: no page in the
+  admin console lists staff across every business today, and linking it
+  somewhere that doesn't actually show that would just trade one
+  non-functional tile for a non-functional link — a real platform-wide
+  staff directory is its own feature, not a one-line fix. Neither change
+  touched the database, so this was verified with a full TypeScript
+  cross-check only (no new errors beyond this sandbox's own documented
+  artifact classes) — no new migration, no SQL test suite run.
+
 - 2026-09-20 — Phase 19 follow-up: self-serve plan switching (migration
   0062). Explicit request: a business owner should never need a Super
   Admin to upgrade or downgrade — that gap is now closed. Settings →

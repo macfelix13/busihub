@@ -9,6 +9,10 @@ export interface SubscriptionSummary {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   pastDueSince: string | null;
+  /** Set once Paystack's own subscription.create event confirms it (migration 0061) — a business on this plan by a Super Admin's own hand, or one that hasn't finished the self-serve checkout webhook flow yet, has this as null. Settings → Billing uses this (not just `status`) to decide whether to show the self-serve upgrade picker or the manage/cancel section. */
+  paystackSubscriptionCode: string | null;
+  /** The current plan's own id — used by Settings → Billing to exclude it from the "other plans" self-serve picker. Null only alongside `plan: null` (no subscription_plans row at all, shouldn't happen past register_business()). */
+  planId: string | null;
   plan: {
     name: string;
     slug: string;
@@ -33,6 +37,8 @@ interface SubscriptionRow {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   past_due_since: string | null;
+  paystack_subscription_code: string | null;
+  plan_id: string | null;
   subscription_plans: {
     name: string;
     slug: string;
@@ -62,7 +68,7 @@ export async function getSubscriptionSummary(
   const { data, error } = await supabase
     .from("business_subscriptions")
     .select(
-      "status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, past_due_since, subscription_plans (name, slug, price_amount, currency_code, billing_interval, limits)"
+      "status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, past_due_since, paystack_subscription_code, plan_id, subscription_plans (name, slug, price_amount, currency_code, billing_interval, limits)"
     )
     .eq("business_id", businessId)
     .maybeSingle();
@@ -82,6 +88,8 @@ export async function getSubscriptionSummary(
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
     pastDueSince: row.past_due_since,
+    paystackSubscriptionCode: row.paystack_subscription_code,
+    planId: row.plan_id,
     plan: row.subscription_plans
       ? {
           name: row.subscription_plans.name,

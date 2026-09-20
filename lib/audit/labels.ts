@@ -46,6 +46,14 @@ export const ACTION_LABELS: Record<string, string> = {
   "platform.subscription_cancelled": "Subscription cancelled",
   "platform.subscription_plan_created": "Plan created",
   "platform.subscription_plan_updated": "Plan updated",
+  // Self-serve billing (migration 0061) — every one of these is written
+  // by app/api/webhooks/paystack-platform, Busihub's OWN Paystack
+  // account billing a business, never by any tenant user directly.
+  "platform.subscription_activated": "Subscription activated",
+  "platform.subscription_linked": "Subscription linked to Paystack",
+  "platform.subscription_renewed": "Subscription renewed",
+  "platform.subscription_payment_failed": "Subscription payment failed",
+  "platform.subscription_cancel_scheduled": "Cancellation scheduled",
   "payment_settings.connected": "Payment account connected",
   "payment_settings.updated": "Payment settings updated",
   "payment_settings.disconnected": "Payment account disconnected",
@@ -53,6 +61,10 @@ export const ACTION_LABELS: Record<string, string> = {
   "till.no_sale": "Till opened with no sale",
   "paystack_webhook.invalid_signature": "Rejected webhook (bad signature)",
   "paystack_webhook.duplicate_ignored": "Duplicate webhook ignored",
+  // The PLATFORM billing webhook's own security events — distinct from
+  // the two above, which are a SHOP's own Paystack webhook (0047).
+  "platform_paystack_webhook.invalid_signature": "Rejected billing webhook (bad signature)",
+  "platform_paystack_webhook.duplicate_ignored": "Duplicate billing webhook ignored",
   // Added in the 2026-09 security review (Gaps #2 and #5) — refunds,
   // voids, and the other sensitive mutations that previously left no
   // audit trail at all. See supabase/migrations/0049_audit_log_gaps.sql
@@ -128,6 +140,20 @@ export function describeAuditEntry(entry: AuditEntryLike, actorName: string, tar
       return `${actorName} created the "${typeof metadata.name === "string" ? metadata.name : "a"}" plan.`;
     case "platform.subscription_plan_updated":
       return `${actorName} updated the "${typeof metadata.name === "string" ? metadata.name : "a"}" plan.`;
+    case "platform.subscription_activated": {
+      const planName = typeof metadata.plan_name === "string" ? metadata.plan_name : "a paid plan";
+      return `${actorName} activated this business's subscription via self-serve checkout, on the ${planName} plan.`;
+    }
+    case "platform.subscription_linked":
+      return `${actorName} confirmed this business's Paystack subscription details.`;
+    case "platform.subscription_renewed":
+      return `${actorName} renewed this business's subscription for another period.`;
+    case "platform.subscription_payment_failed": {
+      const reason = typeof metadata.failure_reason === "string" ? metadata.failure_reason : null;
+      return `${actorName} couldn't collect this business's renewal payment${reason ? ` (${reason})` : ""} — moved into the grace period.`;
+    }
+    case "platform.subscription_cancel_scheduled":
+      return `${actorName} scheduled this business's subscription to cancel at the end of its current period.`;
     case "payment_settings.connected":
       return `${actorName} connected a payment account.`;
     case "payment_settings.updated":
@@ -142,6 +168,10 @@ export function describeAuditEntry(entry: AuditEntryLike, actorName: string, tar
       return "An incoming payment webhook was rejected — its signature did not match.";
     case "paystack_webhook.duplicate_ignored":
       return "An incoming payment webhook was ignored as a duplicate.";
+    case "platform_paystack_webhook.invalid_signature":
+      return "An incoming Busihub billing webhook was rejected — its signature did not match.";
+    case "platform_paystack_webhook.duplicate_ignored":
+      return "An incoming Busihub billing webhook was ignored as a duplicate.";
     case "sale.voided": {
       const receipt = typeof metadata.receipt_number === "string" ? metadata.receipt_number : "a sale";
       return `${actorName} voided ${receipt}.`;

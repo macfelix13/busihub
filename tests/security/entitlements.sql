@@ -33,6 +33,17 @@
 --      works via the parameter's default rather than erroring, confirming
 --      the old 10-argument signature was actually dropped (not left
 --      behind as a stale, un-synced overload — see 0060's own header).
+--   8. Self-serve billing (migration 0061): start_plan_checkout()
+--      requires business.manage, rejects a plan with no Paystack link or
+--      an unknown plan id, and records a real pending checkout row for
+--      the caller's own business. The five webhook-driven functions
+--      (platform_billing_activate_subscription/_link_subscription/
+--      _record_renewal/_record_payment_failed/_record_cancel_scheduled)
+--      are all service_role-only, each rejects an unknown business id,
+--      and each does what its name says — including that a second
+--      payment failure in a row does NOT reset the past_due grace clock,
+--      and that a null period end from platform_billing_link_subscription()
+--      leaves the existing one alone rather than clobbering it.
 --
 -- This file runs directly after tests/security/tenant_isolation_and_rbac.sql
 -- (which hardcodes an exact business count and must stay first — see its
@@ -656,8 +667,321 @@ end $$;
 reset role;
 reset request.jwt.claim.sub;
 
+-- ── 8. self-serve billing (0061): checkout, activation, renewal, ─────────
+-- payment failure, and cancellation ───────────────────────────────────────
+
+-- A plan actually linked to Paystack, for start_plan_checkout() to accept
+-- — plan_tiny/plan_enterprise (ent_ids) both have no paystack_plan_code,
+-- which is exactly what the "rejects an unsynced plan" test below needs.
+insert into subscription_plans (
+  slug, name, description, price_amount, currency_code, billing_interval, limits, is_active, sort_order, paystack_plan_code
+) values (
+  'ent-plan-billing', 'Ent Plan Billing (fixture only)', 'Test-harness-only plan for self-serve billing tests.',
+  99, 'GHS', 'month', jsonb_build_object(), true, 98, 'PLN_ent_billing_test'
+)
+on conflict (slug) do nothing;
+
+-- Not reachable without business.manage.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001401';
+
+do $$
+declare v_plan uuid;
+begin
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+  begin
+    perform start_plan_checkout(v_plan);
+    raise exception 'TEST FAILED: a staff member without business.manage was able to call start_plan_checkout';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: start_plan_checkout requires business.manage (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001400';
+
+-- Rejects a plan with no Paystack link.
+do $$
+declare v_plan uuid;
+begin
+  select plan_tiny into v_plan from ent_ids;
+  begin
+    perform start_plan_checkout(v_plan);
+    raise exception 'TEST FAILED: start_plan_checkout accepted a plan with no paystack_plan_code';
+  exception
+    when sqlstate 'P0001' then
+      raise notice 'PASS: start_plan_checkout rejects a plan not linked to Paystack (%)', sqlerrm;
+  end;
+end $$;
+
+-- Rejects an unknown plan id.
+do $$
+begin
+  begin
+    perform start_plan_checkout('00000000-0000-0000-0000-000000009998');
+    raise exception 'TEST FAILED: start_plan_checkout accepted an unknown plan id';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: start_plan_checkout rejects an unknown plan id (%)', sqlerrm;
+  end;
+end $$;
+
+-- Succeeds for the Owner on a plan that IS linked, and records a real,
+-- matching pending checkout row. platform_billing_checkouts itself is
+-- service_role-only (revoked from authenticated, migration 0061), so the
+-- reference is handed off via a temp table to check it back as the
+-- superuser running this script, rather than reading the table directly
+-- while still `set role authenticated`.
+create temporary table tmp_checkout_ref (reference uuid);
+grant insert, select on tmp_checkout_ref to authenticated;
+
+do $$
+declare v_plan uuid; v_reference uuid;
+begin
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+  v_reference := start_plan_checkout(v_plan);
+  insert into tmp_checkout_ref values (v_reference);
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+do $$
+declare v_biz uuid; v_plan uuid; v_reference uuid; v_row record;
+begin
+  select biz_a into v_biz from ent_ids;
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+  select reference into v_reference from tmp_checkout_ref;
+
+  select * into v_row from platform_billing_checkouts where reference = v_reference;
+  if v_row.business_id <> v_biz or v_row.plan_id <> v_plan or v_row.consumed_at is not null then
+    raise exception 'TEST FAILED: start_plan_checkout''s checkout row does not match (got %)', to_jsonb(v_row);
+  end if;
+  raise notice 'PASS: start_plan_checkout records a pending checkout for the caller''s own business';
+end $$;
+
+drop table tmp_checkout_ref;
+
+-- The five webhook-driven functions are all service_role-only.
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-000000001400';
+
+do $$
+declare v_biz uuid; v_plan uuid;
+begin
+  select biz_a into v_biz from ent_ids;
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+
+  begin
+    perform platform_billing_activate_subscription(v_biz, v_plan, 'CUS_fake');
+    raise exception 'TEST FAILED: an ordinary authenticated session called platform_billing_activate_subscription';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: platform_billing_activate_subscription is service_role-only (%)', sqlerrm;
+  end;
+
+  begin
+    perform platform_billing_link_subscription(v_biz, 'SUB_fake', 'tok_fake', now());
+    raise exception 'TEST FAILED: an ordinary authenticated session called platform_billing_link_subscription';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: platform_billing_link_subscription is service_role-only (%)', sqlerrm;
+  end;
+
+  begin
+    perform platform_billing_record_renewal(v_biz, now());
+    raise exception 'TEST FAILED: an ordinary authenticated session called platform_billing_record_renewal';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: platform_billing_record_renewal is service_role-only (%)', sqlerrm;
+  end;
+
+  begin
+    perform platform_billing_record_payment_failed(v_biz, 'card declined');
+    raise exception 'TEST FAILED: an ordinary authenticated session called platform_billing_record_payment_failed';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: platform_billing_record_payment_failed is service_role-only (%)', sqlerrm;
+  end;
+
+  begin
+    perform platform_billing_record_cancel_scheduled(v_biz);
+    raise exception 'TEST FAILED: an ordinary authenticated session called platform_billing_record_cancel_scheduled';
+  exception
+    when insufficient_privilege then
+      raise notice 'PASS: platform_billing_record_cancel_scheduled is service_role-only (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+reset request.jwt.claim.sub;
+
+-- Put biz_a into a known past_due state first, so activation's own
+-- "clears past_due_since" behaviour has something real to clear.
+update business_subscriptions set status = 'past_due', past_due_since = now() - interval '1 day'
+  where business_id = (select biz_a from ent_ids);
+
+set role service_role;
+
+-- platform_billing_activate_subscription(): unknown business is rejected.
+do $$
+declare v_plan uuid;
+begin
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+  begin
+    perform platform_billing_activate_subscription('00000000-0000-0000-0000-000000009997', v_plan, 'CUS_fake');
+    raise exception 'TEST FAILED: platform_billing_activate_subscription accepted an unknown business id';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: platform_billing_activate_subscription rejects an unknown business id (%)', sqlerrm;
+  end;
+end $$;
+
+-- platform_billing_activate_subscription(): the real, successful path.
+do $$
+declare v_biz uuid; v_plan uuid; v_row business_subscriptions%rowtype; v_action_count int;
+begin
+  select biz_a into v_biz from ent_ids;
+  select id into v_plan from subscription_plans where slug = 'ent-plan-billing';
+
+  perform platform_billing_activate_subscription(v_biz, v_plan, 'CUS_ent_test');
+
+  select * into v_row from business_subscriptions where business_id = v_biz;
+  if v_row.status <> 'active' or v_row.plan_id <> v_plan or v_row.paystack_customer_code <> 'CUS_ent_test'
+     or v_row.past_due_since is not null or v_row.cancel_at_period_end then
+    raise exception 'TEST FAILED: platform_billing_activate_subscription did not set the expected fields (got %)', to_jsonb(v_row);
+  end if;
+
+  select count(*) into v_action_count from audit_logs where business_id = v_biz and action = 'platform.subscription_activated';
+  if v_action_count < 1 then
+    raise exception 'TEST FAILED: platform_billing_activate_subscription did not write an audit_logs row';
+  end if;
+  raise notice 'PASS: platform_billing_activate_subscription moves the business to active on the chosen plan, clears past_due_since, and logs it';
+end $$;
+
+-- platform_billing_link_subscription(): sets the Paystack identifiers.
+do $$
+declare v_biz uuid; v_end timestamptz := now() + interval '30 days'; v_row business_subscriptions%rowtype;
+begin
+  select biz_a into v_biz from ent_ids;
+  perform platform_billing_link_subscription(v_biz, 'SUB_ent_test', 'tok_ent_test', v_end);
+
+  select * into v_row from business_subscriptions where business_id = v_biz;
+  if v_row.paystack_subscription_code <> 'SUB_ent_test' or v_row.paystack_email_token <> 'tok_ent_test'
+     or v_row.current_period_end <> v_end then
+    raise exception 'TEST FAILED: platform_billing_link_subscription did not set the expected fields (got %)', to_jsonb(v_row);
+  end if;
+  raise notice 'PASS: platform_billing_link_subscription sets subscription_code/email_token/current_period_end';
+end $$;
+
+-- platform_billing_link_subscription(): a null period end leaves the
+-- existing one unchanged, rather than clobbering it with null.
+do $$
+declare v_biz uuid; v_before timestamptz; v_after timestamptz;
+begin
+  select biz_a into v_biz from ent_ids;
+  select current_period_end into v_before from business_subscriptions where business_id = v_biz;
+  perform platform_billing_link_subscription(v_biz, 'SUB_ent_test', 'tok_ent_test', null);
+  select current_period_end into v_after from business_subscriptions where business_id = v_biz;
+  if v_after <> v_before then
+    raise exception 'TEST FAILED: a null p_current_period_end changed current_period_end (was %, now %)', v_before, v_after;
+  end if;
+  raise notice 'PASS: platform_billing_link_subscription with a null period end leaves the existing one unchanged';
+end $$;
+
+-- platform_billing_link_subscription(): unknown business is rejected.
+do $$
+begin
+  begin
+    perform platform_billing_link_subscription('00000000-0000-0000-0000-000000009997', 'SUB_x', 'tok_x', now());
+    raise exception 'TEST FAILED: platform_billing_link_subscription accepted an unknown business id';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: platform_billing_link_subscription rejects an unknown business id (%)', sqlerrm;
+  end;
+end $$;
+
+-- platform_billing_record_payment_failed(): active -> past_due, once —
+-- and a second failure in a row must not push past_due_since forward.
+do $$
+declare v_biz uuid; v_status subscription_status; v_since1 timestamptz; v_since2 timestamptz;
+begin
+  select biz_a into v_biz from ent_ids;
+
+  perform platform_billing_record_payment_failed(v_biz, 'Insufficient funds');
+  select status, past_due_since into v_status, v_since1 from business_subscriptions where business_id = v_biz;
+  if v_status <> 'past_due' or v_since1 is null then
+    raise exception 'TEST FAILED: platform_billing_record_payment_failed did not move active -> past_due (status=%, past_due_since=%)', v_status, v_since1;
+  end if;
+
+  perform pg_sleep(0.01);
+  perform platform_billing_record_payment_failed(v_biz, 'Insufficient funds, again');
+  select past_due_since into v_since2 from business_subscriptions where business_id = v_biz;
+  if v_since2 <> v_since1 then
+    raise exception 'TEST FAILED: a second payment failure reset past_due_since (was %, now %)', v_since1, v_since2;
+  end if;
+  raise notice 'PASS: platform_billing_record_payment_failed moves active to past_due, and a repeat failure does not reset the grace clock';
+end $$;
+
+-- platform_billing_record_renewal(): recovers from past_due to active
+-- and bumps current_period_end.
+do $$
+declare v_biz uuid; v_end timestamptz := now() + interval '60 days'; v_row business_subscriptions%rowtype;
+begin
+  select biz_a into v_biz from ent_ids;
+  perform platform_billing_record_renewal(v_biz, v_end);
+  select * into v_row from business_subscriptions where business_id = v_biz;
+  if v_row.status <> 'active' or v_row.current_period_end <> v_end or v_row.past_due_since is not null then
+    raise exception 'TEST FAILED: platform_billing_record_renewal did not recover the subscription (got %)', to_jsonb(v_row);
+  end if;
+  raise notice 'PASS: platform_billing_record_renewal moves past_due back to active and bumps current_period_end';
+end $$;
+
+-- platform_billing_record_renewal(): unknown business is rejected.
+do $$
+begin
+  begin
+    perform platform_billing_record_renewal('00000000-0000-0000-0000-000000009997', now());
+    raise exception 'TEST FAILED: platform_billing_record_renewal accepted an unknown business id';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: platform_billing_record_renewal rejects an unknown business id (%)', sqlerrm;
+  end;
+end $$;
+
+-- platform_billing_record_cancel_scheduled(): sets cancel_at_period_end.
+do $$
+declare v_biz uuid; v_cancel boolean;
+begin
+  select biz_a into v_biz from ent_ids;
+  perform platform_billing_record_cancel_scheduled(v_biz);
+  select cancel_at_period_end into v_cancel from business_subscriptions where business_id = v_biz;
+  if not v_cancel then
+    raise exception 'TEST FAILED: platform_billing_record_cancel_scheduled did not set cancel_at_period_end';
+  end if;
+  raise notice 'PASS: platform_billing_record_cancel_scheduled sets cancel_at_period_end';
+end $$;
+
+-- platform_billing_record_cancel_scheduled(): unknown business is rejected.
+do $$
+begin
+  begin
+    perform platform_billing_record_cancel_scheduled('00000000-0000-0000-0000-000000009997');
+    raise exception 'TEST FAILED: platform_billing_record_cancel_scheduled accepted an unknown business id';
+  exception
+    when sqlstate 'P0002' then
+      raise notice 'PASS: platform_billing_record_cancel_scheduled rejects an unknown business id (%)', sqlerrm;
+  end;
+end $$;
+
+reset role;
+
 -- ── cleanup ────────────────────────────────────────────────────────────
 
 drop table ent_ids;
 
-do $$ begin raise notice 'All entitlements (0058/0059/0060) tests passed.'; end $$;
+do $$ begin raise notice 'All entitlements (0058/0059/0060/0061) tests passed.'; end $$;

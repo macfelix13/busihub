@@ -14,22 +14,20 @@ import { paystackPlatformSecretKey } from "@/lib/env";
  * share no runtime code on purpose, so a mistake in one can't reach into
  * the other's credentials.
  *
- * Only the plan-sync half (creating/updating a Paystack "Plan" object,
- * called from Super Admin's /admin/plans) lives here so far — see
- * migration 0060's own header for why this ships in two deliveries. The
- * checkout-initialize/cancel-subscription functions this module will
- * also need are deliberately not written yet: there is no page that
- * would call them, and writing an untested, unused integration against
- * an external API ahead of the feature that exercises it is exactly the
- * kind of "looks done, isn't real" work the project brief warns against.
+ * Grew in two deliveries (see migration 0060's own header): plan sync
+ * first (createOrUpdatePaystackPlan, used by Super Admin's /admin/plans),
+ * now checkout/cancellation (initializeSubscriptionCheckout,
+ * verifyPlatformTransaction, disableSubscription — used by
+ * app/(app)/settings/billing and the platform webhook).
  *
  * IMPORTANT, stated plainly rather than implied: everything below is
- * written to Paystack's own documented REST contract for the Plan API,
- * but has NOT been exercised against a real Paystack account from this
- * environment (no live credentials are reachable here). It must be
- * run once against real Paystack test-mode keys — create a plan, edit
- * it, confirm what comes back matches what this code expects — before
- * it is trusted with a live key.
+ * written to Paystack's own documented REST contract, but has NOT been
+ * exercised against a real Paystack account from this environment (no
+ * live credentials are reachable here). It must be run once against
+ * real Paystack TEST-mode keys — create a plan, run a full subscribe
+ * flow with a test card, confirm the webhook actually lands and matches
+ * what app/api/webhooks/paystack-platform/route.ts expects — before it
+ * is trusted with a live key.
  */
 
 const API = "https://api.paystack.co";
@@ -146,4 +144,188 @@ export async function createOrUpdatePaystackPlan(params: {
   }
 
   return { ok: true, planCode, message: null };
+}
+
+export interface CheckoutInitResult {
+  ok: boolean;
+  authorizationUrl: string | null;
+  message: string | null;
+}
+
+interface PaystackInitializeResponse {
+  status?: boolean;
+  message?: string;
+  data?: { authorization_url?: string; access_code?: string; reference?: string };
+}
+
+/**
+ * Starts a hosted Paystack checkout for one billing period of a plan —
+ * the caller (app/(app)/settings/billing/actions.ts) redirects the
+ * business's browser to the returned authorization_url. Passing `plan`
+ * rather than `amount` is what makes Paystack treat this as a
+ * subscription checkout: on a successful charge, Paystack creates the
+ * subscription itself and bills `reference`'s email/card automatically
+ * every period after this one — nothing in this codebase re-initiates
+ * future charges.
+ *
+ * `reference` must be one this app generated itself (start_plan_checkout(),
+ * migration 0061) and already recorded in platform_billing_checkouts —
+ * that row is how the webhook (app/api/webhooks/paystack-platform) tells
+ * this specific checkout's charge.success apart from a routine renewal's.
+ */
+export async function initializeSubscriptionCheckout(params: {
+  email: string;
+  planCode: string;
+  reference: string;
+  callbackUrl: string;
+  metadata: Record<string, unknown>;
+}): Promise<CheckoutInitResult> {
+  const { email, planCode, reference, callbackUrl, metadata } = params;
+
+  let secretKey: string;
+  try {
+    secretKey = requireSecretKey();
+  } catch (err) {
+    console.error("initializeSubscriptionCheckout: no platform secret key configured", err);
+    return { ok: false, authorizationUrl: null, message: "Busihub's Paystack account isn't configured yet." };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API}/transaction/initialize`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        plan: planCode,
+        reference,
+        callback_url: callbackUrl,
+        metadata,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    console.error("initializeSubscriptionCheckout: request failed", err);
+    return { ok: false, authorizationUrl: null, message: "Couldn't reach Paystack." };
+  }
+
+  const body = (await response.json().catch(() => null)) as PaystackInitializeResponse | null;
+
+  if (!response.ok || !body?.status || !body.data?.authorization_url) {
+    console.error("initializeSubscriptionCheckout: Paystack rejected the request", {
+      status: response.status,
+      message: body?.message,
+    });
+    return {
+      ok: false,
+      authorizationUrl: null,
+      message: body?.message ?? `Paystack refused the request (HTTP ${response.status}).`,
+    };
+  }
+
+  return { ok: true, authorizationUrl: body.data.authorization_url, message: null };
+}
+
+export interface PlatformVerifyResult {
+  status: "success" | "failed" | "pending";
+  message: string | null;
+}
+
+/**
+ * Purely informational — used only to word the "processing"/"failed"
+ * banner on the return leg of checkout (app/(app)/settings/billing).
+ * Never writes anything, never decides whether the business is actually
+ * on the new plan: only the webhook's own platform_billing_activate_subscription()
+ * call does that, exactly the same "don't trust the redirect, trust the
+ * webhook" rule as the per-shop side's verifyTransaction().
+ */
+export async function verifyPlatformTransaction(reference: string): Promise<PlatformVerifyResult | null> {
+  let secretKey: string;
+  try {
+    secretKey = requireSecretKey();
+  } catch (err) {
+    console.error("verifyPlatformTransaction: no platform secret key configured", err);
+    return null;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API}/transaction/verify/${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+      signal: AbortSignal.timeout(15_000),
+      cache: "no-store",
+    });
+  } catch (err) {
+    console.error("verifyPlatformTransaction: request failed", err);
+    return null;
+  }
+
+  const body = (await response.json().catch(() => null)) as {
+    status?: boolean;
+    data?: { status?: string; gateway_response?: string };
+  } | null;
+
+  if (!response.ok || !body?.status || !body.data) {
+    return null;
+  }
+
+  const rawStatus = body.data.status;
+  const status: "success" | "failed" | "pending" =
+    rawStatus === "success" ? "success" : rawStatus === "failed" || rawStatus === "abandoned" ? "failed" : "pending";
+
+  return { status, message: body.data.gateway_response ?? null };
+}
+
+export interface DisableSubscriptionResult {
+  ok: boolean;
+  message: string | null;
+}
+
+/**
+ * Asks Paystack to stop future auto-renewal for one subscription — never
+ * called with anything other than a code/token this app already read
+ * back from its own business_subscriptions row (set by
+ * platform_billing_link_subscription()). Does not itself change
+ * anything in this database: cancel_at_period_end is only ever set once
+ * Paystack's own subscription.disable event confirms it
+ * (platform_billing_record_cancel_scheduled(), migration 0061) — same
+ * "webhook is the only source of truth" rule as everywhere else in this
+ * module.
+ */
+export async function disableSubscription(params: { code: string; token: string }): Promise<DisableSubscriptionResult> {
+  let secretKey: string;
+  try {
+    secretKey = requireSecretKey();
+  } catch (err) {
+    console.error("disableSubscription: no platform secret key configured", err);
+    return { ok: false, message: "Busihub's Paystack account isn't configured yet." };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API}/subscription/disable`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: params.code, token: params.token }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    console.error("disableSubscription: request failed", err);
+    return { ok: false, message: "Couldn't reach Paystack." };
+  }
+
+  const body = (await response.json().catch(() => null)) as { status?: boolean; message?: string } | null;
+
+  if (!response.ok || !body?.status) {
+    console.error("disableSubscription: Paystack rejected the request", { status: response.status, message: body?.message });
+    return { ok: false, message: body?.message ?? `Paystack refused the request (HTTP ${response.status}).` };
+  }
+
+  return { ok: true, message: null };
 }

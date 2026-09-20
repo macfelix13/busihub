@@ -67,6 +67,65 @@ interface PaystackPlanResponse {
 }
 
 /**
+ * True for Paystack's own "this plan code doesn't exist under this
+ * account" rejection on a PUT /plan/:code — as opposed to a genuine
+ * validation failure (bad amount, bad interval) that a fresh create
+ * would fail identically. Matched by wording, not a status code, because
+ * that is genuinely the only signal Paystack gives here — string-matched
+ * on purpose narrowly ("invalid" plus "plan id"/"plan code") so an
+ * unrelated rejection never gets mistaken for this one.
+ *
+ * Discovered for real, not guessed: switching PAYSTACK_SECRET_KEY from a
+ * TEST key to a LIVE key (or back) makes every plan_code stored from
+ * before that switch invalid — Paystack's TEST and LIVE modes are
+ * entirely separate catalogs sharing nothing, even under the same
+ * account, so a plan_code created in one mode simply does not exist in
+ * the other. Before this, that meant a plan could get permanently stuck:
+ * every resave kept PUTing to the same now-nonexistent code and kept
+ * failing the exact same way forever, with no way to recover short of a
+ * Super Admin manually clearing paystack_plan_code first. See the
+ * changelog entry for the exact error this was found from.
+ */
+function looksLikeUnknownPlanCode(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return lower.includes("invalid") && (lower.includes("plan id") || lower.includes("plan code"));
+}
+
+interface PaystackPlanRequestOutcome {
+  ok: boolean;
+  body: PaystackPlanResponse | null;
+  status: number;
+  networkError: boolean;
+}
+
+async function sendPlanRequest(
+  method: "POST" | "PUT",
+  url: string,
+  secretKey: string,
+  payload: Record<string, unknown>
+): Promise<PaystackPlanRequestOutcome> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    console.error("createOrUpdatePaystackPlan: request failed", err);
+    return { ok: false, body: null, status: 0, networkError: true };
+  }
+
+  const body = (await response.json().catch(() => null)) as PaystackPlanResponse | null;
+  return { ok: response.ok && Boolean(body?.status), body, status: response.status, networkError: false };
+}
+
+/**
  * Creates a new Paystack Plan (existingPlanCode is null) or updates the
  * one this subscription_plans row is already linked to (existingPlanCode
  * is set) — the caller (app/admin/plans/actions.ts) decides which by
@@ -75,6 +134,12 @@ interface PaystackPlanResponse {
  * amountMinorUnits is pesewas/kobo (Paystack's own minor unit), same
  * convention as lib/money/money.ts's toMinorUnits() — never pass a major-
  * unit decimal amount here.
+ *
+ * If existingPlanCode turns out not to exist under the current key
+ * (looksLikeUnknownPlanCode(), most commonly a TEST/LIVE key switch —
+ * see its own comment), this automatically falls back to creating a
+ * fresh plan instead of returning that failure — a resave should
+ * self-heal a stale code, not get permanently stuck repeating it.
  *
  * Deliberately never throws for an ordinary Paystack-side rejection (bad
  * amount, unreachable network, invalid key) — every one of those comes
@@ -101,42 +166,46 @@ export async function createOrUpdatePaystackPlan(params: {
     return { ok: false, planCode: null, message: "Busihub's Paystack account isn't configured yet." };
   }
 
-  const url = existingPlanCode ? `${API}/plan/${encodeURIComponent(existingPlanCode)}` : `${API}/plan`;
-  const method = existingPlanCode ? "PUT" : "POST";
+  const payload = {
+    name,
+    amount: amountMinorUnits,
+    interval,
+    currency: currencyCode,
+    description: description ?? undefined,
+  };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        amount: amountMinorUnits,
-        interval,
-        currency: currencyCode,
-        description: description ?? undefined,
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-  } catch (err) {
-    console.error("createOrUpdatePaystackPlan: request failed", err);
+  let method: "POST" | "PUT" = existingPlanCode ? "PUT" : "POST";
+  let url = existingPlanCode ? `${API}/plan/${encodeURIComponent(existingPlanCode)}` : `${API}/plan`;
+  let outcome = await sendPlanRequest(method, url, secretKey, payload);
+
+  if (outcome.networkError) {
     return { ok: false, planCode: null, message: "Couldn't reach Paystack." };
   }
 
-  const body = (await response.json().catch(() => null)) as PaystackPlanResponse | null;
+  if (!outcome.ok && method === "PUT" && looksLikeUnknownPlanCode(outcome.body?.message)) {
+    console.error(
+      "createOrUpdatePaystackPlan: existing plan_code doesn't exist under the current key (likely a TEST/LIVE key switch) — creating a fresh plan instead",
+      { existingPlanCode, message: outcome.body?.message }
+    );
+    method = "POST";
+    url = `${API}/plan`;
+    outcome = await sendPlanRequest(method, url, secretKey, payload);
+    if (outcome.networkError) {
+      return { ok: false, planCode: null, message: "Couldn't reach Paystack." };
+    }
+  }
 
-  if (!response.ok || !body?.status) {
+  const { ok, body, status } = outcome;
+
+  if (!ok) {
     console.error("createOrUpdatePaystackPlan: Paystack rejected the request", {
-      status: response.status,
+      status,
       message: body?.message,
     });
     return {
       ok: false,
       planCode: null,
-      message: body?.message ?? `Paystack refused the request (HTTP ${response.status}).`,
+      message: body?.message ?? `Paystack refused the request (HTTP ${status}).`,
     };
   }
 
@@ -144,8 +213,11 @@ export async function createOrUpdatePaystackPlan(params: {
   // echo plan_code back on an update the way POST /plan does on create —
   // when it's missing, the plan we just updated is still the one we sent
   // existingPlanCode for, so that's what's kept rather than treating a
-  // successful update as a failure over a field we already know.
-  const planCode = body.data?.plan_code ?? existingPlanCode ?? null;
+  // successful update as a failure over a field we already know. Only
+  // applies when this ended up as a PUT — the fallback-to-POST path above
+  // always creates a genuinely new plan, so it must return its own fresh
+  // plan_code rather than falling back to the stale existingPlanCode.
+  const planCode = body?.data?.plan_code ?? (method === "PUT" ? existingPlanCode : null);
   if (!planCode) {
     console.error("createOrUpdatePaystackPlan: Paystack accepted the request but returned no plan_code", body);
     return { ok: false, planCode: null, message: "Paystack didn't return a plan code." };

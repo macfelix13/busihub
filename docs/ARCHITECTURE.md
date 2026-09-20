@@ -623,6 +623,27 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Fixed plan sync getting permanently stuck after a TEST/LIVE
+  Paystack key switch. Reported directly: after switching
+  `PAYSTACK_SECRET_KEY` from a test key to a live key, resaving any plan
+  in `/admin/plans` failed every time with Paystack's own "Plan ID/code
+  specified is invalid" — and resaving again changed nothing, because
+  `createOrUpdatePaystackPlan()` (`lib/paystack/platform-client.ts`) kept
+  sending the same PUT to the same now-nonexistent plan_code forever.
+  Root cause: Paystack's TEST and LIVE modes are entirely separate
+  catalogs under the same account — a plan_code created in one mode does
+  not exist in the other, so switching keys orphans every previously
+  synced plan_code. `createOrUpdatePaystackPlan()` now recognizes that
+  specific rejection (`looksLikeUnknownPlanCode()`) and automatically
+  falls back to creating a fresh plan instead of returning the failure,
+  so a resave self-heals a stale code from a key switch rather than
+  getting stuck repeating it. A genuine validation failure (bad amount,
+  bad interval) is unaffected — the fallback only triggers on that one
+  specific "this identifier doesn't exist" rejection, matched narrowly by
+  wording since Paystack gives no other signal for it. No database
+  changes. Verified with a scoped strict TypeScript check (zero new
+  errors) and the full typecheck/lint/test/build suite.
+
 - 2026-09-20 — Fixed a real bug in self-serve checkout, found only once
   a live TEST-mode subscribe was actually attempted for the first time:
   clicking "Subscribe" or "Switch" on Settings → Billing failed every

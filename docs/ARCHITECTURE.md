@@ -623,6 +623,26 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Fixed a real bug in self-serve checkout, found only once
+  a live TEST-mode subscribe was actually attempted for the first time:
+  clicking "Subscribe" or "Switch" on Settings → Billing failed every
+  single time with Paystack's own "Invalid amount sent", shown right on
+  the button. `initializeSubscriptionCheckout()`
+  (`lib/paystack/platform-client.ts`) was calling Paystack's
+  `/transaction/initialize` with a `plan` code but no `amount` — its own
+  comment claimed passing `plan` made `amount` unnecessary, which is not
+  how Paystack's API actually works; `amount` is required on that
+  endpoint regardless of whether a plan is also passed. `startPlanCheckout()`
+  (`app/(app)/settings/billing/actions.ts`) now also reads the plan's
+  `price_amount`/`currency_code` and passes them through — same values
+  the plan was created with on Paystack's side via
+  `createOrUpdatePaystackPlan()`, so nothing about the actual price
+  changes, this only satisfies what the initialize call itself requires
+  to accept the request. This is exactly the kind of thing this module's
+  own header warned about since migration 0060/0061 shipped ("written to
+  Paystack's documented contract but not yet exercised against a real
+  account") — now it has been, and this is what that exercise found.
+
 - 2026-09-20 — Renamed the two env vars behind Busihub's own Paystack
   account, by request: `PAYSTACK_PLATFORM_SECRET_KEY` /
   `PAYSTACK_PLATFORM_PUBLIC_KEY` are now `PAYSTACK_SECRET_KEY` /

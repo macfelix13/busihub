@@ -7,6 +7,7 @@ import { requirePermission, AuthorizationError } from "@/lib/rbac/guard";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 import { initializeSubscriptionCheckout, disableSubscription } from "@/lib/paystack/platform-client";
 import { supabaseAppUrl } from "@/lib/env";
+import { toMinorUnits } from "@/lib/money/money";
 
 export interface StartCheckoutResult {
   authorizationUrl?: string;
@@ -55,15 +56,21 @@ export async function startPlanCheckout(planId: string): Promise<StartCheckoutRe
   // A plain select, not another RPC — subscription_plans_select (0009)
   // already lets any authenticated caller read an active plan's columns,
   // and start_plan_checkout() above already confirmed this exact plan is
-  // active and linked before handing back a reference.
+  // active and linked before handing back a reference. price_amount and
+  // currency_code are read here too, not just paystack_plan_code — Paystack's
+  // /transaction/initialize rejects the request outright ("Invalid amount
+  // sent") without an amount, even when a plan code is also passed, so
+  // initializeSubscriptionCheckout needs the plan's own price to send
+  // along with it (see that function's own comment for how this was found).
   const { data: plan, error: planError } = await supabase
     .from("subscription_plans")
-    .select("paystack_plan_code")
+    .select("paystack_plan_code, price_amount, currency_code")
     .eq("id", planId)
     .maybeSingle();
 
-  const planCode = (plan as { paystack_plan_code: string | null } | null)?.paystack_plan_code ?? null;
-  if (planError || !planCode) {
+  const planRow = plan as { paystack_plan_code: string | null; price_amount: number | string; currency_code: string } | null;
+  const planCode = planRow?.paystack_plan_code ?? null;
+  if (planError || !planRow || !planCode) {
     console.error("startPlanCheckout: plan has no Paystack code after start_plan_checkout succeeded", { planError, planId });
     return { error: "This plan isn't available for self-serve upgrade right now." };
   }
@@ -71,6 +78,8 @@ export async function startPlanCheckout(planId: string): Promise<StartCheckoutRe
   const result = await initializeSubscriptionCheckout({
     email: user.email,
     planCode,
+    amountMinorUnits: toMinorUnits(planRow.price_amount),
+    currencyCode: planRow.currency_code,
     reference: String(reference),
     callbackUrl: `${supabaseAppUrl()}/settings/billing?checkout=return`,
     // Redundant with the checkout row itself (the webhook matches by

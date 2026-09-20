@@ -20,14 +20,22 @@ import { paystackPlatformSecretKey } from "@/lib/env";
  * verifyPlatformTransaction, disableSubscription — used by
  * app/(app)/settings/billing and the platform webhook).
  *
- * IMPORTANT, stated plainly rather than implied: everything below is
- * written to Paystack's own documented REST contract, but has NOT been
- * exercised against a real Paystack account from this environment (no
- * live credentials are reachable here). It must be run once against
- * real Paystack TEST-mode keys — create a plan, run a full subscribe
- * flow with a test card, confirm the webhook actually lands and matches
- * what app/api/webhooks/paystack-platform/route.ts expects — before it
- * is trusted with a live key.
+ * IMPORTANT, stated plainly rather than implied: this was originally
+ * written to Paystack's own documented REST contract without ever having
+ * been exercised against a real Paystack account from this environment
+ * (no live credentials are reachable here) — and that first pass got one
+ * thing genuinely wrong: initializeSubscriptionCheckout() omitted
+ * `amount`, which Paystack's /transaction/initialize rejects outright
+ * with "Invalid amount sent" even when a plan code is also passed (fixed
+ * once this was actually run against real Paystack TEST-mode keys for
+ * the first time — see that function's own comment and the changelog).
+ * createOrUpdatePaystackPlan() has been confirmed working the same way.
+ * Still not yet confirmed end-to-end from here: that a full subscribe
+ * with a test card actually redirects back successfully, and that the
+ * webhook lands and matches what
+ * app/api/webhooks/paystack-platform/route.ts expects — run that full
+ * loop, and cancel/switch too, before trusting any of this with a live
+ * key.
  */
 
 const API = "https://api.paystack.co";
@@ -162,11 +170,21 @@ interface PaystackInitializeResponse {
  * Starts a hosted Paystack checkout for one billing period of a plan —
  * the caller (app/(app)/settings/billing/actions.ts) redirects the
  * business's browser to the returned authorization_url. Passing `plan`
- * rather than `amount` is what makes Paystack treat this as a
- * subscription checkout: on a successful charge, Paystack creates the
- * subscription itself and bills `reference`'s email/card automatically
- * every period after this one — nothing in this codebase re-initiates
- * future charges.
+ * is what makes Paystack create the subscription itself on a successful
+ * charge and bill `reference`'s email/card automatically every period
+ * after this one — nothing in this codebase re-initiates future charges.
+ *
+ * `amount` is REQUIRED here even though `plan` is also passed — this was
+ * gotten wrong on the first pass (the comment used to claim `plan`
+ * replaces `amount`, which is not how Paystack's own API works): calling
+ * /transaction/initialize with `plan` but no `amount` fails every single
+ * time with Paystack's own "Invalid amount sent", discovered only once
+ * this was actually exercised against a real Paystack account for the
+ * first time. `amountMinorUnits`/`currencyCode` should be the exact same
+ * values the plan itself was created with (createOrUpdatePaystackPlan) —
+ * Paystack uses the plan's own amount for the recurring charge either
+ * way, this is just what the initialize call itself requires to accept
+ * the request at all.
  *
  * `reference` must be one this app generated itself (start_plan_checkout(),
  * migration 0061) and already recorded in platform_billing_checkouts —
@@ -176,11 +194,13 @@ interface PaystackInitializeResponse {
 export async function initializeSubscriptionCheckout(params: {
   email: string;
   planCode: string;
+  amountMinorUnits: number;
+  currencyCode: string;
   reference: string;
   callbackUrl: string;
   metadata: Record<string, unknown>;
 }): Promise<CheckoutInitResult> {
-  const { email, planCode, reference, callbackUrl, metadata } = params;
+  const { email, planCode, amountMinorUnits, currencyCode, reference, callbackUrl, metadata } = params;
 
   let secretKey: string;
   try {
@@ -201,6 +221,8 @@ export async function initializeSubscriptionCheckout(params: {
       body: JSON.stringify({
         email,
         plan: planCode,
+        amount: amountMinorUnits,
+        currency: currencyCode,
         reference,
         callback_url: callbackUrl,
         metadata,

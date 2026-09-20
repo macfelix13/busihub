@@ -63,6 +63,31 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
+  if (!profile.business_id) {
+    // profiles_business_required_unless_super_admin (0004) guarantees a
+    // null business_id only ever belongs to a genuine Super Admin — an
+    // ordinary user always has one. Without this check that combination
+    // still couldn't see anything today: getCurrentBusinessId() below
+    // throws NoBusinessError for a null app_current_business_id(), and
+    // this layout's own catch sends it to /login. But that's an
+    // incidental side effect of an RPC throwing, not a deliberate rule —
+    // and it bounces a legitimate Super Admin back to the login screen
+    // instead of where they actually work. This makes the intent
+    // explicit and sends them somewhere useful.
+    //
+    // This also closes a real incident, not just a hypothetical: a
+    // profile that was both a business owner (business_id set) AND
+    // is_super_admin = true bypassed tenant isolation on every ordinary
+    // (app) page, because every RLS policy's "or app_is_super_admin()"
+    // escape hatch doesn't know or care which route issued the query
+    // (see docs/ARCHITECTURE.md's changelog for the full writeup). The
+    // fix for that specific account was clearing its business_id in the
+    // database; this is the code-side guard so the same misconfiguration
+    // can't quietly leak tenant data again through this layout even if
+    // it recurs.
+    redirect("/admin");
+  }
+
   const business = (profile as unknown as { businesses: { name: string; status: string } | null }).businesses;
   const businessName = business?.name;
 

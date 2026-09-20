@@ -623,6 +623,43 @@ before being called done, per Section 2's completion definition.
 
 ## Changelog
 
+- 2026-09-20 — Fixed a real tenant-isolation leak found in production, not
+  a hypothetical: a profile was both a business owner (`business_id` set)
+  and `is_super_admin = true` at the same time — created by granting Super
+  Admin (`bootstrap_super_admin()`, 0035) to an account that had already
+  signed up as a business owner. Every RLS policy in this database is
+  written as `business_id = app_current_business_id() OR
+  app_is_super_admin()` (0008/0009), which is the deliberate escape hatch
+  `/admin` needs to see every business at once — but it doesn't know or
+  care which route issued the query. The same account, signed into the
+  ordinary `(app)` dashboard rather than `/admin`, saw every business's
+  branches/products/sales merged into one view, because every `(app)`
+  page deliberately relies on RLS alone to scope its queries (no explicit
+  `.eq("business_id", ...)`, by design — see `branches/page.tsx`'s own
+  comment) and `is_super_admin` bypasses that scoping unconditionally.
+  Every other real business's isolation from every other was never
+  affected — this was specific to one account holding both roles at once.
+  Fixed in two parts: (1) immediate, data-only — cleared that profile's
+  `business_id` to `null` via the same `busihub.privileged_write` session
+  flag `bootstrap_super_admin()` itself uses (`business_id` is a
+  trigger-protected column, `prevent_protected_profile_changes()`, 0009),
+  restoring the shape `profiles_business_required_unless_super_admin`
+  (0004) always intended — "Super Admin platform staff... are not tenants
+  of any business." (2) code-side, `app/(app)/layout.tsx` now redirects to
+  `/admin` immediately if `profile.business_id` is `null`, right after the
+  existing `!profile` check. That combination can only mean a genuine
+  Super Admin (the 0004 constraint guarantees it), so this is unconditionally
+  safe, and it closes the gap structurally rather than relying on the
+  incidental side effect that `getCurrentBusinessId()` already threw
+  `NoBusinessError` for a null business and got caught by this same
+  layout's redirect to `/login` — that accidentally prevented data
+  exposure too, but sent a legitimate Super Admin to a confusing login
+  loop instead of `/admin`, and depended on an RPC's error behavior rather
+  than an explicit rule. No RLS policy changed; no migration needed for
+  the code fix. Lesson for any future Super Admin grant: never run
+  `bootstrap_super_admin()` against a profile that still has a
+  `business_id` — detach it from its business first.
+
 - 2026-09-20 — By request: Busihub's official administrative/support
   email is now `busihub35@gmail.com`, replacing the personal Gmail
   address (`macfelix13@gmail.com`) that had been the fallback since

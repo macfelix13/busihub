@@ -31,8 +31,8 @@
     "@zxing/browser": "^0.1.5"
   },
   "devDependencies": {
-    "pg": "8.12.0",
-    "@types/pg": "8.11.6",
+    "pg": "8.23.0",
+    "@types/pg": "8.23.1",
     "typescript": "5.5.4",
     "@types/node": ">=20.19.0",
     "@types/react": "18.3.3",
